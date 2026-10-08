@@ -566,6 +566,7 @@ function screenHome(): void {
         el("button", { class: "foot-btn", onclick: () => toast("How to play: guess words to warm up to the hidden word. Blue = cold, red = boiling, green = solved!") }, [t("howToPlay")]),
         el("a", { class: "foot-btn", href: APP_STORE_URL, target: "_blank", rel: "noopener" }, [t("getApp")]),
         el("button", { class: "foot-btn", onclick: screenSettings }, [t("settings")]),
+        el("a", { class: "foot-btn", href: "https://github.com/jasonepage/Wick", target: "_blank", rel: "noopener" }, [t("sourceCode")]),
       ]),
     ]),
   );
