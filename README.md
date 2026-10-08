@@ -124,8 +124,8 @@ through a TypeScript path alias, so the two cannot drift.
 ## Where this is going
 
 The next big change is to split what the server decides from what the
-player sees, the way osu! separates the game's judgement from skins. The
-server stays the one judge: the secret, the score, the bands, the clock and
+player sees, the way a rhythm game separates its judgement from its skins.
+The server stays the one judge: the secret, the score, the bands, the clock and
 the dictionary are the same for every player on every client. Everything
 cosmetic becomes a **pack**: a folder with a `manifest.json` and assets that
 a player can swap. Colors, the sounds for each heat step, the Keeper's name
@@ -135,7 +135,7 @@ change a score, because the scoring engine never reads from one.
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/packs-dark.svg">
-    <img alt="Where this is going: packs. The server stays the single judge of what is fair: the secret word, the scoring, the rank bands, the clock and the dictionary are the same for everyone. Everything the player sees and hears is meant to become a pack: colors, sounds, the Keeper's character and lines, the heat words, the share card. A pack is a folder with a manifest and assets, like an osu! skin. Planned, not built." src="docs/diagrams/packs-light.svg" width="100%">
+    <img alt="Where this is going: packs. The server stays the single judge of what is fair: the secret word, the scoring, the rank bands, the clock and the dictionary are the same for everyone. Everything the player sees and hears is meant to become a pack: colors, sounds, the Keeper's character and lines, the heat words, the share card. A pack is a folder with a manifest and assets. Planned, not built." src="docs/diagrams/packs-light.svg" width="100%">
   </picture>
 </p>
 

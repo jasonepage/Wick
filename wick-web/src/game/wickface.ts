@@ -120,11 +120,13 @@ function bodyRGB(opts: { score: number | null; neutral?: boolean }): RGB {
   return band(opts.score);
 }
 
-// iOS KeeperFlameShape ported to a 120×128 viewBox: a teardrop flame that fans wide
-// at the belly (x 5→115) and tapers to a soft tip at y≈8. Keep in lockstep with
-// KeeperFlameShape.path(in:) in KeeperView.swift.
+// iOS KeeperFlameShape ported point for point into a 120×128 viewBox. The iOS
+// frame is size × 1.18 size, so the flame is TALLER than it is wide (102 × 120
+// here, base at y 124, tip at y 4): belly at 0.52 h, x from 0.07 w to 0.93 w,
+// tip pulled narrow by control points at (0.32 w, 0.10 h) and (0.68 w, 0.10 h).
+// Keep in lockstep with KeeperFlameShape.path(in:) in KeeperView.swift.
 const FLAME =
-  "M60 122 C20 120 5 99 5 71 C5 36 32 19 60 8 C88 19 115 36 115 71 C115 99 100 120 60 122 Z";
+  "M60 124 C25.3 121.6 16.1 97.6 16.1 66.4 C16.1 30.4 41.6 16 60 4 C78.4 16 103.9 30.4 103.9 66.4 C103.9 97.6 94.7 121.6 60 124 Z";
 
 /** A small n-pointed star path (celebrating eyes + solve sparkles). */
 function starPath(cx: number, cy: number, r: number): string {
@@ -153,43 +155,46 @@ export function mascotSVG(opts: {
   const id = opts.id ?? "wick";
   const mood = moodFor(opts);
   const c = bodyRGB(opts);
-  const top = lighten(c, 0.34);
+  const top = lighten(c, 0.12);
   const bot = rgb(c);
   const W = "#ffffff";
-  const eyeY = 74;
-  const lx = 47;
-  const rx = 73;
-  const my = 93;
+  // Face geometry mirrors KeeperView: eye width 0.115 size, 0.16 size apart,
+  // mouth stroke 0.028 size, all in a 120-wide viewBox.
+  const eyeY = 72;
+  const lx = 43.6;
+  const rx = 76.4;
+  const my = 92;
+  const EYE_R = 6.9;
+  const STROKE = 3.4;
 
   // Eyes — white, mood-driven (mirrors KeeperView.moodEye).
   let eyes: string;
   if (mood === "celebrating") {
-    eyes = `<path d="${starPath(lx, eyeY, 8)}" fill="${W}"/><path d="${starPath(rx, eyeY, 8)}" fill="${W}"/>`;
+    eyes = `<path d="${starPath(lx, eyeY, 10)}" fill="${W}"/><path d="${starPath(rx, eyeY, 10)}" fill="${W}"/>`;
   } else if (mood === "unamused") {
     // Flat "-_-" dashes.
-    eyes = `<rect x="${lx - 8}" y="${eyeY - 2}" width="16" height="4" rx="2" fill="${W}" opacity="0.92"/>
-    <rect x="${rx - 8}" y="${eyeY - 2}" width="16" height="4" rx="2" fill="${W}" opacity="0.92"/>`;
+    eyes = `<rect x="${lx - 7}" y="${eyeY - 1.5}" width="14" height="3" rx="1.5" fill="${W}" opacity="0.85"/>
+    <rect x="${rx - 7}" y="${eyeY - 1.5}" width="14" height="3" rx="1.5" fill="${W}" opacity="0.85"/>`;
   } else if (mood === "freezing") {
     // Squint.
-    eyes = `<rect x="${lx - 6.5}" y="${eyeY - 2.5}" width="13" height="5" rx="2.5" fill="${W}"/>
-    <rect x="${rx - 6.5}" y="${eyeY - 2.5}" width="13" height="5" rx="2.5" fill="${W}"/>`;
+    eyes = `<rect x="${lx - 6.9}" y="${eyeY - 3.1}" width="13.8" height="6.2" rx="3.1" fill="${W}" opacity="0.9"/>
+    <rect x="${rx - 6.9}" y="${eyeY - 3.1}" width="13.8" height="6.2" rx="3.1" fill="${W}" opacity="0.9"/>`;
   } else {
-    const r = mood === "boiling" ? 7.6 : 6.6; // wide-eyed when boiling
-    eyes = `<circle cx="${lx}" cy="${eyeY}" r="${r}" fill="${W}"/><circle cx="${rx}" cy="${eyeY}" r="${r}" fill="${W}"/>
-    <circle cx="${lx - 1.6}" cy="${eyeY - 1.8}" r="1.8" fill="${bot}" opacity="0.5"/>
-    <circle cx="${rx - 1.6}" cy="${eyeY - 1.8}" r="1.8" fill="${bot}" opacity="0.5"/>`;
+    // Plain white discs, like iOS. No pupils: a pupil on a flame reads as a hole.
+    const r = mood === "boiling" ? EYE_R * 1.18 : EYE_R; // wide-eyed when boiling
+    eyes = `<circle cx="${lx}" cy="${eyeY}" r="${r}" fill="${W}" opacity="0.9"/><circle cx="${rx}" cy="${eyeY}" r="${r}" fill="${W}" opacity="0.9"/>`;
   }
 
   // Mouth — white, mood-driven (mirrors KeeperView.mouth).
   let mouth: string;
   if (mood === "celebrating" || mood === "boiling") {
-    mouth = `<path d="M50 ${my} A10 10 0 0 0 70 ${my} Z" fill="${W}" opacity="0.92"/>`; // open, delighted
+    mouth = `<path d="M51 ${my} A9 9 0 0 0 69 ${my} Z" fill="${W}" opacity="0.9"/>`; // open, delighted
   } else if (mood === "hot" || mood === "warm" || mood === "idle") {
-    mouth = `<path d="M50 ${my} Q60 ${my + 8} 70 ${my}" stroke="${W}" stroke-width="4" fill="none" stroke-linecap="round" opacity="0.92"/>`; // smile
+    mouth = `<path d="M51 ${my} Q60 ${my + 7} 69 ${my}" stroke="${W}" stroke-width="${STROKE}" fill="none" stroke-linecap="round" opacity="0.9"/>`; // smile
   } else if (mood === "unamused") {
-    mouth = `<path d="M52 ${my + 1} L68 ${my + 1}" stroke="${W}" stroke-width="4" fill="none" stroke-linecap="round" opacity="0.8"/>`; // flat
+    mouth = `<path d="M53 ${my + 1} L67 ${my + 1}" stroke="${W}" stroke-width="${STROKE}" fill="none" stroke-linecap="round" opacity="0.8"/>`; // flat
   } else {
-    mouth = `<path d="M50 ${my + 5} Q60 ${my - 4} 70 ${my + 5}" stroke="${W}" stroke-width="4" fill="none" stroke-linecap="round" opacity="0.9"/>`; // frown (cold)
+    mouth = `<path d="M51 ${my + 4} Q60 ${my - 3} 69 ${my + 4}" stroke="${W}" stroke-width="${STROKE}" fill="none" stroke-linecap="round" opacity="0.9"/>`; // frown (cold)
   }
 
   // Star eyes shouldn't blink (they twinkle instead); everything else can.
@@ -197,10 +202,10 @@ export function mascotSVG(opts: {
   const sparkles =
     mood === "celebrating"
       ? `<g fill="${rgb(PALETTE.warm)}">
-      <path class="spark" style="animation-delay:0s" d="${starPath(18, 42, 4)}"/>
-      <path class="spark" style="animation-delay:.4s" d="${starPath(104, 38, 3.4)}"/>
-      <path class="spark" style="animation-delay:.8s" d="${starPath(100, 88, 3)}"/>
-      <path class="spark" style="animation-delay:.2s" d="${starPath(16, 86, 3)}"/>
+      <path class="spark" style="animation-delay:0s" d="${starPath(22, 40, 4)}"/>
+      <path class="spark" style="animation-delay:.4s" d="${starPath(100, 34, 3.4)}"/>
+      <path class="spark" style="animation-delay:.8s" d="${starPath(104, 88, 3)}"/>
+      <path class="spark" style="animation-delay:.2s" d="${starPath(16, 84, 3)}"/>
     </g>`
       : "";
   // Big mascots breathe; tiny inline ones (opponent strip, Keeper badge) stay still.
@@ -215,15 +220,16 @@ export function mascotSVG(opts: {
         <stop offset="100%" stop-color="${bot}"/>
       </linearGradient>
       <filter id="soft-${id}" x="-40%" y="-40%" width="180%" height="180%">
-        <feGaussianBlur stdDeviation="4"/>
+        <feGaussianBlur stdDeviation="6"/>
       </filter>
     </defs>
     <g class="wick-float"><g class="wick-sway">
       <g class="flame-core">
-        <path class="flame-glow" d="${FLAME}" fill="${bot}" opacity="0.28" filter="url(#soft-${id})"
-          transform="translate(60 122) scale(1.06) translate(-60 -122)"/>
+        <path class="flame-glow" d="${FLAME}" fill="${bot}" opacity="0.30" filter="url(#soft-${id})"
+          transform="translate(60 124) scale(1.12) translate(-60 -124)"/>
         <path class="flame-body" d="${FLAME}" fill="url(#body-${id})"/>
-        <ellipse class="flame-sheen" cx="53" cy="54" rx="15" ry="23" fill="#ffffff" opacity="0.15" filter="url(#soft-${id})"/>
+        <g class="flame-sheen" opacity="0.22"><path d="${FLAME}" fill="#ffffff"
+          transform="translate(60 119) scale(0.55) translate(-60 -124)"/></g>
       </g>
       ${sparkles}
       <g${eyesCls}>${eyes}</g>
