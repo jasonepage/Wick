@@ -212,6 +212,7 @@ function parseServerFrame(raw: string): ServerFrame | null {
   const t = (obj as { t?: unknown }).t;
   if (
     t === "paired" ||
+    t === "queued" ||
     t === "state" ||
     t === "result" ||
     t === "scored" ||
