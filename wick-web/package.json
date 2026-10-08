@@ -1,0 +1,21 @@
+{
+  "name": "wick-web",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Wick web client (phase 3, milestone 1) — browser live-match client that talks to wick-api. Vite + TypeScript.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/qrcode": "^1.5.6",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.5"
+  },
+  "dependencies": {
+    "qrcode": "^1.5.4"
+  }
+}

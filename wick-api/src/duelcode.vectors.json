@@ -1,0 +1,1126 @@
+{
+  "duel": [
+    {
+      "code": "WK-3BKr7Ej",
+      "mode": "dare",
+      "language": "english",
+      "wordIndex": 0
+    },
+    {
+      "code": "WK-3BKr7Iq",
+      "mode": "dare",
+      "language": "english",
+      "wordIndex": 1
+    },
+    {
+      "code": "WK-3BKr9lH",
+      "mode": "dare",
+      "language": "english",
+      "wordIndex": 42
+    },
+    {
+      "code": "WK-3BKrCHI",
+      "mode": "dare",
+      "language": "english",
+      "wordIndex": 500
+    },
+    {
+      "code": "WK-3BKq1FG",
+      "mode": "dare",
+      "language": "english",
+      "wordIndex": 1039
+    },
+    {
+      "code": "WK-3BKsr3r",
+      "mode": "dare",
+      "language": "english",
+      "wordIndex": 4095
+    },
+    {
+      "code": "WK-3BKO3Zz",
+      "mode": "dare",
+      "language": "english",
+      "wordIndex": 65535
+    },
+    {
+      "code": "WK-3BGys1E",
+      "mode": "dare",
+      "language": "english",
+      "wordIndex": 262143
+    },
+    {
+      "code": "WK-3CVWQYH",
+      "mode": "race",
+      "language": "english",
+      "wordIndex": 0
+    },
+    {
+      "code": "WK-3CVWQcO",
+      "mode": "race",
+      "language": "english",
+      "wordIndex": 1
+    },
+    {
+      "code": "WK-3CVWT4p",
+      "mode": "race",
+      "language": "english",
+      "wordIndex": 42
+    },
+    {
+      "code": "WK-3CVWVaq",
+      "mode": "race",
+      "language": "english",
+      "wordIndex": 500
+    },
+    {
+      "code": "WK-3CVVKYo",
+      "mode": "race",
+      "language": "english",
+      "wordIndex": 1039
+    },
+    {
+      "code": "WK-3CVYANP",
+      "mode": "race",
+      "language": "english",
+      "wordIndex": 4095
+    },
+    {
+      "code": "WK-3CV3MtX",
+      "mode": "race",
+      "language": "english",
+      "wordIndex": 65535
+    },
+    {
+      "code": "WK-3CReBKm",
+      "mode": "race",
+      "language": "english",
+      "wordIndex": 262143
+    },
+    {
+      "code": "WK-3BGJX9l",
+      "mode": "dare",
+      "language": "spanish",
+      "wordIndex": 0
+    },
+    {
+      "code": "WK-3BGJXDs",
+      "mode": "dare",
+      "language": "spanish",
+      "wordIndex": 1
+    },
+    {
+      "code": "WK-3BGJZgJ",
+      "mode": "dare",
+      "language": "spanish",
+      "wordIndex": 42
+    },
+    {
+      "code": "WK-3BGJcCK",
+      "mode": "dare",
+      "language": "spanish",
+      "wordIndex": 500
+    },
+    {
+      "code": "WK-3BGIRAI",
+      "mode": "dare",
+      "language": "spanish",
+      "wordIndex": 1039
+    },
+    {
+      "code": "WK-3BGLGyt",
+      "mode": "dare",
+      "language": "spanish",
+      "wordIndex": 4095
+    },
+    {
+      "code": "WK-3BFqTV1",
+      "mode": "dare",
+      "language": "spanish",
+      "wordIndex": 65535
+    },
+    {
+      "code": "WK-3BCRHwG",
+      "mode": "dare",
+      "language": "spanish",
+      "wordIndex": 262143
+    },
+    {
+      "code": "WK-3CQyqTJ",
+      "mode": "race",
+      "language": "spanish",
+      "wordIndex": 0
+    },
+    {
+      "code": "WK-3CQyqXQ",
+      "mode": "race",
+      "language": "spanish",
+      "wordIndex": 1
+    },
+    {
+      "code": "WK-3CQyszr",
+      "mode": "race",
+      "language": "spanish",
+      "wordIndex": 42
+    },
+    {
+      "code": "WK-3CQyvVs",
+      "mode": "race",
+      "language": "spanish",
+      "wordIndex": 500
+    },
+    {
+      "code": "WK-3CQxkTq",
+      "mode": "race",
+      "language": "spanish",
+      "wordIndex": 1039
+    },
+    {
+      "code": "WK-3CR0aIR",
+      "mode": "race",
+      "language": "spanish",
+      "wordIndex": 4095
+    },
+    {
+      "code": "WK-3CQVmoZ",
+      "mode": "race",
+      "language": "spanish",
+      "wordIndex": 65535
+    },
+    {
+      "code": "WK-3CN6bFo",
+      "mode": "race",
+      "language": "spanish",
+      "wordIndex": 262143
+    },
+    {
+      "code": "WK-3BTwHOv",
+      "mode": "dare",
+      "language": "french",
+      "wordIndex": 0
+    },
+    {
+      "code": "WK-3BTwHT2",
+      "mode": "dare",
+      "language": "french",
+      "wordIndex": 1
+    },
+    {
+      "code": "WK-3BTwJvT",
+      "mode": "dare",
+      "language": "french",
+      "wordIndex": 42
+    },
+    {
+      "code": "WK-3BTwMSW",
+      "mode": "dare",
+      "language": "french",
+      "wordIndex": 500
+    },
+    {
+      "code": "WK-3BTvBPS",
+      "mode": "dare",
+      "language": "french",
+      "wordIndex": 1039
+    },
+    {
+      "code": "WK-3BTy1E3",
+      "mode": "dare",
+      "language": "french",
+      "wordIndex": 4095
+    },
+    {
+      "code": "WK-3BTTDkB",
+      "mode": "dare",
+      "language": "french",
+      "wordIndex": 65535
+    },
+    {
+      "code": "WK-3BQ42BQ",
+      "mode": "dare",
+      "language": "french",
+      "wordIndex": 262143
+    },
+    {
+      "code": "WK-3CebaiT",
+      "mode": "race",
+      "language": "french",
+      "wordIndex": 0
+    },
+    {
+      "code": "WK-3Cebama",
+      "mode": "race",
+      "language": "french",
+      "wordIndex": 1
+    },
+    {
+      "code": "WK-3CebdF1",
+      "mode": "race",
+      "language": "french",
+      "wordIndex": 42
+    },
+    {
+      "code": "WK-3Cebfm4",
+      "mode": "race",
+      "language": "french",
+      "wordIndex": 500
+    },
+    {
+      "code": "WK-3CeaUj0",
+      "mode": "race",
+      "language": "french",
+      "wordIndex": 1039
+    },
+    {
+      "code": "WK-3CedKXb",
+      "mode": "race",
+      "language": "french",
+      "wordIndex": 4095
+    },
+    {
+      "code": "WK-3Ce8X3j",
+      "mode": "race",
+      "language": "french",
+      "wordIndex": 65535
+    },
+    {
+      "code": "WK-3CajLUy",
+      "mode": "race",
+      "language": "french",
+      "wordIndex": 262143
+    },
+    {
+      "code": "WK-3BPOhJx",
+      "mode": "dare",
+      "language": "italian",
+      "wordIndex": 0
+    },
+    {
+      "code": "WK-3BPOhO4",
+      "mode": "dare",
+      "language": "italian",
+      "wordIndex": 1
+    },
+    {
+      "code": "WK-3BPOjqV",
+      "mode": "dare",
+      "language": "italian",
+      "wordIndex": 42
+    },
+    {
+      "code": "WK-3BPOmNY",
+      "mode": "dare",
+      "language": "italian",
+      "wordIndex": 500
+    },
+    {
+      "code": "WK-3BPNbJS",
+      "mode": "dare",
+      "language": "italian",
+      "wordIndex": 1039
+    },
+    {
+      "code": "WK-3BPQR95",
+      "mode": "dare",
+      "language": "italian",
+      "wordIndex": 4095
+    },
+    {
+      "code": "WK-3BOvdfD",
+      "mode": "dare",
+      "language": "italian",
+      "wordIndex": 65535
+    },
+    {
+      "code": "WK-3BLWS6S",
+      "mode": "dare",
+      "language": "italian",
+      "wordIndex": 262143
+    },
+    {
+      "code": "WK-3Ca40dV",
+      "mode": "race",
+      "language": "italian",
+      "wordIndex": 0
+    },
+    {
+      "code": "WK-3Ca40hc",
+      "mode": "race",
+      "language": "italian",
+      "wordIndex": 1
+    },
+    {
+      "code": "WK-3Ca43A3",
+      "mode": "race",
+      "language": "italian",
+      "wordIndex": 42
+    },
+    {
+      "code": "WK-3Ca45h6",
+      "mode": "race",
+      "language": "italian",
+      "wordIndex": 500
+    },
+    {
+      "code": "WK-3Ca2ud0",
+      "mode": "race",
+      "language": "italian",
+      "wordIndex": 1039
+    },
+    {
+      "code": "WK-3Ca5kSd",
+      "mode": "race",
+      "language": "italian",
+      "wordIndex": 4095
+    },
+    {
+      "code": "WK-3CZawyl",
+      "mode": "race",
+      "language": "italian",
+      "wordIndex": 65535
+    },
+    {
+      "code": "WK-3CWBlQ0",
+      "mode": "race",
+      "language": "italian",
+      "wordIndex": 262143
+    },
+    {
+      "code": "WK-3B2gmur",
+      "mode": "dare",
+      "language": "german",
+      "wordIndex": 0
+    },
+    {
+      "code": "WK-3B2gmyy",
+      "mode": "dare",
+      "language": "german",
+      "wordIndex": 1
+    },
+    {
+      "code": "WK-3B2gpRP",
+      "mode": "dare",
+      "language": "german",
+      "wordIndex": 42
+    },
+    {
+      "code": "WK-3B2gryS",
+      "mode": "dare",
+      "language": "german",
+      "wordIndex": 500
+    },
+    {
+      "code": "WK-3B2fguM",
+      "mode": "dare",
+      "language": "german",
+      "wordIndex": 1039
+    },
+    {
+      "code": "WK-3B2iWix",
+      "mode": "dare",
+      "language": "german",
+      "wordIndex": 4095
+    },
+    {
+      "code": "WK-3B2DjG7",
+      "mode": "dare",
+      "language": "german",
+      "wordIndex": 65535
+    },
+    {
+      "code": "WK-3AyoXhM",
+      "mode": "dare",
+      "language": "german",
+      "wordIndex": 262143
+    },
+    {
+      "code": "WK-3CDM6EP",
+      "mode": "race",
+      "language": "german",
+      "wordIndex": 0
+    },
+    {
+      "code": "WK-3CDM6IW",
+      "mode": "race",
+      "language": "german",
+      "wordIndex": 1
+    },
+    {
+      "code": "WK-3CDM8kx",
+      "mode": "race",
+      "language": "german",
+      "wordIndex": 42
+    },
+    {
+      "code": "WK-3CDMBI0",
+      "mode": "race",
+      "language": "german",
+      "wordIndex": 500
+    },
+    {
+      "code": "WK-3CDL0Du",
+      "mode": "race",
+      "language": "german",
+      "wordIndex": 1039
+    },
+    {
+      "code": "WK-3CDNq2V",
+      "mode": "race",
+      "language": "german",
+      "wordIndex": 4095
+    },
+    {
+      "code": "WK-3CCt2Zf",
+      "mode": "race",
+      "language": "german",
+      "wordIndex": 65535
+    },
+    {
+      "code": "WK-3C9Tr0u",
+      "mode": "race",
+      "language": "german",
+      "wordIndex": 262143
+    }
+  ],
+  "result": [
+    {
+      "code": "WR-3bbT3mNVe",
+      "language": "english",
+      "wordIndex": 0,
+      "solved": true,
+      "gaveUp": false,
+      "guessCount": 7
+    },
+    {
+      "code": "WR-3bbT3qmcT",
+      "language": "english",
+      "wordIndex": 0,
+      "solved": false,
+      "gaveUp": true,
+      "guessCount": 0
+    },
+    {
+      "code": "WR-3bbT3mQKh",
+      "language": "english",
+      "wordIndex": 0,
+      "solved": true,
+      "gaveUp": false,
+      "guessCount": 42
+    },
+    {
+      "code": "WR-3bbT3wvEt",
+      "language": "english",
+      "wordIndex": 0,
+      "solved": false,
+      "gaveUp": false,
+      "guessCount": 4095
+    },
+    {
+      "code": "WR-3bbTA1YMC",
+      "language": "english",
+      "wordIndex": 42,
+      "solved": true,
+      "gaveUp": false,
+      "guessCount": 7
+    },
+    {
+      "code": "WR-3bbTA5xRz",
+      "language": "english",
+      "wordIndex": 42,
+      "solved": false,
+      "gaveUp": true,
+      "guessCount": 0
+    },
+    {
+      "code": "WR-3bbTA1bDJ",
+      "language": "english",
+      "wordIndex": 42,
+      "solved": true,
+      "gaveUp": false,
+      "guessCount": 42
+    },
+    {
+      "code": "WR-3bbTAC63N",
+      "language": "english",
+      "wordIndex": 42,
+      "solved": false,
+      "gaveUp": false,
+      "guessCount": 4095
+    },
+    {
+      "code": "WR-3bbUa1Cez",
+      "language": "english",
+      "wordIndex": 500,
+      "solved": true,
+      "gaveUp": false,
+      "guessCount": 7
+    },
+    {
+      "code": "WR-3bbUa5bmm",
+      "language": "english",
+      "wordIndex": 500,
+      "solved": false,
+      "gaveUp": true,
+      "guessCount": 0
+    },
+    {
+      "code": "WR-3bbUa1FY6",
+      "language": "english",
+      "wordIndex": 500,
+      "solved": true,
+      "gaveUp": false,
+      "guessCount": 42
+    },
+    {
+      "code": "WR-3bbUaBkOA",
+      "language": "english",
+      "wordIndex": 500,
+      "solved": false,
+      "gaveUp": false,
+      "guessCount": 4095
+    },
+    {
+      "code": "WR-3bZKvVKTc",
+      "language": "english",
+      "wordIndex": 65535,
+      "solved": true,
+      "gaveUp": false,
+      "guessCount": 7
+    },
+    {
+      "code": "WR-3bZKvZjbT",
+      "language": "english",
+      "wordIndex": 65535,
+      "solved": false,
+      "gaveUp": true,
+      "guessCount": 0
+    },
+    {
+      "code": "WR-3bZKvVNIf",
+      "language": "english",
+      "wordIndex": 65535,
+      "solved": true,
+      "gaveUp": false,
+      "guessCount": 42
+    },
+    {
+      "code": "WR-3bZKvfsCr",
+      "language": "english",
+      "wordIndex": 65535,
+      "solved": false,
+      "gaveUp": false,
+      "guessCount": 4095
+    },
+    {
+      "code": "WR-3bupE57KD",
+      "language": "spanish",
+      "wordIndex": 0,
+      "solved": true,
+      "gaveUp": false,
+      "guessCount": 7
+    },
+    {
+      "code": "WR-3bupE9WQy",
+      "language": "spanish",
+      "wordIndex": 0,
+      "solved": false,
+      "gaveUp": true,
+      "guessCount": 0
+    },
+    {
+      "code": "WR-3bupE5A9C",
+      "language": "spanish",
+      "wordIndex": 0,
+      "solved": true,
+      "gaveUp": false,
+      "guessCount": 42
+    },
+    {
+      "code": "WR-3bupEFf3O",
+      "language": "spanish",
+      "wordIndex": 0,
+      "solved": false,
+      "gaveUp": false,
+      "guessCount": 4095
+    },
+    {
+      "code": "WR-3bupKKIAl",
+      "language": "spanish",
+      "wordIndex": 42,
+      "solved": true,
+      "gaveUp": false,
+      "guessCount": 7
+    },
+    {
+      "code": "WR-3bupKOhGU",
+      "language": "spanish",
+      "wordIndex": 42,
+      "solved": false,
+      "gaveUp": true,
+      "guessCount": 0
+    },
+    {
+      "code": "WR-3bupKKL1o",
+      "language": "spanish",
+      "wordIndex": 42,
+      "solved": true,
+      "gaveUp": false,
+      "guessCount": 42
+    },
+    {
+      "code": "WR-3bupKUprs",
+      "language": "spanish",
+      "wordIndex": 42,
+      "solved": false,
+      "gaveUp": false,
+      "guessCount": 4095
+    },
+    {
+      "code": "WR-3buqkJwTU",
+      "language": "spanish",
+      "wordIndex": 500,
+      "solved": true,
+      "gaveUp": false,
+      "guessCount": 7
+    },
+    {
+      "code": "WR-3buqkOLbL",
+      "language": "spanish",
+      "wordIndex": 500,
+      "solved": false,
+      "gaveUp": true,
+      "guessCount": 0
+    },
+    {
+      "code": "WR-3buqkJzMf",
+      "language": "spanish",
+      "wordIndex": 500,
+      "solved": true,
+      "gaveUp": false,
+      "guessCount": 42
+    },
+    {
+      "code": "WR-3buqkUUCj",
+      "language": "spanish",
+      "wordIndex": 500,
+      "solved": false,
+      "gaveUp": false,
+      "guessCount": 4095
+    },
+    {
+      "code": "WR-3bsh5o4IB",
+      "language": "spanish",
+      "wordIndex": 65535,
+      "solved": true,
+      "gaveUp": false,
+      "guessCount": 7
+    },
+    {
+      "code": "WR-3bsh5sTPy",
+      "language": "spanish",
+      "wordIndex": 65535,
+      "solved": false,
+      "gaveUp": true,
+      "guessCount": 0
+    },
+    {
+      "code": "WR-3bsh5o77A",
+      "language": "spanish",
+      "wordIndex": 65535,
+      "solved": true,
+      "gaveUp": false,
+      "guessCount": 42
+    },
+    {
+      "code": "WR-3bsh5yc1M",
+      "language": "spanish",
+      "wordIndex": 65535,
+      "solved": false,
+      "gaveUp": false,
+      "guessCount": 4095
+    },
+    {
+      "code": "WR-3cEBONr8i",
+      "language": "french",
+      "wordIndex": 0,
+      "solved": true,
+      "gaveUp": false,
+      "guessCount": 7
+    },
+    {
+      "code": "WR-3cEBOSGFX",
+      "language": "french",
+      "wordIndex": 0,
+      "solved": false,
+      "gaveUp": true,
+      "guessCount": 0
+    },
+    {
+      "code": "WR-3cEBONtxl",
+      "language": "french",
+      "wordIndex": 0,
+      "solved": true,
+      "gaveUp": false,
+      "guessCount": 42
+    },
+    {
+      "code": "WR-3cEBOYOqv",
+      "language": "french",
+      "wordIndex": 0,
+      "solved": false,
+      "gaveUp": false,
+      "guessCount": 4095
+    },
+    {
+      "code": "WR-3cEBUd1zG",
+      "language": "french",
+      "wordIndex": 42,
+      "solved": true,
+      "gaveUp": false,
+      "guessCount": 7
+    },
+    {
+      "code": "WR-3cEBUhR53",
+      "language": "french",
+      "wordIndex": 42,
+      "solved": false,
+      "gaveUp": true,
+      "guessCount": 0
+    },
+    {
+      "code": "WR-3cEBUd4qN",
+      "language": "french",
+      "wordIndex": 42,
+      "solved": true,
+      "gaveUp": false,
+      "guessCount": 42
+    },
+    {
+      "code": "WR-3cEBUnZgR",
+      "language": "french",
+      "wordIndex": 42,
+      "solved": false,
+      "gaveUp": false,
+      "guessCount": 4095
+    },
+    {
+      "code": "WR-3cECucgI3",
+      "language": "french",
+      "wordIndex": 500,
+      "solved": true,
+      "gaveUp": false,
+      "guessCount": 7
+    },
+    {
+      "code": "WR-3cECuh5Pq",
+      "language": "french",
+      "wordIndex": 500,
+      "solved": false,
+      "gaveUp": true,
+      "guessCount": 0
+    },
+    {
+      "code": "WR-3cECucjBA",
+      "language": "french",
+      "wordIndex": 500,
+      "solved": true,
+      "gaveUp": false,
+      "guessCount": 42
+    },
+    {
+      "code": "WR-3cECunE1E",
+      "language": "french",
+      "wordIndex": 500,
+      "solved": false,
+      "gaveUp": false,
+      "guessCount": 4095
+    },
+    {
+      "code": "WR-3cC3G6o6g",
+      "language": "french",
+      "wordIndex": 65535,
+      "solved": true,
+      "gaveUp": false,
+      "guessCount": 7
+    },
+    {
+      "code": "WR-3cC3GBDDV",
+      "language": "french",
+      "wordIndex": 65535,
+      "solved": false,
+      "gaveUp": true,
+      "guessCount": 0
+    },
+    {
+      "code": "WR-3cC3G6qvj",
+      "language": "french",
+      "wordIndex": 65535,
+      "solved": true,
+      "gaveUp": false,
+      "guessCount": 42
+    },
+    {
+      "code": "WR-3cC3GHLpv",
+      "language": "french",
+      "wordIndex": 65535,
+      "solved": false,
+      "gaveUp": false,
+      "guessCount": 4095
+    },
+    {
+      "code": "WR-3cXXYgaxH",
+      "language": "italian",
+      "wordIndex": 0,
+      "solved": true,
+      "gaveUp": false,
+      "guessCount": 7
+    },
+    {
+      "code": "WR-3cXXYl042",
+      "language": "italian",
+      "wordIndex": 0,
+      "solved": false,
+      "gaveUp": true,
+      "guessCount": 0
+    },
+    {
+      "code": "WR-3cXXYgdmG",
+      "language": "italian",
+      "wordIndex": 0,
+      "solved": true,
+      "gaveUp": false,
+      "guessCount": 42
+    },
+    {
+      "code": "WR-3cXXYr8fQ",
+      "language": "italian",
+      "wordIndex": 0,
+      "solved": false,
+      "gaveUp": false,
+      "guessCount": 4095
+    },
+    {
+      "code": "WR-3cXXevlnp",
+      "language": "italian",
+      "wordIndex": 42,
+      "solved": true,
+      "gaveUp": false,
+      "guessCount": 7
+    },
+    {
+      "code": "WR-3cXXf0AtY",
+      "language": "italian",
+      "wordIndex": 42,
+      "solved": false,
+      "gaveUp": true,
+      "guessCount": 0
+    },
+    {
+      "code": "WR-3cXXevoes",
+      "language": "italian",
+      "wordIndex": 42,
+      "solved": true,
+      "gaveUp": false,
+      "guessCount": 42
+    },
+    {
+      "code": "WR-3cXXf6JUw",
+      "language": "italian",
+      "wordIndex": 42,
+      "solved": false,
+      "gaveUp": false,
+      "guessCount": 4095
+    },
+    {
+      "code": "WR-3cXZ4vQ6Y",
+      "language": "italian",
+      "wordIndex": 500,
+      "solved": true,
+      "gaveUp": false,
+      "guessCount": 7
+    },
+    {
+      "code": "WR-3cXZ4zpDN",
+      "language": "italian",
+      "wordIndex": 500,
+      "solved": false,
+      "gaveUp": true,
+      "guessCount": 0
+    },
+    {
+      "code": "WR-3cXZ4vSzj",
+      "language": "italian",
+      "wordIndex": 500,
+      "solved": true,
+      "gaveUp": false,
+      "guessCount": 42
+    },
+    {
+      "code": "WR-3cXZ55xpn",
+      "language": "italian",
+      "wordIndex": 500,
+      "solved": false,
+      "gaveUp": false,
+      "guessCount": 4095
+    },
+    {
+      "code": "WR-3cVPQPXvF",
+      "language": "italian",
+      "wordIndex": 65535,
+      "solved": true,
+      "gaveUp": false,
+      "guessCount": 7
+    },
+    {
+      "code": "WR-3cVPQTx20",
+      "language": "italian",
+      "wordIndex": 65535,
+      "solved": false,
+      "gaveUp": true,
+      "guessCount": 0
+    },
+    {
+      "code": "WR-3cVPQPakE",
+      "language": "italian",
+      "wordIndex": 65535,
+      "solved": true,
+      "gaveUp": false,
+      "guessCount": 42
+    },
+    {
+      "code": "WR-3cVPQa5eQ",
+      "language": "italian",
+      "wordIndex": 65535,
+      "solved": false,
+      "gaveUp": false,
+      "guessCount": 4095
+    },
+    {
+      "code": "WR-3aM2OZQFe",
+      "language": "german",
+      "wordIndex": 0,
+      "solved": true,
+      "gaveUp": false,
+      "guessCount": 7
+    },
+    {
+      "code": "WR-3aM2OdpMT",
+      "language": "german",
+      "wordIndex": 0,
+      "solved": false,
+      "gaveUp": true,
+      "guessCount": 0
+    },
+    {
+      "code": "WR-3aM2OZT4h",
+      "language": "german",
+      "wordIndex": 0,
+      "solved": true,
+      "gaveUp": false,
+      "guessCount": 42
+    },
+    {
+      "code": "WR-3aM2Ojxxr",
+      "language": "german",
+      "wordIndex": 0,
+      "solved": false,
+      "gaveUp": false,
+      "guessCount": 4095
+    },
+    {
+      "code": "WR-3aM2Uob6C",
+      "language": "german",
+      "wordIndex": 42,
+      "solved": true,
+      "gaveUp": false,
+      "guessCount": 7
+    },
+    {
+      "code": "WR-3aM2Ut0Bz",
+      "language": "german",
+      "wordIndex": 42,
+      "solved": false,
+      "gaveUp": true,
+      "guessCount": 0
+    },
+    {
+      "code": "WR-3aM2UodxJ",
+      "language": "german",
+      "wordIndex": 42,
+      "solved": true,
+      "gaveUp": false,
+      "guessCount": 42
+    },
+    {
+      "code": "WR-3aM2Uz8nN",
+      "language": "german",
+      "wordIndex": 42,
+      "solved": false,
+      "gaveUp": false,
+      "guessCount": 4095
+    },
+    {
+      "code": "WR-3aM3uoFOz",
+      "language": "german",
+      "wordIndex": 500,
+      "solved": true,
+      "gaveUp": false,
+      "guessCount": 7
+    },
+    {
+      "code": "WR-3aM3useVk",
+      "language": "german",
+      "wordIndex": 500,
+      "solved": false,
+      "gaveUp": true,
+      "guessCount": 0
+    },
+    {
+      "code": "WR-3aM3uoII6",
+      "language": "german",
+      "wordIndex": 500,
+      "solved": true,
+      "gaveUp": false,
+      "guessCount": 42
+    },
+    {
+      "code": "WR-3aM3uyn8A",
+      "language": "german",
+      "wordIndex": 500,
+      "solved": false,
+      "gaveUp": false,
+      "guessCount": 4095
+    },
+    {
+      "code": "WR-3aJuGINDc",
+      "language": "german",
+      "wordIndex": 65535,
+      "solved": true,
+      "gaveUp": false,
+      "guessCount": 7
+    },
+    {
+      "code": "WR-3aJuGMmKR",
+      "language": "german",
+      "wordIndex": 65535,
+      "solved": false,
+      "gaveUp": true,
+      "guessCount": 0
+    },
+    {
+      "code": "WR-3aJuGIQ2f",
+      "language": "german",
+      "wordIndex": 65535,
+      "solved": true,
+      "gaveUp": false,
+      "guessCount": 42
+    },
+    {
+      "code": "WR-3aJuGSuvp",
+      "language": "german",
+      "wordIndex": 65535,
+      "solved": false,
+      "gaveUp": false,
+      "guessCount": 4095
+    }
+  ]
+}

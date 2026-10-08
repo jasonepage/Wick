@@ -1,0 +1,30 @@
+// Wick.xcconfig — shared build settings for the Hunch (Wick) iOS target.
+//
+// This file is committed. It holds safe defaults and then pulls in
+// Config/Local.xcconfig, which is gitignored, so each developer can override
+// the values below without touching the Xcode project.
+//
+// To build your own copy:
+//   1. cp Config/Local.xcconfig.example Config/Local.xcconfig
+//   2. Fill in DEVELOPMENT_TEAM (your Apple Team ID) and a bundle id you own.
+//   3. Optionally point WICK_SERVER_BASE at your own wick-api deployment.
+//
+// Note: xcconfig treats "//" as the start of a comment, so URLs are written
+// with "$()" (an empty variable) splitting the two slashes.
+
+// Apple Team ID used for code signing. Blank here on purpose; set yours in
+// Local.xcconfig. Xcode's "Automatically manage signing" fills the rest in.
+DEVELOPMENT_TEAM =
+
+// Bundle identifier. The App Store build uses party.heirloom.Hunch; change it
+// in Local.xcconfig to one you own (this also changes iCloud key-value and
+// Game Center scopes, which is what you want for your own build).
+PRODUCT_BUNDLE_IDENTIFIER = party.heirloom.Hunch
+
+// WebSocket base for the live multiplayer server (wick-api). Single-player
+// never touches the network. Read at runtime by Hunch/Live/LiveConfig.swift
+// through the WICK_SERVER_BASE key in Config/Info.plist.
+// For a local server: WICK_SERVER_BASE = ws:/$()/localhost:8080
+WICK_SERVER_BASE = wss:/$()/wick-api.onrender.com
+
+#include? "Local.xcconfig"

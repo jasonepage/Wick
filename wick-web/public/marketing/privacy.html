@@ -1,0 +1,154 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Wick — Privacy Policy</title><meta name="description" content="How Wick handles data: single-player stays entirely on your device; live Race sends only what you type to score the round, never linked to your identity."><link rel="canonical" href="https://guesswick.com/marketing/privacy.html"><meta property="og:type" content="website"><meta property="og:title" content="Wick — Privacy Policy"><meta property="og:description" content="How Wick handles data: single-player stays entirely on your device; live Race sends only what you type to score the round, never linked to your identity."><meta property="og:url" content="https://guesswick.com/marketing/privacy.html"><meta name="theme-color" content="#100b16"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet"><style>
+:root{
+  --bg:#100b16; --bg2:#181121; --card:#1c1526; --card2:#241a30;
+  --ink:#f5eff8; --muted:#a99cb6; --line:rgba(255,255,255,.08);
+  --flame:#ff6b35; --flame2:#ff9d3d; --brand:#ff6b35;
+  --cold:#3f74d8; --cool:#4f93b8; --warm:#e0913a; --hot:#f2602f; --blaze:#ff3d2e;
+  --r:18px; --maxw:1120px;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0; background:var(--bg); color:var(--ink);
+  font-family:Inter,-apple-system,system-ui,sans-serif; line-height:1.6;
+  -webkit-font-smoothing:antialiased;
+  background-image:
+    radial-gradient(60rem 40rem at 78% -8%, rgba(255,107,53,.18), transparent 60%),
+    radial-gradient(50rem 40rem at -10% 12%, rgba(63,116,216,.14), transparent 55%);
+  background-attachment:fixed;
+}
+h1,h2,h3,.brandmark{font-family:Sora,Inter,sans-serif; letter-spacing:-.02em; line-height:1.12; margin:0}
+a{color:inherit}
+.wrap{max-width:var(--maxw); margin:0 auto; padding:0 22px}
+.muted{color:var(--muted)}
+
+/* nav */
+.nav{position:sticky; top:0; z-index:20; backdrop-filter:blur(14px);
+  background:rgba(16,11,22,.72); border-bottom:1px solid var(--line)}
+.nav .wrap{display:flex; align-items:center; gap:22px; height:64px}
+.brand{display:flex; align-items:center; gap:10px; text-decoration:none; font-weight:800; font-size:1.15rem}
+.brandmark{font-weight:800}
+.flame-ico{width:26px; height:26px; filter:drop-shadow(0 2px 8px rgba(255,107,53,.5)); animation:flick 2.4s ease-in-out infinite}
+@keyframes flick{0%,100%{transform:rotate(-2deg) scale(1)}50%{transform:rotate(2deg) scale(1.06)}}
+.nav-links{display:flex; gap:26px; margin-left:auto; align-items:center}
+.nav-links a{text-decoration:none; color:var(--muted); font-weight:500; font-size:.95rem}
+.nav-links a:hover{color:var(--ink)}
+.btn{display:inline-flex; align-items:center; gap:9px; text-decoration:none; font-weight:700;
+  padding:12px 20px; border-radius:12px; font-size:.95rem; border:1px solid transparent; cursor:pointer}
+.btn-primary{background:linear-gradient(135deg,var(--flame),var(--flame2)); color:#1a0d06;
+  box-shadow:0 8px 26px rgba(255,107,53,.35)}
+.btn-primary:hover{filter:brightness(1.05); transform:translateY(-1px)}
+.btn-ghost{background:rgba(255,255,255,.04); border-color:var(--line); color:var(--ink)}
+.btn-ghost:hover{background:rgba(255,255,255,.08)}
+.btn.sm{padding:9px 15px; font-size:.9rem}
+
+/* hero */
+.hero{padding:76px 0 40px}
+.hero-grid{display:grid; grid-template-columns:1.05fr .95fr; gap:52px; align-items:center}
+.eyebrow{display:inline-flex; align-items:center; gap:8px; font-weight:600; font-size:.8rem;
+  letter-spacing:.08em; text-transform:uppercase; color:var(--flame2);
+  background:rgba(255,107,53,.1); border:1px solid rgba(255,107,53,.22); padding:6px 12px; border-radius:999px}
+.hero h1{font-size:clamp(2.3rem,5.2vw,3.7rem); font-weight:800; margin:20px 0 16px}
+.hero h1 .hot{background:linear-gradient(120deg,var(--warm),var(--hot),var(--blaze));
+  -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent}
+.hero p.lede{font-size:1.18rem; color:#d9cfe2; max-width:34rem; margin:0 0 28px}
+.cta-row{display:flex; gap:14px; flex-wrap:wrap; align-items:center}
+.chips{display:flex; gap:18px; flex-wrap:wrap; margin-top:26px; color:var(--muted); font-size:.9rem}
+.chips span{display:inline-flex; align-items:center; gap:7px}
+.chips .dot{width:7px; height:7px; border-radius:50%; background:var(--flame)}
+
+/* warmth demo card */
+.demo{background:linear-gradient(180deg,var(--card),var(--bg2)); border:1px solid var(--line);
+  border-radius:24px; padding:22px; box-shadow:0 30px 80px rgba(0,0,0,.45)}
+.demo-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:6px}
+.demo-head .t{font-weight:700; font-family:Sora}
+.demo-head .s{font-size:.78rem; color:var(--muted)}
+.warm-row{display:flex; align-items:center; gap:14px; padding:12px 12px; border-radius:14px;
+  border:1px solid transparent; transition:.35s}
+.warm-row .word{font-weight:600; flex:1}
+.warm-row .lab{font-size:.76rem; font-weight:600; padding:3px 9px; border-radius:999px}
+.warm-row .bar{width:74px; height:8px; border-radius:999px; background:rgba(255,255,255,.08); overflow:hidden}
+.warm-row .bar i{display:block; height:100%; border-radius:999px}
+.warm-row.active{background:rgba(255,255,255,.05); border-color:var(--line); transform:translateX(3px)}
+.warm-row.solved{background:linear-gradient(90deg,rgba(255,107,53,.16),transparent); border-color:rgba(255,107,53,.3)}
+.c-cold{color:#8fb4f2} .bg-cold{background:var(--cold)}
+.c-cool{color:#9fd0e6} .bg-cool{background:var(--cool)}
+.c-warm{color:#f2c07a} .bg-warm{background:var(--warm)}
+.c-hot{color:#ff9c74} .bg-hot{background:var(--hot)}
+.c-blaze{color:#ff8a7d} .bg-blaze{background:var(--blaze)}
+.lab.c-cold{background:rgba(63,116,216,.16)} .lab.c-cool{background:rgba(79,147,184,.16)}
+.lab.c-warm{background:rgba(224,145,58,.16)} .lab.c-hot{background:rgba(242,96,47,.16)} .lab.c-blaze{background:rgba(255,61,46,.18)}
+
+/* sections */
+section.band{padding:66px 0; border-top:1px solid var(--line)}
+.sec-head{text-align:center; max-width:40rem; margin:0 auto 46px}
+.sec-head h2{font-size:clamp(1.7rem,3.6vw,2.4rem); font-weight:800}
+.sec-head p{color:var(--muted); margin:12px 0 0; font-size:1.05rem}
+.steps{display:grid; grid-template-columns:repeat(3,1fr); gap:20px}
+.step{background:var(--card); border:1px solid var(--line); border-radius:var(--r); padding:26px}
+.step .n{width:38px; height:38px; border-radius:11px; display:grid; place-items:center; font-weight:800; font-family:Sora;
+  background:linear-gradient(135deg,var(--flame),var(--flame2)); color:#1a0d06; margin-bottom:16px}
+.step h3{font-size:1.2rem; margin-bottom:8px}
+.step p{color:var(--muted); margin:0; font-size:.98rem}
+.modes{display:grid; grid-template-columns:repeat(3,1fr); gap:18px}
+.mode{background:linear-gradient(180deg,var(--card2),var(--card)); border:1px solid var(--line);
+  border-radius:var(--r); padding:24px; transition:.25s}
+.mode:hover{transform:translateY(-3px); border-color:rgba(255,107,53,.35)}
+.mode .ic{font-size:1.7rem; margin-bottom:12px; display:block}
+.mode h3{font-size:1.14rem; margin-bottom:7px}
+.mode p{color:var(--muted); margin:0; font-size:.96rem}
+
+/* privacy teaser */
+.trust{display:grid; grid-template-columns:1.2fr 1fr; gap:34px; align-items:center;
+  background:linear-gradient(120deg,rgba(63,116,216,.1),rgba(255,107,53,.08));
+  border:1px solid var(--line); border-radius:24px; padding:38px}
+.trust h2{font-size:1.9rem; font-weight:800; margin-bottom:12px}
+.trust p{color:#d9cfe2; margin:0 0 18px}
+.trust ul{list-style:none; padding:0; margin:0; display:grid; gap:12px}
+.trust li{display:flex; gap:11px; align-items:flex-start; color:#e7dfee; font-size:.98rem}
+.trust li b{color:var(--flame2)}
+.check{color:var(--flame2); flex:none; margin-top:2px}
+
+/* final cta */
+.finale{text-align:center; padding:80px 0}
+.finale h2{font-size:clamp(1.9rem,4vw,2.7rem); font-weight:800; margin-bottom:14px}
+.finale p{color:var(--muted); font-size:1.1rem; margin:0 auto 28px; max-width:32rem}
+
+/* footer */
+footer{border-top:1px solid var(--line); padding:44px 0; color:var(--muted)}
+.foot{display:flex; justify-content:space-between; gap:26px; flex-wrap:wrap; align-items:center}
+.foot .brand{color:var(--ink)}
+.foot-links{display:flex; gap:24px; flex-wrap:wrap}
+.foot-links a{text-decoration:none; color:var(--muted); font-size:.94rem}
+.foot-links a:hover{color:var(--ink)}
+.foot .cr{font-size:.85rem; width:100%; border-top:1px solid var(--line); padding-top:18px; margin-top:6px}
+
+/* article (privacy/support) */
+.page-hero{padding:56px 0 8px}
+.page-hero .eyebrow{margin-bottom:14px}
+.page-hero h1{font-size:clamp(2rem,4.4vw,2.9rem); font-weight:800}
+.page-hero p{color:var(--muted); margin-top:12px; font-size:1.05rem}
+.article{padding:26px 0 40px}
+.article .col{max-width:52rem}
+.card-doc{background:var(--card); border:1px solid var(--line); border-radius:var(--r); padding:30px 32px; margin-bottom:20px}
+.card-doc h2{font-size:1.35rem; font-weight:700; margin-bottom:6px}
+.card-doc h2 .em{color:var(--flame2)}
+.card-doc p{margin:.5rem 0; color:#ddd4e6}
+.card-doc ul{margin:.5rem 0; padding-left:1.2rem}
+.card-doc li{margin:.4rem 0; color:#ddd4e6}
+.card-doc a{color:var(--flame2)}
+.faq h3{font-size:1.08rem; margin:0 0 6px; font-family:Sora}
+.faq p{margin:0; color:var(--muted)}
+.tag{display:inline-block; font-size:.72rem; font-weight:600; letter-spacing:.06em; text-transform:uppercase;
+  color:var(--flame2); background:rgba(255,107,53,.1); border:1px solid rgba(255,107,53,.22);
+  padding:4px 10px; border-radius:999px; margin-bottom:14px}
+.mini-warm{display:flex; gap:6px; margin:6px 0 2px}
+.mini-warm i{height:8px; flex:1; border-radius:999px}
+
+@media(max-width:860px){
+  .hero-grid{grid-template-columns:1fr; gap:36px}
+  .steps,.modes{grid-template-columns:1fr}
+  .trust{grid-template-columns:1fr; padding:28px}
+  .nav-links a:not(.btn){display:none}
+}
+</style></head><body><nav class="nav"><div class="wrap"><a class="brand" href="/marketing/"><svg class="flame-ico" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 2c1 3-1.5 4-1.5 6.5 0 1.4 1 2.3 2 2.3 1.6 0 2.2-1.4 1.8-3 2.4 1.7 3.7 4 3.7 6.6C18 18 15.3 21 12 21s-6-2.7-6-6.6c0-2.9 2-4.7 3.2-6.2C10.7 6.2 12 4.6 12 2z" fill="url(#fg)"/><defs><linearGradient id="fg" x1="6" y1="21" x2="18" y2="2" gradientUnits="userSpaceOnUse"><stop stop-color="#ff3d2e"/><stop offset=".5" stop-color="#ff6b35"/><stop offset="1" stop-color="#ff9d3d"/></linearGradient></defs></svg><span class="brandmark">Wick</span></a><div class="nav-links"><a href="/marketing/#how">How to play</a><a href="/marketing/#modes">Modes</a><a href="/marketing/support.html">Support</a><a href="/marketing/privacy.html">Privacy</a><a class="btn btn-primary sm" href="https://apps.apple.com/app/id6777743483">Get the app</a></div></div></nav><header class="page-hero"><div class="wrap"><div class="col"><span class="tag">Privacy</span><h1>Wick Privacy Policy</h1><p class="muted">Last updated: October 2026 &middot; Private by design, in plain language.</p></div></div></header><div class="article"><div class="wrap"><div class="col"><div class="card-doc"><p>Wick is built to be private by design. There are <strong>no accounts, no logins, no advertising, and no cross-app tracking</strong>. Most of the game never touches a server at all. The only thing we count is a handful of anonymous play events, described below.</p></div><div class="card-doc"><h2><span class="em">On-device</span> &mdash; Single-player (Daily &amp; Practice)</h2><ul><li>Your guesses, questions, stats, streaks, and coins are stored <strong>only on your device</strong>.</li><li>Closeness (&ldquo;warmth&rdquo;) scoring uses Apple&rsquo;s on-device Natural Language models.</li><li>&ldquo;Ask the Keeper&rdquo; runs on-device using Apple Intelligence (Foundation Models).</li><li>Nothing you type in single-player is sent to us or any third party.</li></ul></div><div class="card-doc"><h2><span class="em">The one exception</span> &mdash; Live Race</h2><p>Live multiplayer needs a server to pair players and score fairly, so when &mdash; and only when &mdash; you play a live Race:</p><ul><li>The <strong>words and questions you type</strong> are sent to Wick&rsquo;s server to be scored (warmth) and answered (the Keeper).</li><li>To compute those, the server passes that text to <strong>Google&rsquo;s Gemini API</strong>. It is used solely to score the round; it is not used to train models on your identity, and it is not sold.</li><li>A <strong>random, per-install identifier</strong> (not tied to your name, email, Apple ID, or contacts) is used only to route your match. No account is created.</li><li>Your guesses are <strong>not linked to your identity</strong> and are <strong>never used for tracking or advertising</strong>.</li><li>The server keeps only what a live match needs while it is in progress; it does not build a profile of you.</li></ul><p>If you never play a live mode, nothing you type ever leaves your device.</p></div><div class="card-doc"><h2>Play counts (since version 3.3)</h2><p>To know whether the game is working, the app and the website send a few anonymous events: that a daily puzzle was started, solved, or given up (with the puzzle number and how many guesses it took), and that a share or race link was used. Each event carries a random per-install id so we can count players; the server hashes that id before storing it, and it is not tied to your name, email, Apple ID, or contacts. No word, question, or anything you type is ever included. These counts are used only to improve the game and are not shared or sold.</p><h2>Your data</h2><p>If you delete the app, all of its on-device data is removed with it. Because we hold no account and no persistent profile, there is no stored personal data to request, export, or delete from us.</p><p><strong>Questions?</strong> Email <a href="mailto:SUPPORT_EMAIL_PLACEHOLDER">SUPPORT_EMAIL_PLACEHOLDER</a>.</p></div></div></div></div><footer><div class="wrap foot"><a class="brand" href="/marketing/"><svg class="flame-ico" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 2c1 3-1.5 4-1.5 6.5 0 1.4 1 2.3 2 2.3 1.6 0 2.2-1.4 1.8-3 2.4 1.7 3.7 4 3.7 6.6C18 18 15.3 21 12 21s-6-2.7-6-6.6c0-2.9 2-4.7 3.2-6.2C10.7 6.2 12 4.6 12 2z" fill="url(#fg)"/><defs><linearGradient id="fg" x1="6" y1="21" x2="18" y2="2" gradientUnits="userSpaceOnUse"><stop stop-color="#ff3d2e"/><stop offset=".5" stop-color="#ff6b35"/><stop offset="1" stop-color="#ff9d3d"/></linearGradient></defs></svg><span class="brandmark">Wick</span></a><div class="foot-links"><a href="/">Play in browser</a><a href="https://apps.apple.com/app/id6777743483">App Store</a><a href="/marketing/support.html">Support</a><a href="/marketing/privacy.html">Privacy</a><a href="mailto:SUPPORT_EMAIL_PLACEHOLDER">Contact</a></div><div class="cr muted">Wick — guess by meaning. © 2026. Not affiliated with Apple. Single-player runs entirely on your device.</div></div></footer></body></html>

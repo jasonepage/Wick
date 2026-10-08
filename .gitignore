@@ -1,0 +1,53 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Secrets and local config. Never commit these.
+.env
+.env.*
+!.env.example
+Config/Local.xcconfig
+*.secrets.xcconfig
+secrets.plist
+
+# Xcode user state and build output
+xcuserdata/
+*.xcuserstate
+*.xcuserdatad
+build/
+DerivedData/
+*.moved-aside
+*.pbxuser
+!default.pbxuser
+*.mode1v3
+!default.mode1v3
+*.mode2v3
+!default.mode2v3
+*.perspectivev3
+!default.perspectivev3
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# Swift Package Manager
+.build/
+.swiftpm/
+
+# Node (wick-api, wick-web)
+node_modules/
+dist/
+coverage/
+*.log
+wick-api/public/
+
+# Python helpers in debug/
+__pycache__/
+*.pyc
+
+# Large derived embedding inputs (regenerate with debug/embeddings/build_vectors.py)
+debug/embeddings/*_vectors.txt
+debug/embeddings/*.mlmodel
+*.vec
+*.vec.gz

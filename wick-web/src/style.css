@@ -1,0 +1,796 @@
+/* Wick web client — styled to match Wick iOS.
+   Light pastel home (like the app's home), dark match screen with the hero
+   warmth ring + mascot (like Practice). SF Rounded, soft rounded cards. */
+
+:root {
+  --you: #ff8a3d;      /* warm flame accent */
+  --coral: #ff7a59;    /* send button */
+  --opp: #4fd0c0;      /* opponent cool hue */
+  --gold: #eab54a;
+  --ink-dark: #f5ede2;
+  --ink-light: #2c2740;
+
+  /* HunchTheme.Palette, ported as raw channels so rules can pick their own
+     alpha with rgba(var(--p-hot), 0.2). Same RGB as game/wickface.ts. */
+  --p-solved:   77,158,71;
+  --p-boiling: 232,66,54;
+  --p-hot:     237,107,46;
+  --p-warm:    242,166,36;
+  --p-cool:     33,161,140;
+  --p-cold:     89,189,181;
+  --p-freezing: 69,133,230;
+  --p-keeper:  125,92,235;
+}
+
+* { box-sizing: border-box; }
+
+html, body { margin: 0; min-height: 100vh; }
+body {
+  font-family: "SF Pro Rounded", ui-rounded, -apple-system, system-ui, "Segoe UI", sans-serif;
+  transition: background 0.4s ease;
+}
+
+/* themes per screen */
+/* The live backdrop (see "Animated backdrop" below) paints over these. They stay
+   as the flat fallback for the moment before JS runs, and for no-JS. */
+body.theme-light { background: #eaf1ff; color: var(--ink-light); }
+body.theme-dark  { background: #0e0a16; color: var(--ink-dark); }
+
+#app { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
+
+.card {
+  width: 100%;
+  max-width: 440px;
+  border-radius: 26px;
+  padding: 26px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.theme-light .card {
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  box-shadow: 0 20px 50px rgba(90, 70, 140, 0.18);
+  backdrop-filter: blur(10px);
+}
+.theme-dark .card {
+  background: rgba(22, 20, 30, 0.74);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(14px);
+}
+
+h1 { margin: 0; font-size: 2.1rem; text-align: center; font-weight: 800; }
+h2 { margin: 0; font-size: 1.5rem; text-align: center; font-weight: 800; }
+.muted { opacity: 0.62; }
+.hint { font-size: 0.82rem; text-align: center; opacity: 0.6; margin: 4px 0 0; }
+.lbl { font-size: 0.72rem; opacity: 0.6; margin-top: 6px; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 700; }
+.center { text-align: center; }
+
+/* solo round-log header + sort toggle */
+.log-head { display: flex; align-items: center; justify-content: space-between; margin: 8px 2px 2px; }
+.log-head:empty { display: none; }
+.log-title { font-size: 0.72rem; font-weight: 800; letter-spacing: 0.06em; opacity: 0.6; }
+.sorttoggle { display: inline-flex; gap: 2px; padding: 2px; border-radius: 999px; background: rgba(128,128,128,0.2); }
+.sortchip { border: none; cursor: pointer; font-family: inherit; font-size: 0.72rem; font-weight: 800;
+  padding: 4px 11px; border-radius: 999px; background: transparent; color: inherit; opacity: 0.55; }
+.sortchip.on { background: rgba(255,255,255,0.14); opacity: 1; }
+.theme-light .sortchip.on { background: rgba(255,255,255,0.9); box-shadow: 0 1px 3px rgba(90,70,140,0.18); }
+
+/* asked-question rows in the solo log */
+.qrow { list-style: none; padding: 9px 11px; border-radius: 12px; margin-bottom: 6px;
+  background: rgba(125,92,235,0.12); border: 1px solid rgba(125,92,235,0.2); }
+.qtop { display: flex; align-items: center; gap: 8px; }
+.qtext { font-style: italic; font-weight: 600; }
+.qmark { font-size: 0.95rem; }
+.qreply { font-size: 0.85rem; opacity: 0.72; margin-top: 4px; }
+
+/* race chooser (ghost race / live race) */
+.duel-choices { display: flex; gap: 12px; margin-top: 8px; }
+.duel-choice { flex: 1; text-align: center; border: none; cursor: pointer; color: #fff;
+  border-radius: 16px; padding: 18px 12px; display: flex; flex-direction: column; gap: 6px; align-items: center; }
+.duel-choice.race { background: rgb(242,115,31); box-shadow: 0 6px 18px rgba(242,115,31,0.35); }
+.duel-choice.live { background: rgb(125,92,235); box-shadow: 0 6px 18px rgba(125,92,235,0.35); }
+.duel-choice-icon { font-size: 1.8rem; }
+.duel-choice-title { font-size: 1.15rem; font-weight: 800; }
+.duel-choice-sub { font-size: 0.78rem; opacity: 0.92; line-height: 1.25; }
+
+/* end-of-match word reveal */
+.reveal { text-align: center; margin: 6px 0 4px; }
+.reveal-label { margin: 0 0 2px; font-size: 0.82rem; }
+.reveal-word { margin: 0; font-size: 2rem; font-weight: 800; letter-spacing: 0.01em; }
+
+/* winner confetti */
+.confetti-layer { position: fixed; inset: 0; pointer-events: none; overflow: hidden; z-index: 9999; }
+.confetti-bit {
+  position: absolute;
+  top: -12vh;
+  border-radius: 2px;
+  will-change: transform;
+  animation-name: confetti-fall;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+}
+@keyframes confetti-fall {
+  0%   { transform: translateY(-12vh) rotate(0deg); }
+  100% { transform: translateY(112vh) rotate(720deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .confetti-bit { animation: none; display: none; }
+}
+
+/* ── the mascot ──
+   wickface.ts has always emitted .alive / .flame-body / .flame-glow / .eyes /
+   .spark and its header promised "a subtle idle life ... via the
+   .wick-mascot.alive rules in style.css". Those rules did not exist, so Wick has
+   never moved on the web. These are them.
+
+   Nothing here scales. Uniform scale is the motion signature of a bouncing ball,
+   which is not what a flame does. Instead the SILHOUETTE morphs between four
+   shapes whose base is pinned at (60,122) and whose tip is free to travel, the
+   body leans off that same pinned base, and the whole mascot drifts on two axes.
+   The five periods share no common factor, so the combined cycle runs for
+   minutes without visibly repeating. */
+.wick-mascot { display: block; margin: 0 auto; }
+.mascot-wrap { display: flex; justify-content: center; }
+
+/* 1 — horizontal drift, on the <svg> itself. */
+.wick-mascot.alive { animation: wick-drift-x 7.9s ease-in-out infinite; }
+@keyframes wick-drift-x { 0%, 100% { transform: translateX(-2.5px); } 50% { transform: translateX(2.5px); } }
+
+/* 2 — vertical drift, different period. Together with (1) this traces a slow
+   Lissajous figure instead of bobbing on a beat. */
+.wick-mascot.alive .wick-float { animation: wick-drift-y 5.3s ease-in-out infinite; }
+@keyframes wick-drift-y { 0%, 100% { transform: translateY(2.5px); } 50% { transform: translateY(-3.5px); } }
+
+/* 3 — the lean. Pivot is the flame's base in viewBox units, so the tip travels
+   and the feet stay planted. */
+.wick-mascot.alive .wick-sway {
+  transform-box: view-box; transform-origin: 60px 122px;
+  animation: wick-lean 8.3s ease-in-out infinite;
+}
+@keyframes wick-lean {
+  0%, 100% { transform: skewX(0deg)    rotate(0deg); }
+  28%      { transform: skewX(-1.5deg) rotate(-0.7deg); }
+  62%      { transform: skewX(1.6deg)  rotate(0.8deg); }
+}
+
+/* 4 — the waver. Four silhouettes: lean-left, drawn-tall, lean-right, settle.
+   All four share the exact command structure of FLAME (M · C · C · C · C · Z),
+   which is what lets the browser interpolate `d` directly, and all four keep the
+   start/end point at 60 122.
+   KEEP IN LOCKSTEP with FLAME in game/wickface.ts — if the silhouette changes
+   there, these four have to be re-derived from it. */
+.wick-mascot.alive .flame-body { animation: wick-waver 9.4s ease-in-out infinite; }
+/* The glow runs the same morph a beat behind, so the halo trails the body. */
+.wick-mascot.alive .flame-glow { animation: wick-waver 9.4s ease-in-out infinite; animation-delay: -1.15s; }
+@keyframes wick-waver {
+  0%, 100% { d: path("M60 122 C20 120 5 99 5 71 C5 36 32 19 60 8 C88 19 115 36 115 71 C115 99 100 120 60 122 Z"); }
+  22%      { d: path("M60 122 C20 120 5 100 6 72 C8 38 28 20 52 11 C82 21 114 36 114 70 C114 99 100 120 60 122 Z"); }
+  44%      { d: path("M60 122 C20 120 6 98 5 69 C4 33 33 16 61 4 C89 16 116 33 115 69 C114 98 100 120 60 122 Z"); }
+  63%      { d: path("M60 122 C20 120 6 99 6 70 C6 36 38 20 68 11 C94 22 114 37 114 72 C114 100 100 120 60 122 Z"); }
+  84%      { d: path("M60 122 C19 120 4 101 4 74 C4 40 31 23 59 13 C87 23 116 40 116 74 C116 101 101 120 60 122 Z"); }
+}
+/* Browsers without animatable `d` keep the attribute silhouette and still get
+   the drift and the lean. Nothing breaks. */
+
+/* The inner highlight slides against the morph, which sells the body as
+   translucent rather than as a painted shape. */
+.wick-mascot.alive .flame-sheen { animation: wick-sheen 11.3s ease-in-out infinite; }
+@keyframes wick-sheen {
+  0%, 100% { transform: translate(0, 0);      opacity: 0.15; }
+  37%      { transform: translate(3px, -2px); opacity: 0.22; }
+  71%      { transform: translate(-2px, 2px); opacity: 0.11; }
+}
+
+/* One slow blink every ~6s. Star eyes (celebrating) skip this by design —
+   wickface.ts omits the .eyes class for that mood. */
+.wick-mascot.alive .eyes {
+  transform-box: fill-box; transform-origin: 50% 50%;
+  animation: wick-blink 6.4s ease-in-out infinite;
+}
+@keyframes wick-blink { 0%, 93%, 100% { transform: scaleY(1); } 96% { transform: scaleY(0.06); } }
+
+.spark { transform-box: fill-box; transform-origin: center; animation: wick-spark 1.7s ease-in-out infinite; }
+@keyframes wick-spark {
+  0%, 100% { opacity: 0.15; transform: scale(0.65) rotate(0deg); }
+  50%      { opacity: 1;    transform: scale(1.12) rotate(36deg); }
+}
+
+/* fields + buttons */
+.field {
+  width: 100%; border-radius: 14px; padding: 13px 15px; font-size: 1rem; font-family: inherit;
+}
+.theme-light .field { background: rgba(255,255,255,0.85); border: 1px solid rgba(120,100,160,0.2); color: var(--ink-light); }
+.theme-dark .field { background: #14100c; border: 1px solid #33291f; color: var(--ink-dark); }
+.field:focus { outline: 2px solid var(--you); border-color: transparent; }
+
+.btn {
+  width: 100%; border-radius: 999px; padding: 14px 16px; font-size: 1.02rem; font-weight: 700;
+  font-family: inherit; cursor: pointer; border: none; transition: transform 0.06s ease, filter 0.15s ease;
+}
+.btn:hover { filter: brightness(1.08); }
+.btn:active { transform: translateY(1px); }
+.btn.primary { background: var(--you); color: #241206; }
+.theme-light .btn.secondary { background: #efe8ff; color: #4a3d7a; }
+.theme-dark .btn.secondary { background: #2c2620; color: var(--ink-dark); }
+.btn.ghost { background: transparent; color: inherit; opacity: 0.8; }
+/* .btn is authored for <button>; an <a> needs the box and the reset. */
+a.btn { display: block; box-sizing: border-box; text-align: center; text-decoration: none; }
+
+.row { display: flex; gap: 10px; align-items: center; }
+.code { text-align: center; font-size: 1.4rem; letter-spacing: 0.1em; font-weight: 800; }
+
+/* ── match: opponent strip ───────────────────────────────── */
+.opp-strip {
+  display: flex; align-items: center; gap: 12px;
+  background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 18px; padding: 10px 14px;
+}
+.opp-strip .mini { flex: 0 0 auto; }
+.opp-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+.opp-top { display: flex; align-items: center; gap: 8px; }
+.tag { font-size: 0.72rem; padding: 2px 9px; border-radius: 999px; font-weight: 800; }
+.tag.human { background: rgba(79,208,192,0.2); color: var(--opp); }
+.tag.bot, .tag.ghost { background: rgba(234,181,74,0.18); color: var(--gold); }
+.opp-count { margin-left: auto; font-size: 0.8rem; opacity: 0.65; }
+.mini-bar { height: 8px; border-radius: 999px; background: rgba(255,255,255,0.08); overflow: hidden; }
+.mini-bar > i { display: block; height: 100%; border-radius: 999px; transition: width 0.4s ease; }
+
+/* ── match: your hero (ring + mascot) ────────────────────── */
+.hero {
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 22px; padding: 16px 10px 10px;
+}
+.gauge { position: relative; width: 140px; height: 140px; flex: 0 0 auto; }
+.gauge-label { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.gauge-label .big { font-size: 1.7rem; font-weight: 800; line-height: 1; }
+.gauge-label .small { font-size: 0.78rem; opacity: 0.7; margin-top: 3px; }
+.hero .mascot-wrap { flex: 0 0 auto; }
+
+.latest { text-align: center; display: flex; flex-direction: column; gap: 6px; align-items: center; }
+.latest .word { font-size: 1.2rem; font-weight: 800; }
+.chip { font-size: 0.82rem; font-weight: 700; padding: 4px 12px; border-radius: 999px; }
+.chip.cold { background: rgba(72,150,255,0.18); color: #82b4ff; }
+.chip.warm { background: rgba(255,178,61,0.18); color: #ffc06a; }
+.chip.hot { background: rgba(255,82,61,0.2); color: #ff9280; }
+
+.clock { text-align: center; font-variant-numeric: tabular-nums; font-size: 1rem; opacity: 0.6; }
+
+.banner { text-align: center; font-size: 0.9rem; color: var(--you); max-height: 0; overflow: hidden; transition: max-height 0.2s ease; }
+.banner.show { max-height: 44px; }
+
+/* guess input row: field + round coral send */
+.guess-row { display: flex; gap: 10px; align-items: center; }
+.guess-row .field { flex: 1; font-size: 1.05rem; }
+.send {
+  flex: 0 0 auto; width: 52px; height: 52px; border-radius: 999px; border: none; cursor: pointer;
+  background: var(--coral); color: #fff; font-size: 1.5rem; font-weight: 800; line-height: 1;
+  display: flex; align-items: center; justify-content: center; transition: transform 0.06s ease, filter 0.15s;
+}
+.send:hover { filter: brightness(1.08); }
+.send:active { transform: translateY(1px); }
+
+.guesses { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-direction: column; gap: 7px; max-height: 34vh; overflow-y: auto; }
+.guess-item { display: flex; align-items: center; gap: 10px; }
+.guess-item .gw { font-weight: 700; flex: 1; }
+.guess-item .gb { flex: 1.3; height: 12px; border-radius: 999px; background: rgba(255,255,255,0.08); overflow: hidden; }
+.guess-item .gb > i { display: block; height: 100%; border-radius: 999px; transition: width 0.4s ease; }
+.guess-item .gp { font-size: 0.72rem; font-weight: 700; opacity: 0.85; width: 62px; text-align: right; flex: 0 0 auto; }
+
+.btn.join { width: auto; flex: 0 0 auto; padding: 14px 20px; }
+
+/* ── home menu (iOS-style) ── */
+.home-wrap { width: 100%; max-width: 460px; display: flex; flex-direction: column; gap: 14px; }
+
+.home-title {
+  text-align: center; font-size: 2.1rem; font-weight: 800; margin: 6px 0 2px;
+  letter-spacing: -0.01em;
+  background-size: 220% 100%;
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  animation: title-sheen 9s ease-in-out infinite;
+}
+.theme-dark .home-title  { background-image: linear-gradient(100deg, #fff 10%, #ffd9b8 40%, #c9b6ff 70%, #fff 95%); }
+.theme-light .home-title { background-image: linear-gradient(100deg, #3a2f5c 10%, #b4522a 42%, #5a3fb0 72%, #3a2f5c 95%); }
+@keyframes title-sheen { 0%, 100% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } }
+
+/* ── today's puzzle hero ── */
+.today-card {
+  display: flex; align-items: center; gap: 12px; text-align: left; cursor: pointer;
+  border-radius: 24px; padding: 16px 18px; font-family: inherit;
+  position: relative; overflow: hidden; isolation: isolate;
+  transition: transform 0.22s cubic-bezier(0.2,0.7,0.3,1), box-shadow 0.22s ease;
+}
+.theme-light .today-card {
+  color: var(--ink-light);
+  border: 1px solid rgba(255,255,255,0.75);
+  background: linear-gradient(135deg, rgba(255,225,210,0.92), rgba(240,220,255,0.88));
+  box-shadow: 0 14px 34px rgba(120,90,150,0.18);
+}
+.theme-dark .today-card {
+  color: var(--ink-dark);
+  border: 1px solid rgba(var(--p-hot),0.32);
+  background: linear-gradient(135deg, rgba(var(--p-hot),0.20), rgba(var(--p-keeper),0.18));
+  box-shadow: 0 18px 44px rgba(0,0,0,0.42);
+}
+.today-card:hover { transform: translateY(-3px); }
+.theme-light .today-card:hover { box-shadow: 0 22px 46px rgba(120,90,150,0.26); }
+.theme-dark  .today-card:hover { box-shadow: 0 24px 56px rgba(0,0,0,0.55), 0 0 0 1px rgba(var(--p-hot),0.4); }
+.today-card:active { transform: translateY(0) scale(0.99); }
+
+/* A highlight sweeps the hero every few seconds — the one "come play" flourish
+   on the page. Kept faint so it never reads as glare. */
+.today-card::after {
+  content: ""; position: absolute; inset: -40% -60%; z-index: -1;
+  background: linear-gradient(105deg, transparent 42%, rgba(255,255,255,0.30) 50%, transparent 58%);
+  animation: hero-sheen 7s ease-in-out infinite;
+}
+.theme-dark .today-card::after { background: linear-gradient(105deg, transparent 42%, rgba(255,255,255,0.14) 50%, transparent 58%); }
+@keyframes hero-sheen { 0%, 62% { transform: translateX(-70%); } 88%, 100% { transform: translateX(70%); } }
+
+.today-mascot { flex: 0 0 auto; position: relative; }
+/* Wick sits in his own pool of light, tinted to his resting violet. */
+.today-mascot::before {
+  content: ""; position: absolute; left: 50%; top: 52%; width: 130%; aspect-ratio: 1;
+  transform: translate(-50%,-50%); border-radius: 50%; z-index: 0;
+  background: radial-gradient(circle, rgba(var(--p-keeper),0.34) 0%, rgba(var(--p-keeper),0) 68%);
+  animation: glow-pulse 4.2s ease-in-out infinite;
+}
+.today-mascot svg { position: relative; z-index: 1; }
+@keyframes glow-pulse {
+  0%, 100% { opacity: 0.55; transform: translate(-50%,-50%) scale(0.94); }
+  50%      { opacity: 1;    transform: translate(-50%,-50%) scale(1.06); }
+}
+
+.today-text { flex: 1; min-width: 0; }
+.today-num { color: var(--you); font-weight: 800; font-size: 0.95rem; }
+.today-h { font-size: 1.5rem; font-weight: 800; line-height: 1.05; }
+.today-sub { opacity: 0.72; font-size: 0.95rem; }
+
+.today-play {
+  flex: 0 0 auto; width: 46px; height: 46px; border-radius: 999px; background: var(--you);
+  color: #fff; display: flex; align-items: center; justify-content: center; font-size: 1.1rem;
+  position: relative; transition: transform 0.22s cubic-bezier(0.2,0.7,0.3,1);
+}
+/* Two expanding rings, offset, so the play button always has a heartbeat. */
+.today-play::before, .today-play::after {
+  content: ""; position: absolute; inset: 0; border-radius: 999px;
+  border: 2px solid var(--you); animation: play-ping 2.8s cubic-bezier(0,0,0.2,1) infinite;
+}
+.today-play::after { animation-delay: 1.4s; }
+@keyframes play-ping { 0% { opacity: 0.6; transform: scale(1); } 70%, 100% { opacity: 0; transform: scale(1.75); } }
+.today-card:hover .today-play { transform: scale(1.06); }
+
+/* ── mode tiles ──
+   Light keeps the pastel washes. Dark uses the iOS modeCard recipe instead —
+   12% tint fill, 28% stroke, the mode colour on the title — because pasting
+   light-mode pastels onto a black page is what made dark mode look unfinished. */
+.menu-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.tile {
+  text-align: left; cursor: pointer; border-radius: 22px; padding: 16px; min-height: 128px;
+  display: flex; flex-direction: column; gap: 4px; font-family: inherit;
+  position: relative; overflow: hidden;
+  transition: transform 0.22s cubic-bezier(0.2,0.7,0.3,1), box-shadow 0.22s ease, border-color 0.22s ease;
+}
+/* The icon must be a fixed square that hugs the glyph. As a full-width block it
+   pivots around the centre of the whole tile row, which on hover throws the emoji
+   sideways into the title — badly wrong on the double-width .tile.stats. A fixed
+   box also normalises the very different baselines of the emoji we use. */
+.tile-icon {
+  font-size: 1.55rem; line-height: 1;
+  display: flex; align-items: center; justify-content: center;
+  width: 2.1rem; height: 2.1rem; flex: 0 0 auto;
+  transform-origin: 50% 50%;
+  transition: transform 0.3s cubic-bezier(0.2,0.7,0.3,1);
+}
+.tile-title { font-weight: 800; font-size: 1.15rem; margin-top: auto; }
+.tile-sub { opacity: 0.72; font-size: 0.85rem; }
+.tile:hover { transform: translateY(-4px); }
+.tile:hover .tile-icon { transform: scale(1.12) rotate(-5deg); }
+.tile:active { transform: translateY(-1px) scale(0.99); }
+
+/* A tinted glow blooms from the corner on hover — mode colour, per tile. */
+.tile::before {
+  content: ""; position: absolute; right: -30%; top: -40%; width: 90%; aspect-ratio: 1;
+  border-radius: 50%; opacity: 0; transition: opacity 0.3s ease; pointer-events: none;
+}
+.tile:hover::before { opacity: 1; }
+
+.theme-light .tile { color: var(--ink-light); border: 1px solid rgba(255,255,255,0.6); background: rgba(255,255,255,0.6); box-shadow: 0 8px 22px rgba(120,90,150,0.10); }
+.theme-light .tile:hover { box-shadow: 0 16px 34px rgba(120,90,150,0.20); }
+.theme-light .tile.duel     { background: linear-gradient(140deg, rgba(230,215,255,0.92), rgba(215,225,255,0.82)); }
+.theme-light .tile.past     { background: linear-gradient(140deg, rgba(210,240,232,0.92), rgba(225,240,255,0.82)); }
+.theme-light .tile.practice { background: linear-gradient(140deg, rgba(224,240,214,0.92), rgba(240,236,210,0.82)); }
+.theme-light .tile.stats    { background: linear-gradient(140deg, rgba(215,232,255,0.92), rgba(230,220,255,0.85)); }
+
+.theme-dark .tile { color: var(--ink-dark); background: rgba(255,255,255,0.045); border: 1px solid rgba(255,255,255,0.08); box-shadow: 0 10px 26px rgba(0,0,0,0.3); backdrop-filter: blur(8px); }
+.theme-dark .tile:hover { box-shadow: 0 18px 40px rgba(0,0,0,0.45); }
+.theme-dark .tile.duel     { background: rgba(var(--p-keeper),0.13);   border-color: rgba(var(--p-keeper),0.30); }
+.theme-dark .tile.past     { background: rgba(var(--p-cool),0.13);     border-color: rgba(var(--p-cool),0.30); }
+.theme-dark .tile.practice { background: rgba(var(--p-solved),0.14);   border-color: rgba(var(--p-solved),0.32); }
+.theme-dark .tile.stats    { background: rgba(var(--p-freezing),0.13); border-color: rgba(var(--p-freezing),0.30); }
+
+.theme-dark .tile.duel     .tile-title { color: rgb(165,142,255); }
+.theme-dark .tile.past     .tile-title { color: rgb(78,206,184); }
+.theme-dark .tile.practice .tile-title { color: rgb(126,201,119); }
+.theme-dark .tile.stats    .tile-title { color: rgb(126,175,255); }
+.theme-light .tile.duel     .tile-title { color: rgb(88,60,180); }
+.theme-light .tile.past     .tile-title { color: rgb(21,120,104); }
+.theme-light .tile.practice .tile-title { color: rgb(53,116,49); }
+.theme-light .tile.stats    .tile-title { color: rgb(43,96,178); }
+
+.tile.duel::before     { background: radial-gradient(circle, rgba(var(--p-keeper),0.30), transparent 70%); }
+.tile.past::before     { background: radial-gradient(circle, rgba(var(--p-cool),0.30), transparent 70%); }
+.tile.practice::before { background: radial-gradient(circle, rgba(var(--p-solved),0.30), transparent 70%); }
+.tile.stats::before    { background: radial-gradient(circle, rgba(var(--p-freezing),0.30), transparent 70%); }
+
+/* ── home footer ── */
+.home-foot { display: flex; gap: 12px; margin-top: 4px; }
+.foot-btn {
+  flex: 1; cursor: pointer; font-family: inherit; font-weight: 700; font-size: 0.9rem;
+  border-radius: 16px; padding: 14px 8px; text-align: center; text-decoration: none;
+  transition: transform 0.18s cubic-bezier(0.2,0.7,0.3,1), background 0.2s ease, box-shadow 0.2s ease;
+}
+.theme-dark .foot-btn  { border: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.06); color: #f3eefb; backdrop-filter: blur(8px); }
+.theme-light .foot-btn { border: 1px solid rgba(120,100,160,0.14); background: rgba(255,255,255,0.62); color: #3b3357; }
+.foot-btn:hover { transform: translateY(-2px); }
+.theme-dark .foot-btn:hover  { background: rgba(255,255,255,0.12); }
+.theme-light .foot-btn:hover { background: rgba(255,255,255,0.9); box-shadow: 0 8px 20px rgba(120,90,150,0.16); }
+.foot-btn:active { transform: translateY(0) scale(0.98); }
+
+/* solo header */
+.solo-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 2px; }
+.solo-title { font-weight: 800; font-size: 1.05rem; }
+.solo-title.dark { color: inherit; }
+.icon-btn { width: 38px; height: 38px; border-radius: 999px; border: none; cursor: pointer;
+  background: rgba(255,255,255,0.08); color: inherit; font-size: 1.1rem; font-family: inherit; }
+.icon-btn.dark { background: rgba(120,100,160,0.14); color: inherit; }
+.row-actions { display: flex; flex-wrap: wrap; gap: 10px; width: 100%; margin-top: 6px; }
+/* Each button takes half a row, so three or four actions stack into a tidy grid
+   instead of shrinking into pills too narrow to read. */
+.row-actions .btn { flex: 1 1 calc(50% - 5px); width: auto; min-width: 0; }
+
+/* archive (past puzzles) */
+.arch-list { display: flex; flex-direction: column; gap: 8px; margin-top: 10px;
+  max-height: 62vh; overflow-y: auto; -webkit-overflow-scrolling: touch; padding-right: 2px; }
+.arch-row { display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  width: 100%; text-align: left; cursor: pointer; font-family: inherit;
+  padding: 12px 14px; border-radius: 14px; border: none; }
+.theme-light .arch-row { background: rgba(255,255,255,0.6); color: var(--ink-light); }
+.theme-dark .arch-row { background: rgba(120,100,160,0.10); color: var(--ink-dark); }
+.arch-row:hover { filter: brightness(1.06); }
+.arch-num { font-weight: 800; font-size: 0.98rem; }
+.arch-date { font-size: 0.78rem; opacity: 0.6; margin-top: 1px; }
+.arch-status { flex: 0 0 auto; width: 26px; height: 26px; border-radius: 999px;
+  display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 0.9rem; }
+.arch-status.solved { background: rgba(77,158,71,0.22); color: #7fce78; }
+.arch-status.revealed { background: rgba(183,169,150,0.2); color: #c9bda9; }
+.arch-status.playing { background: rgba(242,166,36,0.22); color: #ffc963; }
+.arch-status.none { background: transparent; opacity: 0.4; }
+.hint.center { opacity: 0.7; margin-top: 24px; }
+
+/* give up */
+.giveup-slot { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 30px; margin-top: 2px; }
+.giveup-btn { background: none; border: none; cursor: pointer; font-family: inherit;
+  font-size: 0.8rem; opacity: 0.5; text-decoration: underline; color: inherit; padding: 4px 8px; }
+.giveup-btn:hover { opacity: 0.8; }
+.giveup-ask { font-size: 0.82rem; opacity: 0.75; }
+.giveup-yes, .giveup-no { border: none; cursor: pointer; font-family: inherit; font-size: 0.78rem;
+  font-weight: 700; padding: 4px 12px; border-radius: 999px; }
+.giveup-yes { background: rgba(232,66,54,0.2); color: #ff8f82; }
+.giveup-no { background: rgba(120,100,160,0.14); color: inherit; }
+.word.reveal { color: #ff9a8f; }
+
+/* toast */
+.toast { position: fixed; left: 50%; bottom: 28px; transform: translate(-50%, 20px);
+  background: #2c2836; color: #f3eefb; padding: 12px 18px; border-radius: 14px; max-width: 88%;
+  box-shadow: 0 12px 30px rgba(0,0,0,0.3); opacity: 0; transition: all 0.25s ease; white-space: pre-line;
+  font-size: 0.9rem; text-align: center; z-index: 50; }
+.toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+/* Keeper answer card */
+.keeper { display: none; align-items: flex-start; gap: 10px; background: rgba(125,92,235,0.1);
+  border: 1px solid rgba(125,92,235,0.3); border-radius: 16px; padding: 12px 14px; }
+.keeper.show { display: flex; }
+.keeper .kwick { flex: 0 0 auto; width: 40px; height: 40px; margin-top: -2px; }
+.keeper .kwick svg { display: block; width: 40px; height: 40px; }
+.keeper .kbody { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.kbadge { font-size: 0.75rem; font-weight: 800; padding: 3px 10px; border-radius: 999px; }
+.kbadge.yes { background: rgba(77,158,71,0.22); color: #7fce78; }
+.kbadge.no { background: rgba(232,66,54,0.22); color: #ff8f82; }
+.kbadge.sortof { background: rgba(242,166,36,0.22); color: #ffc963; }
+.kbadge.idk { background: rgba(108,140,196,0.22); color: #a9c2ea; }
+.kbadge.wontsay { background: rgba(183,169,150,0.2); color: #c9bda9; }
+.kreply { font-size: 0.98rem; }
+
+/* invite QR code (3.1) — scan to join in person */
+.qr { display: block; margin: 12px auto 4px; border-radius: 12px; background: #fff; padding: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.15); }
+
+/* ── statistics (local daily stats) ── */
+.stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 6px; }
+.stat-tile { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 16px 10px;
+  border-radius: 18px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.07); }
+.theme-light .stat-tile { background: rgba(255,255,255,0.6); border-color: rgba(120,100,160,0.16); }
+.stat-num { font-size: 1.9rem; font-weight: 800; line-height: 1; }
+.stat-cap { font-size: 0.74rem; opacity: 0.62; font-weight: 700; text-align: center; }
+.dist-wrap { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+.dist-row { display: flex; align-items: center; gap: 10px; }
+.dist-lbl { flex: 0 0 auto; width: 46px; font-size: 0.8rem; font-weight: 700; opacity: 0.75; }
+.dist-bar { flex: 1; height: 16px; border-radius: 999px; background: rgba(255,255,255,0.08); overflow: hidden; }
+.dist-bar > i { display: block; height: 100%; min-width: 3px; border-radius: 999px;
+  background: var(--you); transition: width 0.4s ease; }
+.dist-count { flex: 0 0 auto; width: 24px; text-align: right; font-size: 0.8rem; font-weight: 700; opacity: 0.75; }
+/* ── The Reveal (semantic map) ── */
+.reveal-plot { width: 100%; max-width: 380px; margin: 6px auto 2px; }
+.reveal-plot svg { display: block; width: 100%; height: auto; }
+.rv-dot { transform-box: fill-box; transform-origin: center; animation: rv-pop 0.4s both; }
+@keyframes rv-pop { from { opacity: 0; transform: scale(0.1); } to { opacity: 1; transform: scale(1); } }
+@media (prefers-reduced-motion: reduce) { .rv-dot { animation: none; } }
+
+/* Statistics is a normal tile: with Wardrobe gone the grid is a clean 2x2. */
+
+/* ── suggested questions for Wick ──
+   Collapsed by default: a stuck player wants these, everyone else wants them out
+   of the way. Six permanent chips made an untouched board read as a menu. */
+.suggest { display: flex; flex-direction: column; gap: 8px; align-items: stretch; margin: 2px 0; }
+
+.suggest-toggle { display: flex; align-items: center; gap: 8px; width: 100%;
+  cursor: pointer; font-family: inherit; font-size: 0.82rem; font-weight: 700; color: inherit;
+  padding: 9px 12px; border-radius: 14px; border: 1px solid rgba(128,128,128,0.22);
+  background: transparent; opacity: 0.72; transition: opacity 0.15s ease, background 0.15s ease; }
+.suggest-toggle:hover { opacity: 1; background: rgba(128,128,128,0.08); }
+.suggest-toggle.open { opacity: 1; }
+.suggest-bulb { font-size: 0.95rem; line-height: 1; }
+.suggest-toggle-lbl { flex: 1; text-align: left; }
+.suggest-chevron { font-size: 0.8rem; transition: transform 0.2s ease; }
+.suggest-toggle.open .suggest-chevron { transform: rotate(180deg); }
+
+.suggest-list { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; justify-content: center;
+  animation: suggest-in 0.18s ease both; }
+@keyframes suggest-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .suggest-list { animation: none; } }
+.suggest:empty { display: none; }
+.suggest-chip { cursor: pointer; font-family: inherit; font-size: 0.82rem; font-weight: 700; color: inherit;
+  padding: 7px 12px; border-radius: 999px; background: rgba(125,92,235,0.16); border: 1px solid rgba(125,92,235,0.28);
+  transition: transform 0.06s ease, filter 0.15s ease; }
+.suggest-chip:hover { filter: brightness(1.08); }
+.suggest-chip:active { transform: translateY(1px); }
+
+/* ── settings ── */
+.seg-row { display: inline-flex; gap: 2px; padding: 3px; border-radius: 999px; background: rgba(128,128,128,0.2); }
+.seg { flex: 1; border: none; cursor: pointer; font-family: inherit; font-size: 0.9rem; font-weight: 800;
+  padding: 9px 10px; border-radius: 999px; background: transparent; color: inherit; opacity: 0.6; }
+.seg.on { opacity: 1; background: rgba(255,255,255,0.14); }
+.theme-light .seg.on { background: rgba(255,255,255,0.9); box-shadow: 0 1px 3px rgba(90,70,140,0.18); }
+.set-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.set-label { font-size: 0.98rem; font-weight: 600; }
+.toggle { cursor: pointer; font-family: inherit; font-weight: 800; font-size: 0.85rem; border: none;
+  padding: 8px 18px; border-radius: 999px; background: rgba(128,128,128,0.25); color: inherit; opacity: 0.75; }
+.toggle.on { background: var(--you); color: #241206; opacity: 1; }
+.field.time { width: auto; padding: 8px 12px; }
+.linkbtn { display: block; text-align: center; text-decoration: none; line-height: 1.3; }
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ANIMATED BACKDROP
+   Markup is built by game/backdrop.ts, which also drives the ember canvas.
+
+   light — a drifting pastel mesh: a CSS port of iOS AnimatedMeshBackground.swift,
+           same nine-colour temperature wash. SwiftUI has MeshGradient; here five
+           soft radial blobs ride long, mutually non-harmonic loops, which reads
+           the same. Radial stops rather than filter: blur(), which is far cheaper.
+   dark  — the mesh drops to three deep tinted glows and an ember/star field rises
+           through them. iOS dark mode is a flat static gradient so there was
+           nothing to port; embers because Wick is a flame.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.backdrop { position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; }
+.backdrop .base { position: absolute; inset: 0; transition: opacity 0.5s ease; }
+.theme-light .backdrop .base { background: linear-gradient(155deg, #eaf1ff 0%, #f3ecff 45%, #fff1e4 100%); }
+.theme-dark  .backdrop .base { background: radial-gradient(1200px 800px at 50% -15%, #191228 0%, #100c1a 55%, #08060d 100%); }
+
+/* The mesh recedes while a warmth wash is up, so the heat hue reads as itself.
+   Undamped, screen-blending hot orange over the violet keeper blob comes out
+   pink. `--blob-damp` is per-theme: dark only needs a nudge, light needs the
+   mesh almost gone or the pastels swallow the band entirely. */
+.blob { position: absolute; border-radius: 50%; will-change: transform;
+  opacity: calc(1 - var(--heat-a, 0) * var(--blob-damp, 0.55));
+  transition: opacity 0.6s ease-in-out; }
+.theme-dark  .backdrop { --blob-damp: 0.55; }
+.theme-light .backdrop { --blob-damp: 0.84; }
+.theme-dark .blob { mix-blend-mode: screen; }
+
+.b1 { width: 78vmax; height: 78vmax; left: -22vmax; top: -26vmax;    animation: drift-a 41s ease-in-out infinite; }
+.b2 { width: 66vmax; height: 66vmax; right: -20vmax; top: -14vmax;   animation: drift-b 53s ease-in-out infinite; }
+.b3 { width: 72vmax; height: 72vmax; left: -18vmax; bottom: -30vmax; animation: drift-c 47s ease-in-out infinite; }
+.b4 { width: 62vmax; height: 62vmax; right: -22vmax; bottom: -24vmax;animation: drift-d 59s ease-in-out infinite; }
+.b5 { width: 54vmax; height: 54vmax; left: 22vmax; top: 18vmax;      animation: drift-e 37s ease-in-out infinite; }
+
+/* Light blobs are the iOS mesh palette verbatim. */
+.theme-light .b1 { background: radial-gradient(circle at 50% 50%, rgba(204,222,250,0.95) 0%, rgba(204,222,250,0) 68%); }
+.theme-light .b2 { background: radial-gradient(circle at 50% 50%, rgba(224,217,250,0.90) 0%, rgba(224,217,250,0) 68%); }
+.theme-light .b3 { background: radial-gradient(circle at 50% 50%, rgba(204,237,230,0.90) 0%, rgba(204,237,230,0) 68%); }
+.theme-light .b4 { background: radial-gradient(circle at 50% 50%, rgba(252,224,212,0.95) 0%, rgba(252,224,212,0) 68%); }
+.theme-light .b5 { background: radial-gradient(circle at 50% 50%, rgba(252,237,209,0.85) 0%, rgba(252,237,209,0) 66%); }
+/* Dark uses the same hues pushed to saturated glows at low alpha. */
+.theme-dark .b1 { background: radial-gradient(circle at 50% 50%, rgba(var(--p-keeper),0.30) 0%, rgba(var(--p-keeper),0) 64%); }
+.theme-dark .b2 { background: radial-gradient(circle at 50% 50%, rgba(var(--p-hot),0.22) 0%, rgba(var(--p-hot),0) 64%); }
+.theme-dark .b3 { background: radial-gradient(circle at 50% 50%, rgba(var(--p-cool),0.22) 0%, rgba(var(--p-cool),0) 64%); }
+.theme-dark .b4 { background: radial-gradient(circle at 50% 50%, rgba(var(--p-boiling),0.18) 0%, rgba(var(--p-boiling),0) 64%); }
+.theme-dark .b5 { background: radial-gradient(circle at 50% 50%, rgba(var(--p-freezing),0.16) 0%, rgba(var(--p-freezing),0) 62%); }
+
+/* Corners stay anchored, centres wander — the same idea as the SwiftUI mesh points. */
+@keyframes drift-a { 0%,100% { transform: translate3d(0,0,0) scale(1); }    33% { transform: translate3d(9vmax,6vmax,0) scale(1.10); }   66% { transform: translate3d(4vmax,12vmax,0) scale(0.95); } }
+@keyframes drift-b { 0%,100% { transform: translate3d(0,0,0) scale(1.04); } 40% { transform: translate3d(-11vmax,8vmax,0) scale(0.94); } 70% { transform: translate3d(-5vmax,15vmax,0) scale(1.08); } }
+@keyframes drift-c { 0%,100% { transform: translate3d(0,0,0) scale(0.98); } 35% { transform: translate3d(12vmax,-9vmax,0) scale(1.09); } 68% { transform: translate3d(3vmax,-4vmax,0) scale(1.02); } }
+@keyframes drift-d { 0%,100% { transform: translate3d(0,0,0) scale(1.06); } 45% { transform: translate3d(-9vmax,-11vmax,0) scale(0.96); }75% { transform: translate3d(-14vmax,-3vmax,0) scale(1.03); } }
+@keyframes drift-e { 0%,100% { transform: translate3d(0,0,0) scale(1); }    50% { transform: translate3d(-8vmax,7vmax,0) scale(1.14); } }
+
+/* Ember / star canvas — dark only. */
+.backdrop canvas { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; transition: opacity 0.6s ease; }
+.theme-dark .backdrop canvas { opacity: 1; }
+
+/* The warmth wash — the port of iOS HunchTheme.background(for: bestScore), which
+   tints the top of the screen with the player's best heat band. Driven by
+   setBackdropHeat() in game/backdrop.ts.
+
+   It is a flat background-color behind a fixed mask rather than a gradient,
+   because background-color interpolates and gradients do not — that is what buys
+   the 0.6s ease iOS gets from .animation(.easeInOut(duration: 0.6)). */
+.backdrop .heat {
+  position: absolute; inset: 0;
+  background-color: rgb(var(--heat, var(--p-keeper)));
+  opacity: 0;
+  -webkit-mask-image: radial-gradient(120% 95% at 50% 8%, #000 0%, rgba(0,0,0,0.55) 48%, transparent 80%);
+  mask-image: radial-gradient(120% 95% at 50% 8%, #000 0%, rgba(0,0,0,0.55) 48%, transparent 80%);
+  transition: background-color 0.6s ease-in-out, opacity 0.6s ease-in-out;
+}
+/* Dark screens carry it as a glow; light screens as a pastel tint, which is the
+   same split iOS makes between systemBackground in each appearance. */
+.theme-dark  .backdrop .heat { mix-blend-mode: screen; opacity: calc(var(--heat-a, 0) * 0.34); }
+.theme-light .backdrop .heat { mix-blend-mode: multiply; opacity: calc(var(--heat-a, 0) * 0.78); }
+@media (prefers-reduced-motion: reduce) { .backdrop .heat { transition: none; } }
+
+/* A soft vignette keeps text legible over the busiest blobs. */
+.backdrop .vignette { position: absolute; inset: 0; }
+.theme-dark  .backdrop .vignette { background: radial-gradient(120% 90% at 50% 40%, transparent 40%, rgba(0,0,0,0.42) 100%); }
+.theme-light .backdrop .vignette { background: radial-gradient(120% 90% at 50% 40%, transparent 55%, rgba(120,100,170,0.10) 100%); }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SCREEN TRANSITIONS
+   clear() moves the outgoing screen into a fixed .screen-ghost and animates it
+   away while the incoming screen slides in over it. Forward pushes left, back
+   pushes right, and a same-screen re-render (a settings toggle) just crossfades.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.screen-ghost {
+  position: fixed; inset: 0; z-index: 5; pointer-events: none;
+  display: flex; align-items: center; justify-content: center; padding: 20px;
+  will-change: transform, opacity;
+}
+.screen-ghost.out-left  { animation: swoosh-out-left  0.30s cubic-bezier(0.4,0,1,1) forwards; }
+.screen-ghost.out-right { animation: swoosh-out-right 0.30s cubic-bezier(0.4,0,1,1) forwards; }
+@keyframes swoosh-out-left  { to { transform: translate3d(-9%,0,0) scale(0.965); opacity: 0; } }
+@keyframes swoosh-out-right { to { transform: translate3d(9%,0,0)  scale(0.965); opacity: 0; } }
+
+#app.nav-fwd  > *:not(.toast) { animation: swoosh-in-right 0.38s cubic-bezier(0.22,0.72,0.24,1) both; }
+#app.nav-back > *:not(.toast) { animation: swoosh-in-left  0.38s cubic-bezier(0.22,0.72,0.24,1) both; }
+#app.nav-same > *:not(.toast) { animation: swoosh-fade     0.26s ease both; }
+@keyframes swoosh-in-right { from { transform: translate3d(7%,0,0)  scale(0.97); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes swoosh-in-left  { from { transform: translate3d(-7%,0,0) scale(0.97); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes swoosh-fade     { from { opacity: 0; } to { opacity: 1; } }
+
+/* Home entrance stagger — the hero lands first, then the grid, then the footer,
+   so the menu assembles itself instead of snapping in. */
+.home-wrap > * { animation: rise-in 0.52s cubic-bezier(0.2,0.7,0.3,1) both; }
+.home-wrap > *:nth-child(1) { animation-delay: 0.02s; }
+.home-wrap > *:nth-child(2) { animation-delay: 0.08s; }
+.home-wrap > *:nth-child(3) { animation-delay: 0.14s; }
+.home-wrap > *:nth-child(4) { animation-delay: 0.22s; }
+.menu-grid > * { animation: rise-in 0.52s cubic-bezier(0.2,0.7,0.3,1) both; }
+.menu-grid > *:nth-child(1) { animation-delay: 0.16s; }
+.menu-grid > *:nth-child(2) { animation-delay: 0.21s; }
+.menu-grid > *:nth-child(3) { animation-delay: 0.26s; }
+.menu-grid > *:nth-child(4) { animation-delay: 0.31s; }
+@keyframes rise-in { from { opacity: 0; transform: translate3d(0,14px,0) scale(0.985); } to { opacity: 1; transform: none; } }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   REDUCED MOTION
+   Everything decorative stops. Entrance animations resolve to their end state
+   rather than leaving content invisible.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@media (prefers-reduced-motion: reduce) {
+  .blob,
+  .home-title,
+  .today-card::after,
+  .today-mascot::before,
+  .today-play::before,
+  .today-play::after,
+  .wick-mascot.alive,
+  .wick-mascot.alive .wick-float,
+  .wick-mascot.alive .wick-sway,
+  .wick-mascot.alive .flame-body,
+  .wick-mascot.alive .flame-glow,
+  .wick-mascot.alive .flame-sheen,
+  .wick-mascot.alive .eyes,
+  .spark { animation: none !important; }
+  .today-play::before, .today-play::after { display: none; }
+  .home-title { color: inherit; background: none; -webkit-background-clip: border-box; background-clip: border-box; }
+  .home-wrap > *, .menu-grid > *,
+  #app.nav-fwd > *, #app.nav-back > *, #app.nav-same > * {
+    animation: none !important; opacity: 1 !important; transform: none !important;
+  }
+  .screen-ghost { display: none; }
+  .tile, .today-card, .foot-btn { transition: none; }
+}
+
+/* ── small screens ── */
+@media (max-width: 420px) {
+  .today-h { font-size: 1.32rem; }
+  .tile { min-height: 116px; padding: 14px; }
+  .home-foot { flex-wrap: wrap; }
+  .foot-btn { flex: 1 1 calc(50% - 6px); }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   GHOST RACE
+   The strip reuses .opp-strip from live matches on purpose — a ghost should be
+   indistinguishable from an opponent, because the point of ghost racing is to
+   grow the population for live racing. Only the pips are new.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.ghost-strip { margin-bottom: 2px; }
+.tag.ghost { background: rgba(var(--p-keeper), 0.20); color: rgb(170,148,255); }
+
+/* One pip per action the ghost has taken. Filled = it improved their best,
+   hollow = it didn't, "?" = they asked Wick. Never shows the future. */
+.gpips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; min-height: 12px; }
+.gpip {
+  width: 11px; height: 11px; border-radius: 999px; flex: 0 0 auto;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 8px; font-weight: 900; line-height: 1;
+  animation: gpip-in 0.28s cubic-bezier(0.2,0.7,0.3,1) both;
+}
+.gpip.up   { background: var(--you); box-shadow: 0 0 8px rgba(255,138,61,0.5); }
+/* "no improvement" and "asked Wick" need a light-mode pair — a white hairline and
+   a pale violet both vanish on the light board. */
+.theme-dark  .gpip.flat { background: transparent; border: 1.5px solid rgba(255,255,255,0.30); }
+.theme-light .gpip.flat { background: transparent; border: 1.5px solid rgba(80,64,130,0.34); }
+.theme-dark  .gpip.q { background: rgba(var(--p-keeper),0.38); color: #d8ccff; }
+.theme-light .gpip.q { background: rgba(var(--p-keeper),0.22); color: rgb(88,60,180); }
+.theme-light .tag.ghost { background: rgba(var(--p-keeper),0.16); color: rgb(88,60,180); }
+.theme-light .ghost-strip { background: rgba(255,255,255,0.55); border-color: rgba(120,100,160,0.18); }
+.theme-light .ghost-strip .mini-bar { background: rgba(80,64,130,0.12); }
+@keyframes gpip-in { from { opacity: 0; transform: scale(0.2); } to { opacity: 1; transform: none; } }
+
+/* ── the count-in ── */
+.countdown {
+  position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center;
+  background: rgba(8,6,14,0.72); backdrop-filter: blur(3px);
+}
+.countdown-n { font-size: 5.5rem; font-weight: 800; color: #fff; text-shadow: 0 6px 30px rgba(0,0,0,0.5); }
+.countdown-n.pop { animation: count-pop 0.62s cubic-bezier(0.2,0.7,0.3,1) both; }
+@keyframes count-pop {
+  0%   { opacity: 0; transform: scale(1.6); }
+  25%  { opacity: 1; transform: scale(1); }
+  100% { opacity: 0.15; transform: scale(0.9); }
+}
+
+/* ── the result ── */
+.race-result {
+  margin: 8px 0 2px; padding: 12px 14px; border-radius: 16px; text-align: center;
+  border: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.04);
+}
+.race-result.win  { border-color: rgba(var(--p-solved),0.45);  background: rgba(var(--p-solved),0.12); }
+.race-result.loss { border-color: rgba(var(--p-boiling),0.35); background: rgba(var(--p-boiling),0.10); }
+.race-result.draw { border-color: rgba(var(--p-warm),0.38);    background: rgba(var(--p-warm),0.10); }
+.race-head { font-size: 1.15rem; font-weight: 800; }
+.race-times { display: flex; gap: 10px; align-items: center; justify-content: center;
+  margin-top: 5px; font-size: 0.92rem; font-variant-numeric: tabular-nums; opacity: 0.85; }
+.race-vs { opacity: 0.5; font-size: 0.8rem; }
+
+@media (prefers-reduced-motion: reduce) {
+  .gpip, .countdown-n.pop { animation: none !important; }
+}

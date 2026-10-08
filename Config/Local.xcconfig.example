@@ -1,0 +1,16 @@
+// Local.xcconfig.example — copy to Config/Local.xcconfig (gitignored) and edit.
+//
+//   cp Config/Local.xcconfig.example Config/Local.xcconfig
+//
+// Anything set here overrides Config/Wick.xcconfig. Leave a line out to keep
+// the default. Remember "//" starts a comment, so write URLs as ws:/$()/host.
+
+// Your Apple Team ID (Xcode > Settings > Accounts, or developer.apple.com).
+DEVELOPMENT_TEAM = ABCDE12345
+
+// A bundle id you own. Must match an App ID with the iCloud key-value storage
+// and Game Center capabilities enabled if you want those features to work.
+PRODUCT_BUNDLE_IDENTIFIER = com.example.wick
+
+// Your own wick-api deployment, or a local one while developing.
+WICK_SERVER_BASE = ws:/$()/localhost:8080

@@ -1,0 +1,13 @@
+{
+  "name": "Wick — Guess by meaning",
+  "short_name": "Wick",
+  "description": "A daily word game: guess the secret word by meaning.",
+  "icons": [
+    { "src": "./icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "./icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ],
+  "theme_color": "#141019",
+  "background_color": "#141019",
+  "display": "standalone",
+  "start_url": "./"
+}

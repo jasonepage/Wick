@@ -1,0 +1,60 @@
+{
+  "identifier" : "4c8478ae-ff96-445b-b8df-6e47ccc6e8a3",
+  "nonRenewingSubscriptions" : [],
+  "products" : [
+    {
+      "displayPrice" : "0.99",
+      "familyShareable" : false,
+      "internalID" : "be1bd32a-625d-4048-98c4-1ddc77d996f6",
+      "localizations" : [
+        {
+          "description" : "A small stack of coins for hints and questions.",
+          "displayName" : "100 Coins",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "party.heirloom.Hunch.coins.small",
+      "referenceName" : "100 Coins",
+      "type" : "Consumable"
+    },
+    {
+      "displayPrice" : "2.99",
+      "familyShareable" : false,
+      "internalID" : "be1bd32a-625d-4048-98c4-1ddc77d996f7",
+      "localizations" : [
+        {
+          "description" : "A bigger pile of coins — best for regulars.",
+          "displayName" : "550 Coins",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "party.heirloom.Hunch.coins.medium",
+      "referenceName" : "550 Coins",
+      "type" : "Consumable"
+    },
+    {
+      "displayPrice" : "6.99",
+      "familyShareable" : false,
+      "internalID" : "690b9331-4a3c-463b-884e-5894b13e0aab",
+      "localizations" : [
+        {
+          "description" : "A hoard of coins — best value.",
+          "displayName" : "1500 Coins",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "party.heirloom.Hunch.coins.large",
+      "referenceName" : "1500 Coins",
+      "type" : "Consumable"
+    }
+  ],
+  "settings" : {
+    "_failTransactionsEnabled" : false,
+    "_storeKitErrors" : []
+  },
+  "subscriptionGroups" : [],
+  "version" : {
+    "major" : 3,
+    "minor" : 0
+  }
+}

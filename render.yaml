@@ -1,0 +1,45 @@
+# render.yaml — Render Blueprint for self-hosting wick-api (optional).
+#
+# One warm Node service. Live WebSockets need no cold starts, so a paid
+# always-on instance is required; a free tier that sleeps will drop matches.
+# In-memory rooms and queue, single instance, no database.
+#
+# The Blueprint lives at the repo root but the service code is in /wick-api
+# (rootDir below). Provision: Render > New > Blueprint > point at your fork.
+#
+# The same service serves the built wick-web client from ./public, plus the
+# marketing, privacy and support pages at /marketing. Attach your custom
+# domain in the Render dashboard; it is not declared here.
+
+services:
+  - type: web
+    name: wick-api
+    runtime: node
+    plan: starter                 # warm instance — required for live WS (C6)
+    rootDir: wick-api
+    region: oregon                # adjust to taste
+    # Install dev deps so tsc can compile, then run plain node on the emitted JS
+    # (no tsx/tsc at runtime — only production deps: hono, ws, @hono/node-server).
+    # Build the API and the web client, then serve the web client from ./public.
+    buildCommand: npm ci --include=dev && npm run build:all
+    startCommand: npm start
+    healthCheckPath: /healthz     # FR-1
+    # Off on purpose. A redeploy restarts the instance, which drops every live
+    # socket and clears the embedded rank vocabulary, so warmth reads as noise
+    # until the pre-warm sweep finishes. Deploy from the dashboard when you
+    # are watching.
+    autoDeploy: false
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      # Base URL for share links. Set to your own domain.
+      - key: WICK_APP_LINK_BASE
+        value: https://example.com
+      # Your Gemini API key. SECRET: set the value in the Render dashboard, never
+      # in this file. Without it, warmth falls back to a rough lexical score.
+      - key: GEMINI_API_KEY
+        sync: false
+      # Leave unset in production (debug routes reveal the secret word).
+      - key: WICK_DEBUG_TOKEN
+        sync: false
+      # PORT is provided by Render automatically; the server reads process.env.PORT.

@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Merged with the Xcode-generated Info.plist (GENERATE_INFOPLIST_FILE stays YES,
+	     so every INFOPLIST_KEY_* build setting still applies). This file exists for
+	     the one thing that has no INFOPLIST_KEY_ equivalent: the custom URL scheme.
+
+	     IT LIVES IN Config/, NOT Hunch/, ON PURPOSE. The Hunch folder is a
+	     synchronized file group, so everything inside it is added to the target
+	     automatically — including into Copy Bundle Resources. A plist that is both
+	     COPIED as a resource and PROCESSED via INFOPLIST_FILE writes the same
+	     output path twice, and the build dies with "Multiple commands produce
+	     .../Info.plist". Keeping it out of the synced folder is what prevents that.
+	     Do not move it back.
+
+	     wick:// is the fallback path for deep links. Universal Links are the primary
+	     route, but they do not fire when a link is typed into Safari's address bar,
+	     when it is tapped from a page already on guesswick.com, or when iOS has a
+	     stale association cached. The scheme has none of those failure modes, so the
+	     web challenge screen can always offer a working "open in the app" button. -->
+	<!-- Live multiplayer server base (WebSocket). Comes from WICK_SERVER_BASE in
+	     Config/Wick.xcconfig or your gitignored Config/Local.xcconfig. Read by
+	     Hunch/Live/LiveConfig.swift. -->
+	<key>WICK_SERVER_BASE</key>
+	<string>$(WICK_SERVER_BASE)</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>party.heirloom.Hunch</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>wick</string>
+			</array>
+		</dict>
+	</array>
+</dict>
+</plist>
