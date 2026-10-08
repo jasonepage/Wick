@@ -5,13 +5,12 @@
 //  The Race hub (3.3). Dare was retired in 3.3, so this screen does one job:
 //  get two people racing the same word.
 //
-//   • Race a friend (the hero) is the Ghost Race from 3.2. You finish a round,
+//   • Race someone live (the hero) opens the server-matched live race
+//     (LiveDuelView), which pairs you with a real player or a disclosed bot and
+//     also handles private friend codes. It is the fun one, so it leads.
+//   • Race a friend (secondary) is the Ghost Race from 3.2. You finish a round,
 //     send a link, and your friend races a replay of your run. Nobody has to be
 //     online at the same time, and the link plays on the web with no install.
-//     That is the version of racing that works with a small player base.
-//   • Race someone live (secondary) opens the server-matched live race
-//     (LiveDuelView), which pairs you with a real player or a disclosed bot and
-//     also handles private friend codes.
 //
 //  The struct keeps its old name so HomeView and previews need no churn. The
 //  legacy offline WK-/WR- duel codes are still honoured by deep links in
@@ -42,8 +41,8 @@ struct DuelView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 16) {
-                    friendCard
                     liveCard
+                    friendCard
                     Label(game.loc.raceLiveDisclosure, systemImage: "lock.shield")
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -65,81 +64,71 @@ struct DuelView: View {
         }
     }
 
-    // MARK: Race a friend (ghost)
+    // MARK: Race someone live (hero)
 
-    private var friendCard: some View {
+    private var liveCard: some View {
         VStack(spacing: 14) {
             ZStack {
                 Circle().fill(.white.opacity(0.25)).frame(width: 64, height: 64)
-                Image(systemName: "flag.checkered").font(.title).foregroundStyle(.white)
+                Image(systemName: "bolt.fill").font(.title).foregroundStyle(.white)
             }
-            Text(game.loc.raceAFriend)
+            Text(game.loc.raceStrangerTitle)
                 .font(.title2.bold()).foregroundStyle(.white)
-            Text(game.loc.raceFriendBlurb)
+            Text(game.loc.liveRaceBlurb)
                 .font(.subheadline).foregroundStyle(.white.opacity(0.92))
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
 
-            if let run = finishedRun {
-                Button {
-                    Feedback.play(.selection)
-                    // Same wording as the end-of-round button in GameView and
-                    // the web share sheet (shareRace in main.ts).
-                    let text = run.solved
-                        ? game.loc.raceShareSolved(Ghost.formatDuration(ms: run.durationMs))
-                        : game.loc.raceShareUnsolved
-                    Events.track(.raceLinkCreated, n: run.mode == .daily ? run.ref : nil)
-                    ShareSheet.present([text, Ghost.link(run)])
-                } label: {
-                    Label(game.loc.raceSendYourRun, systemImage: "square.and.arrow.up")
-                        .font(.headline)
-                        .foregroundStyle(raceColor)
-                        .frame(maxWidth: .infinity).padding(.vertical, 12)
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(.white)
-            } else {
-                Button {
-                    Feedback.play(.selection)
-                    dismiss()
-                    game.playDaily()
-                } label: {
-                    Label(game.loc.racePlayTodayFirst, systemImage: "play.fill")
-                        .font(.headline)
-                        .foregroundStyle(raceColor)
-                        .frame(maxWidth: .infinity).padding(.vertical, 12)
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(.white)
+            Button {
+                Haptics.selection()
+                showLiveDuel = true
+            } label: {
+                Label(game.loc.raceLiveNow, systemImage: "bolt.fill")
+                    .font(.headline)
+                    .foregroundStyle(liveColor)
+                    .frame(maxWidth: .infinity).padding(.vertical, 12)
             }
+            .buttonStyle(.borderedProminent)
+            .tint(.white)
         }
         .frame(maxWidth: .infinity)
         .padding(HunchTheme.Spacing.l)
-        .background(raceColor, in: RoundedRectangle(cornerRadius: 20))
-        .shadow(color: raceColor.opacity(0.4), radius: 8, y: 4)
+        .background(liveColor, in: RoundedRectangle(cornerRadius: 20))
+        .shadow(color: liveColor.opacity(0.4), radius: 8, y: 4)
     }
 
-    // MARK: Race someone live
+    // MARK: Race a friend (ghost, secondary)
 
-    private var liveCard: some View {
+    private var friendCard: some View {
         Button {
-            Haptics.selection()
-            showLiveDuel = true
+            Feedback.play(.selection)
+            if let run = finishedRun {
+                // Same wording as the end-of-round button in GameView and
+                // the web share sheet (shareRace in main.ts).
+                let text = run.solved
+                    ? game.loc.raceShareSolved(Ghost.formatDuration(ms: run.durationMs))
+                    : game.loc.raceShareUnsolved
+                Events.track(.raceLinkCreated, n: run.mode == .daily ? run.ref : nil)
+                ShareSheet.present([text, Ghost.link(run)])
+            } else {
+                dismiss()
+                game.playDaily()
+            }
         } label: {
             HStack(spacing: 14) {
-                Image(systemName: "bolt.fill")
+                Image(systemName: "flag.checkered")
                     .font(.title2)
-                    .foregroundStyle(liveColor)
+                    .foregroundStyle(raceColor)
                     .frame(width: 40)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(game.loc.raceStrangerTitle)
-                        .font(.headline).foregroundStyle(liveColor)
-                    Text(game.loc.liveRaceBlurb)
+                    Text(game.loc.raceAFriend)
+                        .font(.headline).foregroundStyle(raceColor)
+                    Text(game.loc.raceFriendBlurb)
                         .font(.caption).foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer(minLength: 0)
-                Image(systemName: "chevron.right")
+                Image(systemName: finishedRun == nil ? "play.fill" : "square.and.arrow.up")
                     .font(.footnote.weight(.semibold))
                     .foregroundStyle(.tertiary)
             }
