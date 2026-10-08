@@ -97,3 +97,18 @@ export async function askKeeper(
   }
 }
 
+
+/** Humans racing / waiting right now (GET /live), or null if the server is
+ *  unreachable. The Race chooser shows it; it never blocks anything. */
+export async function fetchLiveCounts(httpBase: string): Promise<{ racing: number; waiting: number } | null> {
+  try {
+    const res = await fetch(`${httpBase}/live`);
+    if (!res.ok) return null;
+    const j = (await res.json()) as { racing?: unknown; waiting?: unknown };
+    const racing = typeof j.racing === "number" ? j.racing : 0;
+    const waiting = typeof j.waiting === "number" ? j.waiting : 0;
+    return { racing, waiting };
+  } catch {
+    return null;
+  }
+}

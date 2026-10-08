@@ -211,6 +211,14 @@ app.get("/apple-app-site-association", (c) => c.json(AASA)); // legacy root loca
 const metrics = new Metrics();
 app.get("/metrics", (c) => c.json({ ...metrics.snapshot(), growth: metrics.growth() }));
 
+// Live player count for the Race screen ("N racing now"). Two integers from
+// in-memory maps, no Gemini, no allocation to speak of; cached for 5 s so a
+// front-page crowd polling it costs nothing. Humans only — see hub.liveCounts.
+app.get("/live", (c) => {
+  c.header("Cache-Control", "public, max-age=5");
+  return c.json(hub.liveCounts());
+});
+
 // Hot/cold warmth for a guess (server-authoritative; Gemini key only in env, C4).
 // Single-player callers (who know the secret) send { secret, guess }.
 app.post("/warmth", async (c) => {
@@ -516,6 +524,11 @@ wss.on("connection", (socket: WebSocket, req) => {
   // attestation verification replaces this (FR-16, hub.ts FLAG).
   const url = new URL(req.url ?? "/", `http://localhost:${PORT}`);
   const id = url.searchParams.get("kid") ?? `anon-${randomId()}`;
+  // "Race a flame now": the client reconnects with ?fill=now after waiting out
+  // the Searching screen, and the queue frame that follows gets expedited so the
+  // next tick bot-fills it. Carried on the socket URL, not in protocol.ts, so
+  // the wire frames are unchanged for every existing client.
+  const fillNow = url.searchParams.get("fill") === "now";
 
   const client: Client = {
     id,
@@ -551,6 +564,7 @@ wss.on("connection", (socket: WebSocket, req) => {
       }
     }
     hub.receive(client, frame);
+    if (fillNow && frame.t === "queue" && frame.mode === "casual" && !frame.friendCode) hub.expedite(client);
   });
 
   socket.on("close", () => hub.disconnect(client));

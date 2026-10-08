@@ -133,6 +133,41 @@ describe("bot-fill (FR-13) end to end", () => {
     expect(hub.activeRoomCount()).toBe(1);
   });
 
+  it("expedite pulls a lone waiter's bot-fill forward to the next tick", () => {
+    const hub = makeHub();
+    const a = new Fake("A");
+    hub.connect(a);
+    hub.receive(a, { t: "queue", mode: "casual" });
+    clock.t = T0 + 1_000;
+    hub.tick();
+    expect(a.has("paired")).toBe(false);
+
+    expect(hub.expedite(a)).toBe(true);
+    expect(a.last("queued")!.waitMs).toBe(0);
+    hub.tick();
+    expect(a.last("paired")!.opponentKind).toBe("bot");
+    // Not waiting any more, so a second expedite is a no-op.
+    expect(hub.expedite(a)).toBe(false);
+  });
+
+  it("liveCounts reports humans only, never bot seats", () => {
+    const hub = makeHub();
+    expect(hub.liveCounts()).toEqual({ racing: 0, waiting: 0 });
+    const a = new Fake("A");
+    hub.connect(a);
+    hub.receive(a, { t: "queue", mode: "casual" });
+    expect(hub.liveCounts()).toEqual({ racing: 0, waiting: 1 });
+    clock.t = T0 + WAIT;
+    hub.tick(); // bot-filled: one human racing, one bot seat that must not count
+    expect(hub.liveCounts()).toEqual({ racing: 1, waiting: 0 });
+    const b = new Fake("B");
+    const c = new Fake("C");
+    hub.connect(b); hub.connect(c);
+    hub.receive(b, { t: "queue", mode: "casual" });
+    hub.receive(c, { t: "queue", mode: "casual" });
+    expect(hub.liveCounts()).toEqual({ racing: 3, waiting: 0 });
+  });
+
   it("a solving bot eventually wins if the human is idle", () => {
     const hub = makeHub();
     const a = new Fake("A");

@@ -77,7 +77,7 @@ environment. This repository is all three parts.
 2. **Closeness is the angle between two embeddings** (cosine similarity).
    A small angle means close in meaning. Raw cosine is never shown, because
    on Gemini's model even unrelated words sit around 0.8.
-3. **The score is a rank.** The server embeds a vocabulary of 9,850 common
+3. **The score is a rank.** The server embeds a vocabulary of 10,000 common
    words once, sorts them by closeness to today's secret, and reports where
    your guess lands. Rank 1 is the answer and rank 2 is the single closest
    word. Boiling is rank 25 or better, hot is 100, warm is 400, cool is 1200,

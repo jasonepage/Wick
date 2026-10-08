@@ -17,7 +17,7 @@ import type { MatchMode, OpponentKind, StateSnapshot, MatchResult } from "./net/
 import { mascotSVG, ringSVG, scoreLabel, scoreColor, scoreColorA } from "./game/wickface.ts";
 import { todaysDaily, randomPracticeAt, practiceAt, wordText, pastPuzzles } from "./game/daily.ts";
 import type { DailyWord, PastPuzzle } from "./game/daily.ts";
-import { fetchWarmth, httpBaseFrom, askKeeper, fetchReveal } from "./net/api.ts";
+import { fetchWarmth, httpBaseFrom, askKeeper, fetchReveal, fetchLiveCounts } from "./net/api.ts";
 import type { RevealPointDTO, WarmthResult } from "./net/api.ts";
 import { computeStats } from "./game/stats.ts";
 import { revealSVG, shareRevealCard } from "./game/revealcard.ts";
@@ -25,7 +25,7 @@ import { initEvents, track } from "./net/events.ts";
 import { buildRun, encodeRun, decodeRun, runDuration, fmtDuration } from "./game/ghost.ts";
 import type { GhostRun } from "./game/ghost.ts";
 import { mountBackdrop, setBackdropHeat } from "./game/backdrop.ts";
-import { dailyStarters, starterText, type StarterItem } from "./game/starters.ts";
+import { dailyStarters, starterText, STARTER_CATEGORIES, type StarterItem } from "./game/starters.ts";
 import { play as playSound, playGuessTone, soundEnabled, setSoundEnabled, armAudioUnlock } from "./game/sound.ts";
 import { t, getLang, setLang, LANGS, LANG_LABEL } from "./i18n.ts";
 import type { Lang } from "./i18n.ts";
@@ -203,6 +203,10 @@ let clockTimer: number | null = null;
 let pendingGhost: GhostRun | null = null;
 /** Drives the ghost strip while a race is on. */
 let ghostTimer: number | null = null;
+/** Polls GET /live while the Race chooser is on screen ("N racing now"). */
+let liveCountTimer: number | null = null;
+/** Arms the Searching screen's fallback ("race a flame now") after a wait. */
+let searchFallbackTimer: number | null = null;
 const app = document.querySelector<HTMLDivElement>("#app")!;
 
 // ── DOM helpers ──
@@ -412,6 +416,14 @@ function clear(_hint?: "light" | "dark"): void {
   if (ghostTimer !== null) {
     window.clearInterval(ghostTimer);
     ghostTimer = null;
+  }
+  if (liveCountTimer !== null) {
+    window.clearInterval(liveCountTimer);
+    liveCountTimer = null;
+  }
+  if (searchFallbackTimer !== null) {
+    window.clearTimeout(searchFallbackTimer);
+    searchFallbackTimer = null;
   }
   applyTheme();
   // Every screen starts cold; the round renderers set it again immediately, so
@@ -801,6 +813,29 @@ function askSolo(text: string): void {
   });
 }
 
+/** Three always-visible starter chips under the input: the one-tap path that
+ *  teaches the question mechanic to a first-time player. Fixed, not seeded, so
+ *  the first board every new player sees is the same obvious trio. A chip
+ *  retires once asked; the row disappears when the round is over. The seeded
+ *  "Need ideas?" pool below stays as the deeper well. */
+const QUICK_ASK_KEYS = ["alive", "food", "biggerThanCar"] as const;
+const QUICK_ASK: StarterItem[] = QUICK_ASK_KEYS.map((key) =>
+  STARTER_CATEGORIES.flatMap((c) => c.items).find((i) => i.key === key)!);
+
+function renderQuickAsk(over: boolean): void {
+  const box = document.querySelector<HTMLDivElement>("#quick-ask");
+  if (!box) return;
+  if (over) { box.replaceChildren(); return; }
+  const asked = new Set(sp.replies.map((r) => normalize(r.question)));
+  const left = QUICK_ASK.filter((q) => !asked.has(normalize(q.full)));
+  box.replaceChildren(...left.map((q) =>
+    // Shown localised, SENT in English — see game/starters.ts.
+    el("button", {
+      class: "suggest-chip quick",
+      onclick: () => { void playSound("tap"); askSolo(q.full); },
+    }, [starterText(q, getLang())])));
+}
+
 /** Tappable suggested questions, behind a disclosure. Questions already asked
  *  retire from the pool; the whole block disappears once the round is over. */
 function renderSuggest(over: boolean): void {
@@ -1059,6 +1094,7 @@ function screenSolo(): void {
         input,
         el("button", { class: "send", onclick: submit, title: "Guess or ask" }, ["↑"]),
       ]),
+      el("div", { id: "quick-ask", class: "quick-ask" }),
       el("p", { class: "hint" }, [t("guessOrAskHint")]),
       el("div", { id: "suggest", class: "suggest" }),
       el("div", { id: "giveup-slot", class: "giveup-slot" }),
@@ -1290,6 +1326,7 @@ function renderSolo(): void {
   // Input row + give-up button only while the round is live.
   const grow = document.querySelector<HTMLDivElement>("#grow");
   if (grow) grow.style.display = over ? "none" : "";
+  renderQuickAsk(over);
   renderSuggest(over);
   renderGiveUpSlot(over);
   renderSoloLog();
@@ -1458,12 +1495,25 @@ function renderLatestChip(latestEl: HTMLDivElement, latest: Guess | undefined): 
 function screenDuel(): void {
   track("duel_open");
   clear("dark");
-  const card = (icon: string, title: string, sub: string, cls: string, onclick: () => void) =>
-    el("button", { class: `duel-choice ${cls}`, onclick }, [
-      el("div", { class: "duel-choice-icon" }, [icon]),
-      el("div", { class: "duel-choice-title" }, [title]),
-      el("div", { class: "duel-choice-sub" }, [sub]),
-    ]);
+  // Launch-week ordering: live racing is the hero (bigger, first, with a real
+  // player count); the friend's-ghost race stays, as the quieter second option.
+  // "Race a friend" opens today's daily: a finished board already shows the
+  // Race a friend share button, an unfinished one is where the run starts.
+  const count = el("div", { class: "live-count" }, [""]);
+  const hero = el("button", { class: "duel-hero live", onclick: () => { void playSound("tap"); screenLobby(); } }, [
+    el("div", { class: "duel-hero-icon" }, ["⚡"]),
+    el("div", { class: "duel-hero-title" }, [t("raceStrangerTitle")]),
+    el("div", { class: "duel-hero-sub" }, [t("liveRaceBlurb")]),
+    count,
+    el("div", { class: "duel-hero-cta" }, [t("liveRaceNow")]),
+  ]);
+  const ghost = el("button", { class: "duel-choice race secondary", onclick: () => { void playSound("tap"); startDaily(); } }, [
+    el("div", { class: "duel-choice-icon" }, ["🏁"]),
+    el("div", { class: "duel-choice-text" }, [
+      el("div", { class: "duel-choice-title" }, [t("raceAFriend")]),
+      el("div", { class: "duel-choice-sub" }, [t("raceFriendBlurb")]),
+    ]),
+  ]);
   app.append(
     el("main", { class: "card" }, [
       el("div", { class: "solo-head" }, [
@@ -1471,16 +1521,23 @@ function screenDuel(): void {
         el("span", { class: "solo-title dark" }, [t("duelRace")]),
         el("span", {}, [""]),
       ]),
-      // 3.3: Dare is retired. Racing a friend's ghost leads (works with nobody
-      // else online, and the link needs no install); live racing comes second.
-      // "Race a friend" opens today's daily: a finished board already shows the
-      // Race a friend share button, an unfinished one is where the run starts.
-      el("div", { class: "duel-choices" }, [
-        card("🏁", t("raceAFriend"), t("raceFriendBlurb"), "race", () => { void playSound("tap"); startDaily(); }),
-        card("⚡", t("raceStrangerTitle"), t("liveRaceBlurb"), "live", screenLobby),
-      ]),
+      el("div", { class: "duel-choices" }, [hero, ghost]),
     ]),
   );
+  // Honest numbers only: humans racing, humans waiting, or "no one", never an
+  // implied opponent. Polled every 10 s; the route is cached 5 s server-side.
+  const refresh = () => {
+    fetchLiveCounts(httpBase).then((c) => {
+      if (!count.isConnected) return;
+      if (!c) { count.textContent = ""; return; }
+      count.textContent =
+        c.racing > 0 ? t("liveRacingNow", c.racing)
+        : c.waiting > 0 ? t("liveOneWaiting")
+        : t("liveNobodyQueueing");
+    });
+  };
+  refresh();
+  liveCountTimer = window.setInterval(refresh, 10_000);
 }
 
 function screenLobby(): void {
@@ -1515,7 +1572,7 @@ function hostRace(): void {
   startLive("casual", genCode(), true);
 }
 
-function startLive(mode: MatchMode, friendCode?: string, create?: boolean): void {
+function startLive(mode: MatchMode, friendCode?: string, create?: boolean, opts?: { fillNow?: boolean }): void {
   live.opponentKind = null;
   live.snapshot = null;
   live.guesses = [];
@@ -1529,6 +1586,9 @@ function startLive(mode: MatchMode, friendCode?: string, create?: boolean): void
   live.client = new WickMatchClient({
     serverBase,
     kid: live.kid,
+    // "Race a flame now": the server expedites this queue so the next tick
+    // bot-fills it instead of waiting for the shared start.
+    query: opts?.fillNow ? { fill: "now" } : undefined,
     handlers: {
       onOpen: () => live.client?.queue(mode, friendCode, create),
       onPaired: (f) => { live.opponentKind = f.opponentKind; screenMatch(); },
@@ -1607,6 +1667,16 @@ function screenSearching(): void {
   } else {
     kids.push(el("p", { class: "center muted" }, [t("livePracticeFlameSteps")]));
   }
+  // Never a dead-end spinner. After 15 s (20 s when hosting, since a friend
+  // may still be tapping the link) offer two ways out: a bot race right now, or
+  // the friend's-ghost race. Both leave this queue.
+  const fallback = el("div", { class: "search-fallback", hidden: true }, [
+    el("p", { class: "center muted" }, [t("searchStillLooking")]),
+    el("button", { class: "btn primary", onclick: () => { void playSound("tap"); startLive("casual", undefined, undefined, { fillNow: true }); } }, [t("searchRaceFlame")]),
+    el("button", { class: "btn secondary", onclick: () => { void playSound("tap"); live.client?.close(); live.client = null; startDaily(); } }, [t("searchRaceGhost")]),
+  ]);
+  kids.push(fallback);
+  searchFallbackTimer = window.setTimeout(() => { fallback.removeAttribute("hidden"); }, live.hosting ? 20_000 : 15_000);
   kids.push(el("button", { class: "btn ghost", onclick: leaveLive }, ["Cancel"]));
   app.append(el("main", { class: "card" }, kids));
 }

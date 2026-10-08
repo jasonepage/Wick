@@ -43,6 +43,9 @@ export interface WickClientOptions {
   serverBase: string;
   /** Per-tab identity = the App Attest key id slot (phase 1 uses ?kid=). */
   kid: string;
+  /** Extra socket-URL query params (e.g. `{ fill: "now" }` for "race a flame
+   *  now"). Carried on the URL, never in a frame, so protocol.ts is untouched. */
+  query?: Record<string, string>;
   handlers: WickClientHandlers;
 }
 
@@ -50,6 +53,7 @@ export class WickMatchClient {
   private ws: WebSocket | null = null;
   private readonly base: string;
   private readonly kid: string;
+  private readonly query: Record<string, string>;
   private readonly h: WickClientHandlers;
   private heartbeatTimer: number | null = null;
   // Auto-reconnect on a flaky drop (mobile web especially). iOS gets server-side
@@ -63,12 +67,14 @@ export class WickMatchClient {
   constructor(opts: WickClientOptions) {
     this.base = opts.serverBase.replace(/\/+$/, "");
     this.kid = opts.kid;
+    this.query = opts.query ?? {};
     this.h = opts.handlers;
   }
 
   connect(): void {
     this.closedByUs = false;
-    const url = `${this.base}/match?kid=${encodeURIComponent(this.kid)}`;
+    const extra = Object.entries(this.query).map(([k, v]) => `&${encodeURIComponent(k)}=${encodeURIComponent(v)}`).join("");
+    const url = `${this.base}/match?kid=${encodeURIComponent(this.kid)}${extra}`;
     let ws: WebSocket;
     try {
       ws = new WebSocket(url);

@@ -622,7 +622,28 @@ export class MatchHub {
     return roomId ? this.dareRooms.get(roomId) : undefined;
   }
 
+  /** "Race a flame now": a waiting Quick Match player gives up on the shared
+   *  start and takes the bot at the next tick. No-op if they are not waiting. */
+  expedite(client: Client): boolean {
+    const ok = this.mm.expedite(client.id, this.now());
+    if (ok) {
+      const now = this.now();
+      client.send({ t: "queued", startsAt: now, waitMs: 0 });
+    }
+    return ok;
+  }
+
   // ── introspection (ops / tests) ─────────────────────────────────────────────
+
+  /** Cheap counts for the Race screen's "N racing now" line. Humans only:
+   *  bot seats are not people, and the line must stay honest. */
+  liveCounts(): { racing: number; waiting: number } {
+    let racing = 0;
+    for (const ar of this.rooms.values()) {
+      for (const id of ar.room.playerIds()) if (!ar.bots.has(id)) racing++;
+    }
+    return { racing, waiting: this.mm.waitingCount("casual") };
+  }
 
   activeRoomCount(): number {
     return this.rooms.size;

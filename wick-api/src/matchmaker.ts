@@ -165,6 +165,17 @@ export class Matchmaker {
     return Math.ceil(earliest / startSlotMs) * startSlotMs;
   }
 
+  /** Pull a waiting casual player's start forward to `now`, so the next tick
+   *  bot-fills them. The client's "race a flame now" fallback: a lone player who
+   *  does not want to sit out a shared-start countdown. Returns false if the
+   *  player is not in the casual queue (already paired, hosting a code, ranked). */
+  expedite(playerId: string, now: number): boolean {
+    const e = this.queues.get("casual")?.find((x) => x.playerId === playerId);
+    if (!e) return false;
+    e.startAtWall = Math.min(e.startAtWall, now);
+    return true;
+  }
+
   /** The scheduled start for a waiting player, or null if they are not in a
    *  random queue (friend rooms have no schedule). */
   startAtFor(playerId: string): number | null {
