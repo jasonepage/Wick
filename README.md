@@ -1,144 +1,245 @@
-# Wick
+<p align="center">
+  <img src="docs/icon.png" width="128" alt="Wick: a small purple flame with a face">
+</p>
 
-Wick is a daily word game where you guess by meaning, not spelling. There is one
-secret word a day. Type any word and Wick tells you how close you are in meaning:
-freezing, cold, cool, warm, hot, boiling. "Tomato" is hot when the answer is
-"red"; "tomb" is freezing, even though the letters look close. You can also ask
-Wick, the little flame who guards the word, yes or no questions. It plays on the
-web at [guesswick.com](https://guesswick.com) and as an iOS app
-([Wick: Daily Word Game](https://apps.apple.com/app/id6777743483)), and both
-play the same daily puzzle in English, Spanish, French, Italian and German.
+<h1 align="center">Wick</h1>
 
-This repository is the whole thing: the iOS app (`Hunch/`, the project's
-original name), the server (`wick-api/`) and the web client (`wick-web/`).
+<p align="center"><b>A daily word game where you guess by meaning, not spelling.</b></p>
 
-## How the scoring works
+<p align="center">
+  <a href="LICENSE"><img alt="MPL 2.0" src="https://img.shields.io/badge/license-MPL_2.0-8C6A2B"></a>
+  <img alt="iOS 17" src="https://img.shields.io/badge/iOS-17%2B-1A1714">
+  <img alt="SwiftUI" src="https://img.shields.io/badge/SwiftUI-NaturalLanguage-F05138">
+  <img alt="Web" src="https://img.shields.io/badge/web-Vite_%2B_TypeScript-646CFF">
+  <img alt="Server" src="https://img.shields.io/badge/server-Node_%2B_Hono-4B8B3B">
+  <img alt="Scoring" src="https://img.shields.io/badge/scoring-Gemini_embeddings-9C7CFF">
+</p>
 
-Every word is turned into a list of numbers called an embedding. Words that are
-used in similar ways end up with similar numbers, so the distance between two
-embeddings is a decent stand-in for how related the two words are. Wick takes
-the embedding of your guess and the embedding of the secret word and measures
-the angle between them (cosine similarity). A small angle means close in
-meaning.
+<p align="center">
+  <a href="https://guesswick.com">Play in your browser</a> ·
+  <a href="https://apps.apple.com/app/id6777743483">App Store</a> ·
+  <a href="https://guesswick.com/marketing/">Website</a> ·
+  <a href="https://guesswick.com/marketing/privacy.html">Privacy</a> ·
+  <a href="https://github.com/jasonepage/Wick/issues">Report a bug</a>
+</p>
 
-Raw similarity is hard to read, so Wick converts it to a rank. The server
-embeds a vocabulary of about ten thousand common words once, sorts them by
-similarity to today's secret, and reports where your guess lands in that list.
-Rank 1 is the answer, rank 2 is the single closest word, and so on. The bands
-are fixed cutoffs on that rank: boiling is rank 25 or better, hot is 100 or
-better, warm 400, cool 1200, and cold beyond that. Your guess has to be a
-real dictionary word to be scored at all.
+---
 
-Where the embeddings come from depends on the platform:
+There is one secret word a day. Type any word and Wick tells you how close
+you are in meaning: freezing, cold, cool, warm, hot, boiling. "Tomato" is hot
+when the answer is "red". "Tomb" is freezing, even though the letters look
+close. No letter clues, no colored tiles. You can also ask Wick, the little
+flame who guards the word, yes or no questions, and it answers without ever
+giving the word away.
 
-- Web: the server computes the score. The browser sends the guess and the
-  secret to `wick-api`, which calls the Google Gemini embedding API and sends
-  the score back. If no Gemini key is set, the server falls back to a rough
-  spelling-based score and labels it as a fallback.
-- iOS, single player: everything stays on the device. English uses Apple's
-  built-in word embedding (`NLEmbedding`). The other four languages use small
-  embedding models bundled in this repository under `ODRResources/`, built from
-  fastText vectors and downloaded on demand the first time you pick a language.
-  Yes or no questions to Wick are answered by Apple's on-device Foundation
-  Models on iOS 26, with a rule-based answer for a few dozen known facts per
-  word so the model cannot contradict them.
-- iOS, live multiplayer (Race): the server scores both players so they see the
-  same numbers, same path as the web.
+The iOS app and the web game play the same daily puzzle, in English, Spanish,
+French, Italian and German. Single player on iOS runs entirely on the phone.
+Live races and the web game are scored by a small server, and that server is
+the only place a secret lives: one Google Gemini API key, read from its
+environment. This repository is all three parts.
 
-The daily word is chosen by a seeded shuffle of a fixed pool (`DailyWords.swift`
-on iOS, `dailyPool.json` on the web) keyed to the day number, so every device
-agrees on the puzzle without asking a server.
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/scoring-dark.svg">
+    <img alt="How a guess is scored. The guess and the secret word are each turned into an embedding, a list of numbers. The server compares the angle between them, then ranks the guess among about ten thousand common words sorted by closeness to the secret. The rank picks the band: boiling at 25 or better, hot at 100, warm at 400, cool at 1200, cold beyond. An exact match is solved." src="docs/diagrams/scoring-light.svg" width="100%">
+  </picture>
+</p>
 
-## Running the web version
+## Status, plainly
 
-You need Node 22.9 or newer and a Gemini API key. The web client has no key of
-its own; it talks to `wick-api`, and the key lives only there.
+| | |
+|---|---|
+| Stage | Live. Version 3.3 on the [App Store](https://apps.apple.com/app/id6777743483) and at [guesswick.com](https://guesswick.com). |
+| Team | One developer. No company, no funding. |
+| Platforms | iPhone, iOS 17 and later. Any modern browser. No Android app; the web game is the Android answer. |
+| Server | One Node process on Render, in memory, no database. Self-hostable with your own Gemini key. |
+| Accounts | None. No logins, no tracking, no ads. Single-player stats live on your device. |
+| Price | Free. Optional coin packs on iOS for extra hints. |
+| Dependencies | Server: Hono, ws, word-list. Web: Vite, qrcode. iOS: Apple frameworks only. |
+
+## What it looks like
+
+<p align="center">
+  <img src="docs/screenshots/01-home.png" width="200" alt="Home: today's puzzle, Race, Practice">
+  <img src="docs/screenshots/02-game.png" width="200" alt="A round in progress, guesses warming up">
+  <img src="docs/screenshots/03-keeper.png" width="200" alt="Asking Wick a yes or no question">
+  <img src="docs/screenshots/04-reveal.png" width="200" alt="The reveal map after solving">
+</p>
+
+## How it works
+
+1. **Every word becomes an embedding.** An embedding is a long list of
+   numbers that describes how a word is used. Words used in similar ways get
+   similar numbers. The server gets these from the Gemini embedding API. The
+   iOS app gets them from Apple's built-in word embedding for English, and
+   from four small Core ML models in this repo for Spanish, French, Italian
+   and German.
+2. **Closeness is the angle between two embeddings** (cosine similarity).
+   A small angle means close in meaning. Raw cosine is never shown, because
+   on Gemini's model even unrelated words sit around 0.8.
+3. **The score is a rank.** The server embeds a vocabulary of 9,850 common
+   words once, sorts them by closeness to today's secret, and reports where
+   your guess lands. Rank 1 is the answer and rank 2 is the single closest
+   word. Boiling is rank 25 or better, hot is 100, warm is 400, cool is 1200,
+   cold is everything after that. The iOS app uses the same cutoffs
+   (`HunchTheme.swift`), so a live race and a solo round feel the same.
+4. **Only real words are scored.** The server checks a 274,000 word
+   dictionary first; a typo is bounced, not scored.
+5. **The daily word is a seeded shuffle.** `DailyWords.swift` on iOS and
+   `dailyPool.json` on the web hold the same pool, and the day number picks
+   the word, so every device agrees on the puzzle without asking anyone.
+6. **The Keeper answers yes or no.** Each secret word carries a few hand
+   written facts (`WordAttributes.swift`). Questions those facts can answer
+   are answered by rule, never by a model, so the Keeper cannot contradict
+   them. Everything else goes to Apple's on-device Foundation Models on iOS
+   26, or to Gemini on the web, and the secret is scrubbed from the reply.
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/architecture-dark.svg">
+    <img alt="How the parts fit. The iOS app plays single player entirely on the phone using Apple's word embedding and on-device Foundation Models. The web client runs the daily puzzle in the browser but asks the wick-api server to score each guess. Live races from either client go over a WebSocket to wick-api, which keeps the match in memory and scores both players. Only wick-api talks to the Gemini API, with the one key, read from its environment." src="docs/diagrams/architecture-light.svg" width="100%">
+  </picture>
+</p>
+
+## The server, route by route
+
+Everything below is in `wick-api/src/server.ts`. The scoring, Keeper and
+match routes are rate limited per IP address. There is no state between
+requests except the in-memory match rooms and the embedding cache.
+
+| Route | Body | Returns | What it is for |
+|---|---|---|---|
+| `POST /warmth` | `{ secret, guess }` | `{ score, rank, source }` | Score one guess. `source` is `rank`, `embeddings`, `exact` or `fallback` (no key). |
+| `POST /keeper` | `{ secret, question }` | `{ verdict, reply, source }` | Ask the Keeper. The reply is scrubbed of the secret before it leaves. |
+| `POST /validate-word` | `{ word }` | `{ ok, verdict }` | May this word be a Race secret? Checks the dictionary and that it embeds cleanly. |
+| `POST /reveal` | `{ guesses: [{ word, score }] }` | `{ points }` | The reveal map: a 2D layout of your guesses around the answer. Only words you sent come back. |
+| `POST /event` | `{ name, ... }` | `{ ok }` | A short allowlist of product events. Ids are hashed on arrival. |
+| `WS /match?kid=` | frames in `protocol.ts` | frames | Live Race. Up: `queue`, `guess`, `question`, `heartbeat`. Down: `paired`, `state`, `scored`, `result`. |
+| `GET /p/:code`, `/r/:run`, `/d/:code` | | HTML | Share links. An installed app opens them via Universal Links; a browser gets a preview page that bounces into the web game. No link ever carries a word. |
+| `GET /healthz` | | JSON | Readiness, including whether the rank vocabulary has finished embedding. |
+
+The web client imports its wire types straight from `wick-api/src/protocol.ts`
+through a TypeScript path alias, so the two cannot drift.
+
+## Where this is going
+
+The next big change is to split what the server decides from what the
+player sees, the way osu! separates the game's judgement from skins. The
+server stays the one judge: the secret, the score, the bands, the clock and
+the dictionary are the same for every player on every client. Everything
+cosmetic becomes a **pack**: a folder with a `manifest.json` and assets that
+a player can swap. Colors, the sounds for each heat step, the Keeper's name
+and face and lines, the heat words themselves, the share card. A pack cannot
+change a score, because the scoring engine never reads from one.
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/packs-dark.svg">
+    <img alt="Where this is going: packs. The server stays the single judge of what is fair: the secret word, the scoring, the rank bands, the clock and the dictionary are the same for everyone. Everything the player sees and hears is meant to become a pack: colors, sounds, the Keeper's character and lines, the heat words, the share card. A pack is a folder with a manifest and assets, like an osu! skin. Planned, not built." src="docs/diagrams/packs-light.svg" width="100%">
+  </picture>
+</p>
+
+None of this is built. Today those pieces live in code: `HunchTheme.swift`,
+`Sounds/`, `OfflineKeeper.swift` and `Loc.swift` on iOS; `style.css`,
+`sound.ts` and `i18n.ts` on the web. The first step is one interface per
+platform that the engine talks to, so a pack can replace the defaults without
+touching anything that scores. If you want to help, that is the place.
+
+## Where things are
+
+| Path | What |
+|---|---|
+| `Hunch/Engine/` | Scoring (`SemanticEngine.swift`), the daily word pool, the Keeper (`QuestionService.swift`, `OfflineKeeper.swift`, `WordAttributes.swift`), word lists per language |
+| `Hunch/Live/` | The live Race client: `LiveConfig.swift`, `MatchClient.swift`, the wire protocol |
+| `Hunch/Game/`, `Hunch/Views/`, `Hunch/Theme/` | SwiftUI. `GameViewModel.swift` is the round |
+| `Config/` | `Wick.xcconfig` (committed defaults), `Local.xcconfig.example`, the merged `Info.plist` |
+| `ODRResources/` | Core ML embedding models for Spanish, French, Italian and German, loaded on demand |
+| `wick-api/src/` | `server.ts` routes, `warmthservice.ts` scoring, `embeddings.ts` Gemini, `hub.ts` and `room.ts` matches, `bot.ts` the practice opponent |
+| `wick-web/src/` | `main.ts` the app, `game/daily.ts` the seeded daily, `net/` the client |
+| `debug/` | The embedding build pipeline (`embeddings/`), a load tester, a Python port of the Keeper's rule table |
+| `docs/` | The GitHub Pages site, diagrams, screenshots, and `wick/CROSS_PLATFORM.md` |
+
+## Building
+
+### Web and server
+
+Node 22.9 or newer and a Gemini API key. The web client has no key of its
+own; it talks to `wick-api`, and the key lives only there.
 
 ```bash
-# 1. Server
 cd wick-api
 npm ci
 cp .env.example .env        # put your key in GEMINI_API_KEY
-npm run dev                 # http://localhost:8080, reloads on change
+npm run dev                 # http://localhost:8080
 
-# 2. Web client, in a second terminal
-cd wick-web
+cd ../wick-web              # second terminal
 npm ci
 npm run dev                 # http://localhost:5173, talks to localhost:8080
 ```
 
-To serve the game from one process the way guesswick.com does, build the client
-into the server's `public/` folder and start the server:
+To serve the game from one process the way guesswick.com does:
 
 ```bash
-cd wick-api
-npm run build:all
-npm start
+cd wick-api && npm run build:all && npm start
 ```
 
-`render.yaml` at the repository root is an optional Render Blueprint for the
-same layout. Every server variable is documented in `wick-api/.env.example`.
-Two worth knowing: `WICK_ALLOWED_ORIGINS` must include your own domain for the
-browser's live-match socket to connect, and `WICK_DEBUG_TOKEN` should stay
-unset in production, since the debug routes reveal the secret word.
+`render.yaml` is an optional Render Blueprint for that layout. Every server
+variable is documented in `wick-api/.env.example`. `WICK_ALLOWED_ORIGINS`
+must include your own domain for the browser's live socket to connect, and
+`WICK_DEBUG_TOKEN` should stay unset in production: the debug routes reveal
+the secret word.
 
-## Building the iOS app
+### iOS
 
-You need Xcode 26 or newer and an Apple developer account for device builds.
-The app targets iOS 17; the on-device question answering needs iOS 26 and an
-Apple Intelligence capable device, and degrades to rule-based answers below
-that.
+Xcode 26 or newer. The app targets iOS 17; the Keeper's on-device model needs
+iOS 26 and an Apple Intelligence capable device, and falls back to rule based
+answers below that.
 
 ```bash
 cp Config/Local.xcconfig.example Config/Local.xcconfig
 open Hunch.xcodeproj
 ```
 
-Edit `Config/Local.xcconfig` (it is gitignored) and set:
+Set `DEVELOPMENT_TEAM` and a `PRODUCT_BUNDLE_IDENTIFIER` you own in
+`Local.xcconfig` (it is gitignored), and `WICK_SERVER_BASE` if you want live
+Race against your own server. Write URLs as `wss:/$()/host`, because `//`
+starts a comment in an xcconfig file. Single player works with no server and
+no key. iCloud sync and Game Center need their capabilities on your App ID;
+without them those calls fail quietly and the game still plays.
 
-- `DEVELOPMENT_TEAM` to your Apple Team ID.
-- `PRODUCT_BUNDLE_IDENTIFIER` to a bundle id you own.
-- `WICK_SERVER_BASE` to your own `wick-api` if you want live multiplayer
-  against your server. Leave it out to use the public Wick server. Write URLs
-  as `wss:/$()/host` because `//` starts a comment in an xcconfig file.
+### Bring your own Gemini key
 
-Then build and run from Xcode. Single player works with no server and no key.
-iCloud sync and Game Center need the matching capabilities enabled on your App
-ID; without them those calls fail quietly and the game still plays.
+1. Create a key at https://aistudio.google.com/apikey and restrict it to the
+   Generative Language API.
+2. Locally, put it in `wick-api/.env`. On a host, set `GEMINI_API_KEY` in the
+   environment settings instead of a file.
+3. Without a key the server still runs: warmth falls back to a rough
+   spelling based score, marked `source: "fallback"`, and the Keeper is off.
 
-## Bring your own Gemini key
+The key is sent to Google as a query parameter on each call, which is
+Google's documented pattern for this API.
 
-The only secret in the whole system is one Google Gemini API key, and it is
-read from the `GEMINI_API_KEY` environment variable on the server. Nothing in
-this repository contains a key, and neither client ever holds one.
+## Contributing
 
-1. Create a key at https://aistudio.google.com/apikey.
-2. Locally: copy `wick-api/.env.example` to `wick-api/.env` and fill in
-   `GEMINI_API_KEY`. The `.env` file is gitignored.
-3. On a host: set `GEMINI_API_KEY` in the host's environment settings instead
-   of a file.
+Pull requests are welcome for bugs, tests, languages and documentation.
+`npm test` in `wick-api` runs 196 tests and should stay green. Keep new
+Swift and TypeScript files under the MPL notice, and do not add a server
+dependency without a reason: there are four, and that is on purpose.
 
-The key is sent to Google as a query parameter on each embedding call, which
-is Google's documented pattern for this API. Restrict the key to the
-Generative Language API in the Google Cloud console.
-
-## Repository map
-
-| Path | What it is |
-|---|---|
-| `Hunch/` | iOS app source (SwiftUI). `Engine/` holds scoring, word lists and the Keeper. `Live/` is the multiplayer client. |
-| `Hunch.xcodeproj`, `Config/` | Xcode project, shared build settings (`Wick.xcconfig`) and the merged `Info.plist`. |
-| `ODRResources/` | Core ML embedding models for Spanish, French, Italian and German, loaded on demand. |
-| `wick-api/` | Node server: scoring, matchmaking, bots, share previews, static hosting of the web client. |
-| `wick-web/` | Vite and TypeScript web client. |
-| `debug/` | Developer tools: the embedding build pipeline, a load tester, and a Python port of the Keeper's rule table. |
-| `docs/` | The GitHub Pages site and a design note on the cross-platform plan. |
+A bug that lets someone learn the secret word without guessing it is worth
+an issue marked `security` before anything else.
 
 ## License
 
-Wick's source code is under the [Mozilla Public License 2.0](LICENSE). You may
-read, run, fork and build on it; changes to Wick's own files must be published
-under the same license. The four bundled embedding models are derived from
-fastText vectors and carry their own license; see
-[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). The Wick name, the flame
-character and the App Store listing are not covered by the code license.
+[Mozilla Public License 2.0](LICENSE). File level copyleft: you may read,
+run and fork this, and build something larger around it under whatever terms
+you like, but changes to Wick's own files have to be published under the
+same license.
+
+MPL rather than GPL on purpose: GPL family licenses conflict with the App
+Store's terms, and a game that cannot ship on the App Store is not a game.
+
+The four bundled embedding models are derived from fastText vectors and keep
+their own license; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). The
+Wick name, the flame character and the App Store listing are not covered by
+the code license.
