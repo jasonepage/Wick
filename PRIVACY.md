@@ -49,4 +49,4 @@ If you delete the app, all of its on-device data is removed with it. Because we
 hold no account and no persistent profile, there is no stored personal data to
 request, export, or delete from us.
 
-**Questions?** Contact: SUPPORT_EMAIL_PLACEHOLDER
+**Questions?** Contact: support@guesswick.com
