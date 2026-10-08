@@ -571,10 +571,6 @@ a.btn { display: block; box-sizing: border-box; text-align: center; text-decorat
 .suggest-chip { cursor: pointer; font-family: inherit; font-size: 0.82rem; font-weight: 700; color: inherit;
   padding: 7px 12px; border-radius: 999px; background: rgba(125,92,235,0.16); border: 1px solid rgba(125,92,235,0.28);
   transition: transform 0.06s ease, filter 0.15s ease; }
-/* always-on starter trio under the input; same pill as the expander's chips */
-.quick-ask { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin: 4px 0 0; }
-.quick-ask:empty { display: none; }
-.suggest-chip.quick { font-size: 0.86rem; padding: 8px 13px; }
 .suggest-chip:hover { filter: brightness(1.08); }
 .suggest-chip:active { transform: translateY(1px); }
 

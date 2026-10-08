@@ -25,7 +25,7 @@ import { initEvents, track } from "./net/events.ts";
 import { buildRun, encodeRun, decodeRun, runDuration, fmtDuration } from "./game/ghost.ts";
 import type { GhostRun } from "./game/ghost.ts";
 import { mountBackdrop, setBackdropHeat } from "./game/backdrop.ts";
-import { dailyStarters, starterText, STARTER_CATEGORIES, type StarterItem } from "./game/starters.ts";
+import { dailyStarters, starterText, type StarterItem } from "./game/starters.ts";
 import { play as playSound, playGuessTone, soundEnabled, setSoundEnabled, armAudioUnlock } from "./game/sound.ts";
 import { t, getLang, setLang, LANGS, LANG_LABEL } from "./i18n.ts";
 import type { Lang } from "./i18n.ts";
@@ -813,29 +813,6 @@ function askSolo(text: string): void {
   });
 }
 
-/** Three always-visible starter chips under the input: the one-tap path that
- *  teaches the question mechanic to a first-time player. Fixed, not seeded, so
- *  the first board every new player sees is the same obvious trio. A chip
- *  retires once asked; the row disappears when the round is over. The seeded
- *  "Need ideas?" pool below stays as the deeper well. */
-const QUICK_ASK_KEYS = ["alive", "food", "biggerThanCar"] as const;
-const QUICK_ASK: StarterItem[] = QUICK_ASK_KEYS.map((key) =>
-  STARTER_CATEGORIES.flatMap((c) => c.items).find((i) => i.key === key)!);
-
-function renderQuickAsk(over: boolean): void {
-  const box = document.querySelector<HTMLDivElement>("#quick-ask");
-  if (!box) return;
-  if (over) { box.replaceChildren(); return; }
-  const asked = new Set(sp.replies.map((r) => normalize(r.question)));
-  const left = QUICK_ASK.filter((q) => !asked.has(normalize(q.full)));
-  box.replaceChildren(...left.map((q) =>
-    // Shown localised, SENT in English — see game/starters.ts.
-    el("button", {
-      class: "suggest-chip quick",
-      onclick: () => { void playSound("tap"); askSolo(q.full); },
-    }, [starterText(q, getLang())])));
-}
-
 /** Tappable suggested questions, behind a disclosure. Questions already asked
  *  retire from the pool; the whole block disappears once the round is over. */
 function renderSuggest(over: boolean): void {
@@ -1094,7 +1071,6 @@ function screenSolo(): void {
         input,
         el("button", { class: "send", onclick: submit, title: "Guess or ask" }, ["↑"]),
       ]),
-      el("div", { id: "quick-ask", class: "quick-ask" }),
       el("p", { class: "hint" }, [t("guessOrAskHint")]),
       el("div", { id: "suggest", class: "suggest" }),
       el("div", { id: "giveup-slot", class: "giveup-slot" }),
@@ -1326,7 +1302,6 @@ function renderSolo(): void {
   // Input row + give-up button only while the round is live.
   const grow = document.querySelector<HTMLDivElement>("#grow");
   if (grow) grow.style.display = over ? "none" : "";
-  renderQuickAsk(over);
   renderSuggest(over);
   renderGiveUpSlot(over);
   renderSoloLog();
