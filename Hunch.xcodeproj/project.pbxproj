@@ -14,7 +14,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		AA00000000000000000000C1 /* Wick.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config/Wick.xcconfig; sourceTree = SOURCE_ROOT; };
+		AA00000000000000000000C1 /* Config/Wick.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config/Wick.xcconfig; sourceTree = SOURCE_ROOT; };
 		AA00000000000000000000F1 /* ODRResources/FrenchEmbedding.mlmodelc */ = {isa = PBXFileReference; lastKnownFileType = folder; path = ODRResources/FrenchEmbedding.mlmodelc; sourceTree = SOURCE_ROOT; };
 		AA00000000000000000000F3 /* ODRResources/ItalianEmbedding.mlmodelc */ = {isa = PBXFileReference; lastKnownFileType = folder; path = ODRResources/ItalianEmbedding.mlmodelc; sourceTree = SOURCE_ROOT; };
 		AA00000000000000000000F5 /* ODRResources/GermanEmbedding.mlmodelc */ = {isa = PBXFileReference; lastKnownFileType = folder; path = ODRResources/GermanEmbedding.mlmodelc; sourceTree = SOURCE_ROOT; };
@@ -46,7 +46,7 @@
 			isa = PBXGroup;
 			children = (
 				BCFB707A2FD5E31C00E1E9BA /* Hunch.storekit */,
-				AA00000000000000000000C1 /* Wick.xcconfig */,
+				AA00000000000000000000C1 /* Config/Wick.xcconfig */,
 				BCFB704D2FD4C15800E1E9BA /* Hunch */,
 				AA00000000000000000000F1 /* ODRResources/FrenchEmbedding.mlmodelc */,
 				AA00000000000000000000F3 /* ODRResources/ItalianEmbedding.mlmodelc */,
@@ -150,7 +150,7 @@
 /* Begin XCBuildConfiguration section */
 		BCFB70542FD4C15900E1E9BA /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = AA00000000000000000000C1 /* Wick.xcconfig */;
+			baseConfigurationReference = AA00000000000000000000C1 /* Config/Wick.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
@@ -215,7 +215,7 @@
 		};
 		BCFB70552FD4C15900E1E9BA /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = AA00000000000000000000C1 /* Wick.xcconfig */;
+			baseConfigurationReference = AA00000000000000000000C1 /* Config/Wick.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
@@ -273,7 +273,7 @@
 		};
 		BCFB70572FD4C15900E1E9BA /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = AA00000000000000000000C1 /* Wick.xcconfig */;
+			baseConfigurationReference = AA00000000000000000000C1 /* Config/Wick.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
@@ -281,6 +281,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 8C4BM6A82T;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Config/Info.plist;
@@ -312,7 +313,7 @@
 		};
 		BCFB70582FD4C15900E1E9BA /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = AA00000000000000000000C1 /* Wick.xcconfig */;
+			baseConfigurationReference = AA00000000000000000000C1 /* Config/Wick.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
@@ -320,6 +321,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 8C4BM6A82T;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Config/Info.plist;
