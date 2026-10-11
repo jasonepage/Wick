@@ -210,9 +210,23 @@ export function mascotSVG(opts: {
       : "";
   // Big mascots breathe; tiny inline ones (opponent strip, Keeper badge) stay still.
   const alive = size >= 72 ? " alive" : "";
+  // Pace and amplitude follow the mood, mirroring KeeperMood.bobPeriod on iOS
+  // (seconds per bob: boiling 0.55, hot 0.8, warm 1.2, idle 1.8, cold 2.4,
+  // freezing 2.8, unamused 2.2). style.css multiplies --wick-period into every
+  // animation, so a boiling Wick shivers fast and a freezing one barely sways.
+  const period = mood === "boiling" ? 0.55
+    : mood === "hot" || mood === "celebrating" ? 0.8
+    : mood === "warm" ? 1.2
+    : mood === "cold" ? 2.4
+    : mood === "freezing" ? 2.8
+    : mood === "unamused" ? 2.2
+    : 1.8;
+  const amp = mood === "boiling" ? 1.6 : mood === "hot" ? 1.3 : mood === "warm" ? 1.1
+    : mood === "cold" ? 0.7 : mood === "freezing" ? 0.5 : 1;
+  const moodStyle = ` style="--wick-period:${period}s;--wick-amp:${amp}"`;
 
   return `
-  <svg class="wick-mascot${alive}" width="${size}" height="${size}" viewBox="0 0 120 128" role="img" aria-label="Wick">
+  <svg class="wick-mascot${alive} mood-${mood}"${moodStyle} width="${size}" height="${size}" viewBox="0 0 120 128" role="img" aria-label="Wick">
     <defs>
       <linearGradient id="body-${id}" x1="0" y1="0" x2="0" y2="1">
         <stop offset="0%" stop-color="${top}"/>

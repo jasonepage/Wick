@@ -152,24 +152,29 @@ h2 { margin: 0; font-size: 1.5rem; text-align: center; font-weight: 800; }
 .mascot-wrap { display: flex; justify-content: center; }
 
 /* 1 — horizontal drift, on the <svg> itself. */
-.wick-mascot.alive { animation: wick-drift-x 7.9s ease-in-out infinite; }
-@keyframes wick-drift-x { 0%, 100% { transform: translateX(-2.5px); } 50% { transform: translateX(2.5px); } }
+/* Every period below is the iOS bob period (--wick-period, set per mood by
+   wickface.ts) times a constant, so the idle Wick keeps these exact numbers
+   (1.8 s x 4.4 = 7.9 s drift, and so on) and a boiling Wick runs 3x faster.
+   --wick-amp scales how far it moves. */
+.wick-mascot { --wick-period: 1.8s; --wick-amp: 1; }
+.wick-mascot.alive { animation: wick-drift-x calc(var(--wick-period) * 4.4) ease-in-out infinite; }
+@keyframes wick-drift-x { 0%, 100% { transform: translateX(calc(-2.5px * var(--wick-amp))); } 50% { transform: translateX(calc(2.5px * var(--wick-amp))); } }
 
 /* 2 — vertical drift, different period. Together with (1) this traces a slow
    Lissajous figure instead of bobbing on a beat. */
-.wick-mascot.alive .wick-float { animation: wick-drift-y 5.3s ease-in-out infinite; }
-@keyframes wick-drift-y { 0%, 100% { transform: translateY(2.5px); } 50% { transform: translateY(-3.5px); } }
+.wick-mascot.alive .wick-float { animation: wick-drift-y calc(var(--wick-period) * 2.95) ease-in-out infinite; }
+@keyframes wick-drift-y { 0%, 100% { transform: translateY(calc(2.5px * var(--wick-amp))); } 50% { transform: translateY(calc(-3.5px * var(--wick-amp))); } }
 
 /* 3 — the lean. Pivot is the flame's base in viewBox units, so the tip travels
    and the feet stay planted. */
 .wick-mascot.alive .wick-sway {
   transform-box: view-box; transform-origin: 60px 124px;
-  animation: wick-lean 8.3s ease-in-out infinite;
+  animation: wick-lean calc(var(--wick-period) * 4.6) ease-in-out infinite;
 }
 @keyframes wick-lean {
   0%, 100% { transform: skewX(0deg)    rotate(0deg); }
-  28%      { transform: skewX(-1.5deg) rotate(-0.7deg); }
-  62%      { transform: skewX(1.6deg)  rotate(0.8deg); }
+  28%      { transform: skewX(calc(-1.5deg * var(--wick-amp))) rotate(calc(-0.7deg * var(--wick-amp))); }
+  62%      { transform: skewX(calc(1.6deg * var(--wick-amp)))  rotate(calc(0.8deg * var(--wick-amp))); }
 }
 
 /* 4 — the waver. Four silhouettes: lean-left, drawn-tall, lean-right, settle.
@@ -178,9 +183,9 @@ h2 { margin: 0; font-size: 1.5rem; text-align: center; font-weight: 800; }
    start/end point at 60 122.
    KEEP IN LOCKSTEP with FLAME in game/wickface.ts — if the silhouette changes
    there, these four have to be re-derived from it. */
-.wick-mascot.alive .flame-body { animation: wick-waver 9.4s ease-in-out infinite; }
+.wick-mascot.alive .flame-body { animation: wick-waver calc(var(--wick-period) * 5.2) ease-in-out infinite; }
 /* The glow runs the same morph a beat behind, so the halo trails the body. */
-.wick-mascot.alive .flame-glow { animation: wick-waver 9.4s ease-in-out infinite; animation-delay: -1.15s; }
+.wick-mascot.alive .flame-glow { animation: wick-waver calc(var(--wick-period) * 5.2) ease-in-out infinite; animation-delay: calc(var(--wick-period) * -0.64); }
 @keyframes wick-waver {
   0%, 100% { d: path("M60 124 C25.3 121.6 16.1 97.6 16.1 66.4 C16.1 30.4 41.6 16 60 4 C78.4 16 103.9 30.4 103.9 66.4 C103.9 97.6 94.7 121.6 60 124 Z"); }
   22%      { d: path("M60 124 C25.3 121.6 16.5 98 17 67 C17.5 32 38 17 54 6 C76 17 103 31 103 66 C103 97.6 94.7 121.6 60 124 Z"); }
@@ -193,7 +198,7 @@ h2 { margin: 0; font-size: 1.5rem; text-align: center; font-weight: 800; }
 
 /* The inner highlight slides against the morph, which sells the body as
    translucent rather than as a painted shape. */
-.wick-mascot.alive .flame-sheen { animation: wick-sheen 11.3s ease-in-out infinite; }
+.wick-mascot.alive .flame-sheen { animation: wick-sheen calc(var(--wick-period) * 6.3) ease-in-out infinite; }
 @keyframes wick-sheen {
   0%, 100% { transform: translate(0, 0);      opacity: 0.22; }
   37%      { transform: translate(2px, -1px); opacity: 0.28; }
@@ -208,6 +213,22 @@ h2 { margin: 0; font-size: 1.5rem; text-align: center; font-weight: 800; }
 }
 @keyframes wick-blink { 0%, 93%, 100% { transform: scaleY(1); } 96% { transform: scaleY(0.06); } }
 
+/* Hot and boiling add a shiver on top: a fast, tiny jitter of the whole flame
+   core, the web version of the frantic bob iOS gets from a 0.55 s period. */
+.wick-mascot.alive.mood-hot .flame-core { animation: wick-shiver 0.22s steps(2, jump-none) infinite; }
+.wick-mascot.alive.mood-boiling .flame-core { animation: wick-shiver-hard 0.13s linear infinite; }
+@keyframes wick-shiver { 0% { transform: translate(-0.9px, 0.3px); } 50% { transform: translate(0.9px, -0.3px); } 100% { transform: translate(-0.9px, 0.3px); } }
+@keyframes wick-shiver-hard {
+  0%   { transform: translate(-1.8px, 0.6px) rotate(-0.6deg); }
+  25%  { transform: translate(1.4px, -0.8px) rotate(0.5deg); }
+  50%  { transform: translate(-1.2px, -0.5px) rotate(-0.4deg); }
+  75%  { transform: translate(1.8px, 0.7px) rotate(0.6deg); }
+  100% { transform: translate(-1.8px, 0.6px) rotate(-0.6deg); }
+}
+.wick-mascot.alive.mood-boiling .flame-core { transform-box: view-box; transform-origin: 60px 124px; }
+/* Freezing: nearly still, a slow shudder instead of a flicker. */
+.wick-mascot.alive.mood-freezing .flame-body,
+.wick-mascot.alive.mood-freezing .flame-glow { animation-timing-function: cubic-bezier(.6,0,.4,1); }
 .spark { transform-box: fill-box; transform-origin: center; animation: wick-spark 1.7s ease-in-out infinite; }
 @keyframes wick-spark {
   0%, 100% { opacity: 0.15; transform: scale(0.65) rotate(0deg); }
@@ -732,6 +753,7 @@ a.btn { display: block; box-sizing: border-box; text-align: center; text-decorat
   .wick-mascot.alive .flame-glow,
   .wick-mascot.alive .flame-sheen,
   .wick-mascot.alive .eyes,
+  .wick-mascot.alive .flame-core,
   .spark { animation: none !important; }
   .today-play::before, .today-play::after { display: none; }
   .home-title { color: inherit; background: none; -webkit-background-clip: border-box; background-clip: border-box; }
