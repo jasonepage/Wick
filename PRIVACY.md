@@ -24,6 +24,14 @@ Apple ID, or contacts. No word, question, or anything you type is ever
 included. These counts are used only to improve the game and are not shared
 or sold.
 
+## Solve replay videos (since version 3.4)
+
+"Share replay" turns a finished round into a short video. The video is made
+entirely on your device and shows only ranks and heat colors, never your
+guesses or the answer. It is saved to your Photos only when you tap "Save to
+Photos", and Wick asks for add-only access, so it can save the video but can
+never see your photo library. Nothing is uploaded; you choose where to post it.
+
 ## Live Race — the one place data leaves your device
 
 Live multiplayer needs a server to pair players and score fairly, so when — and

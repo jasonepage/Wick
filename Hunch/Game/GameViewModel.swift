@@ -1659,7 +1659,7 @@ final class GameViewModel {
 
     /// "Wick #1359 🇩🇪 🎩" — the header on both the text share and the image card.
     /// Extracted so the two can never drift apart.
-    private var shareTitle: String {
+    var shareTitle: String {
         let flag = language == .english ? "" : " \(language.flag)"
         switch mode {
         case .daily:    return "Wick #\(puzzleNumber)\(flag)\(outfitEmoji)"
@@ -1671,7 +1671,7 @@ final class GameViewModel {
 
     /// "solved in 7 · 2 questions · 🔥2". Counts only — deliberately never the
     /// word, so both shares stay safe to post publicly on the day.
-    private var shareStats: String {
+    var shareStats: String {
         var stats = solved ? loc.shareSolvedIn(guessCount) : loc.theWordWas.lowercased() + " …"
         if !questions.isEmpty { stats += " · " + loc.shareQuestions(questions.count) }
         if hintsUsed > 0 { stats += " · " + loc.shareHints(hintsUsed) }

@@ -23,6 +23,8 @@ struct GameView: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var coinPop = false
     @State private var showStarters = false
+    /// Set to open the Solve Replay sheet (3.4).
+    @State private var replayRequest: ReplayRequest?
 
     /// Cute one-liners Wick says when you poke him. Never reveal anything.
     private static let pokeQuips = [
@@ -132,6 +134,9 @@ struct GameView: View {
             }
             .sheet(isPresented: $showShop) { ShopView() }
             .sheet(isPresented: $showSettings) { SettingsView() }
+            .sheet(item: $replayRequest) { request in
+                ReplayExportView(request: request, loc: game.loc)
+            }
             .sheet(isPresented: $showReveal) {
                 RevealView(word: game.target,
                            points: game.revealPoints,
@@ -700,6 +705,7 @@ struct GameView: View {
                 .buttonStyle(.borderedProminent)
                 .tint(HunchTheme.Palette.solved)
             }
+            replayButton
             revealMapButton
             Menu {
                 Button(game.loc.easy) { game.startPractice(tier: 2) }
@@ -733,6 +739,7 @@ struct GameView: View {
             raceShareButton
             // Even a give-up counts in a duel — let the player send their result.
             if game.currentDuel != nil { duelResultShareButton }
+            replayButton
             revealMapButton
             Menu {
                 Button(game.loc.easy) { game.startPractice(tier: 2) }
@@ -774,6 +781,23 @@ struct GameView: View {
             }
             .buttonStyle(.borderedProminent)
             .tint(HunchTheme.Palette.hot)
+        }
+    }
+
+    /// "Share replay" (3.4): a vertical video of the round for TikTok, Reels
+    /// and Shorts. Spoiler-free like the other shares: ranks only, no words.
+    @ViewBuilder
+    private var replayButton: some View {
+        if game.canShareReplay {
+            Button {
+                Feedback.play(.selection)
+                replayRequest = game.replayRequest()
+            } label: {
+                Label(game.loc.replayShare, systemImage: "film")
+                    .frame(maxWidth: .infinity).padding(.vertical, 11)
+            }
+            .buttonStyle(.bordered)
+            .tint(HunchTheme.Palette.keeper)
         }
     }
 

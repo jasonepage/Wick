@@ -415,6 +415,29 @@ struct Loc {
         f("revealGuessA11y", n, word, band)
     }
 
+    // MARK: - Solve Replay (3.4)
+    var replayShare: String { s("replayShare") }
+    var replayTitle: String { s("replayTitle") }
+    var replayMaking: String { s("replayMaking") }
+    var replaySave: String { s("replaySave") }
+    var replaySaving: String { s("replaySaving") }
+    var replaySaved: String { s("replaySaved") }
+    var replaySavedHint: String { s("replaySavedHint") }
+    var replaySaveFailed: String { s("replaySaveFailed") }
+    var replayDenied: String { s("replayDenied") }
+    var replayOpenSettings: String { s("replayOpenSettings") }
+    var replayFailed: String { s("replayFailed") }
+    var replayTryAgain: String { s("replayTryAgain") }
+    var replayBest: String { s("replayBest") }
+    var replayTagline: String { s("replayTagline") }
+    var replayPlayFree: String { s("replayPlayFree") }
+    var replayRevealed: String { s("replayRevealed") }
+    func replayRevealedAfter(_ n: Int) -> String { f("replayRevealedAfter", n) }
+    /// Raw format strings ("Guess %d of %d", "+%d guesses"): the video is drawn
+    /// off the main thread, so it formats these itself.
+    var replayGuessOfFormat: String { s("replayGuessOf") }
+    var replayFastForwardFormat: String { s("replayFastForward") }
+
     // MARK: - Tables
 
     /// All string tables, keyed by language code. Adding a language = adding
@@ -739,6 +762,26 @@ struct Loc {
         "shopUnavailable": "Shop unavailable",
         "shopUnavailableDetail": "Coin packs couldn't load right now. Check your connection and try again.",
         "coinsBuyBlurb": "Coins buy extra hints and questions. You can always play the daily and earn coins for free.",
+        // Solve Replay (3.4)
+        "replayShare": "Share replay",
+        "replayTitle": "Solve replay",
+        "replayMaking": "Making your replay…",
+        "replaySave": "Save to Photos",
+        "replaySaving": "Saving…",
+        "replaySaved": "Saved to Photos",
+        "replaySavedHint": "Post it from your Photos to TikTok, Reels or anywhere you like.",
+        "replaySaveFailed": "Couldn't save to Photos. Please try again.",
+        "replayDenied": "Wick needs permission to add the video to your Photos. You can turn it on in Settings.",
+        "replayOpenSettings": "Open Settings",
+        "replayFailed": "Couldn't make the video. Please try again.",
+        "replayTryAgain": "Try again",
+        "replayGuessOf": "Guess %d of %d",
+        "replayBest": "Best",
+        "replayTagline": "Guess the word by meaning",
+        "replayPlayFree": "Play free at",
+        "replayRevealed": "Revealed",
+        "replayRevealedAfter": "revealed after %d guesses",
+        "replayFastForward": "+%d guesses",
     ]
 
     /// Spanish.
@@ -1052,6 +1095,26 @@ struct Loc {
         "shopUnavailable": "Tienda no disponible",
         "shopUnavailableDetail": "No se pudieron cargar los paquetes de monedas ahora. Revisa tu conexión e inténtalo de nuevo.",
         "coinsBuyBlurb": "Las monedas compran pistas y preguntas extra. Siempre puedes jugar el diario y ganar monedas gratis.",
+        // Solve Replay (3.4)
+        "replayShare": "Compartir repetición",
+        "replayTitle": "Repetición",
+        "replayMaking": "Creando tu repetición…",
+        "replaySave": "Guardar en Fotos",
+        "replaySaving": "Guardando…",
+        "replaySaved": "Guardado en Fotos",
+        "replaySavedHint": "Publícalo desde Fotos en TikTok, Reels o donde quieras.",
+        "replaySaveFailed": "No se pudo guardar en Fotos. Inténtalo de nuevo.",
+        "replayDenied": "Wick necesita permiso para añadir el video a Fotos. Puedes activarlo en Ajustes.",
+        "replayOpenSettings": "Abrir Ajustes",
+        "replayFailed": "No se pudo crear el video. Inténtalo de nuevo.",
+        "replayTryAgain": "Reintentar",
+        "replayGuessOf": "Intento %d de %d",
+        "replayBest": "Mejor",
+        "replayTagline": "Adivina la palabra por su significado",
+        "replayPlayFree": "Juega gratis en",
+        "replayRevealed": "Revelada",
+        "replayRevealedAfter": "revelada tras %d intentos",
+        "replayFastForward": "+%d intentos",
     ]
 
     /// French. Language names arrive with their article ("l'anglais"), so
@@ -1367,6 +1430,26 @@ struct Loc {
         "shopUnavailable": "Boutique indisponible",
         "shopUnavailableDetail": "Impossible de charger les packs de pièces. Vérifie ta connexion et réessaie.",
         "coinsBuyBlurb": "Les pièces offrent des indices et des questions en plus. Le mot du jour reste gratuit, et tu gagnes des pièces en jouant.",
+        // Solve Replay (3.4)
+        "replayShare": "Partager le replay",
+        "replayTitle": "Replay",
+        "replayMaking": "Création de ton replay…",
+        "replaySave": "Enregistrer dans Photos",
+        "replaySaving": "Enregistrement…",
+        "replaySaved": "Enregistré dans Photos",
+        "replaySavedHint": "Publie-le depuis Photos sur TikTok, Reels ou ailleurs.",
+        "replaySaveFailed": "Impossible d'enregistrer dans Photos. Réessaie.",
+        "replayDenied": "Wick a besoin de ton autorisation pour ajouter la vidéo à Photos. Tu peux l'activer dans Réglages.",
+        "replayOpenSettings": "Ouvrir Réglages",
+        "replayFailed": "Impossible de créer la vidéo. Réessaie.",
+        "replayTryAgain": "Réessayer",
+        "replayGuessOf": "Essai %d sur %d",
+        "replayBest": "Meilleur",
+        "replayTagline": "Devine le mot par son sens",
+        "replayPlayFree": "Joue gratuitement sur",
+        "replayRevealed": "Révélé",
+        "replayRevealedAfter": "révélé après %d essais",
+        "replayFastForward": "+%d essais",
     ]
 
     /// Italian. Language names arrive with their article ("l'inglese"), so
@@ -1682,6 +1765,26 @@ struct Loc {
         "shopUnavailable": "Negozio non disponibile",
         "shopUnavailableDetail": "Impossibile caricare i pacchetti di monete. Controlla la connessione e riprova.",
         "coinsBuyBlurb": "Le monete danno indizi e domande extra. La parola del giorno resta gratis, e guadagni monete giocando.",
+        // Solve Replay (3.4)
+        "replayShare": "Condividi replay",
+        "replayTitle": "Replay",
+        "replayMaking": "Sto creando il tuo replay…",
+        "replaySave": "Salva in Foto",
+        "replaySaving": "Salvataggio…",
+        "replaySaved": "Salvato in Foto",
+        "replaySavedHint": "Pubblicalo da Foto su TikTok, Reels o dove vuoi.",
+        "replaySaveFailed": "Impossibile salvare in Foto. Riprova.",
+        "replayDenied": "Wick ha bisogno del permesso per aggiungere il video a Foto. Puoi attivarlo in Impostazioni.",
+        "replayOpenSettings": "Apri Impostazioni",
+        "replayFailed": "Impossibile creare il video. Riprova.",
+        "replayTryAgain": "Riprova",
+        "replayGuessOf": "Tentativo %d di %d",
+        "replayBest": "Migliore",
+        "replayTagline": "Indovina la parola dal significato",
+        "replayPlayFree": "Gioca gratis su",
+        "replayRevealed": "Rivelata",
+        "replayRevealedAfter": "rivelata dopo %d tentativi",
+        "replayFastForward": "+%d tentativi",
     ]
 
     /// German. Language names arrive bare ("Englisch"); the learn strings put
@@ -1996,5 +2099,25 @@ struct Loc {
         "shopUnavailable": "Shop nicht verfügbar",
         "shopUnavailableDetail": "Die Münzpakete konnten gerade nicht geladen werden. Prüfe deine Verbindung und versuch es erneut.",
         "coinsBuyBlurb": "Münzen kaufen extra Hinweise und Fragen. Das Tageswort bleibt gratis, und du verdienst Münzen beim Spielen.",
+        // Solve Replay (3.4)
+        "replayShare": "Replay teilen",
+        "replayTitle": "Replay",
+        "replayMaking": "Dein Replay wird erstellt…",
+        "replaySave": "In Fotos sichern",
+        "replaySaving": "Wird gesichert…",
+        "replaySaved": "In Fotos gesichert",
+        "replaySavedHint": "Poste es aus Fotos auf TikTok, Reels oder wo du willst.",
+        "replaySaveFailed": "Sichern in Fotos fehlgeschlagen. Versuch es noch mal.",
+        "replayDenied": "Wick braucht deine Erlaubnis, um das Video zu Fotos hinzuzufügen. Du kannst sie in den Einstellungen geben.",
+        "replayOpenSettings": "Einstellungen öffnen",
+        "replayFailed": "Das Video konnte nicht erstellt werden. Versuch es noch mal.",
+        "replayTryAgain": "Nochmal versuchen",
+        "replayGuessOf": "Versuch %d von %d",
+        "replayBest": "Bester",
+        "replayTagline": "Errate das Wort über seine Bedeutung",
+        "replayPlayFree": "Spiel gratis auf",
+        "replayRevealed": "Aufgedeckt",
+        "replayRevealedAfter": "aufgedeckt nach %d Versuchen",
+        "replayFastForward": "+%d Versuche",
     ]
 }
