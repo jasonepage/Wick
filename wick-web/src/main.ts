@@ -21,6 +21,9 @@ import { fetchWarmth, httpBaseFrom, askKeeper, fetchReveal, fetchLiveCounts } fr
 import type { RevealPointDTO, WarmthResult } from "./net/api.ts";
 import { computeStats } from "./game/stats.ts";
 import { revealSVG, shareRevealCard } from "./game/revealcard.ts";
+import { buildTimeline, bandToken, toneFor, type ReplayEvent } from "./game/replay/timeline.ts";
+import { ReplayScene, W as REPLAY_W, H as REPLAY_H, type ReplayCopy } from "./game/replay/scene.ts";
+import { canRecord, canShareFile, downloadVideo, recordReplay, shareVideo, type Recording } from "./game/replay/record.ts";
 import { initEvents, track } from "./net/events.ts";
 import { buildRun, encodeRun, decodeRun, runDuration, fmtDuration } from "./game/ghost.ts";
 import type { GhostRun } from "./game/ghost.ts";
@@ -927,6 +930,137 @@ async function screenReveal(): Promise<void> {
   host.replaceChildren(...kids);
 }
 
+// ════════════════════════════════════════════════════════════════════════════
+//  SOLVE REPLAY (3.4): a vertical video of the round for TikTok, Reels, Shorts
+//  Same timeline and look as iOS (Hunch/Replay). Spoiler-free: ranks only.
+// ════════════════════════════════════════════════════════════════════════════
+
+/** A stand-in rank for a guess the server scored without one, so the tile can
+ *  still take its heat color. Marked inexact: no number is printed for it. */
+function rankFromScore(score: number): number {
+  return score >= 60 ? 15 : score >= 45 ? 60 : score >= 30 ? 250 : score >= 18 ? 800 : 3000;
+}
+
+/** The round as word-free events in play order. Words are dropped here. */
+function replayEvents(): ReplayEvent[] {
+  const items: { key: number; tie: number; ev: ReplayEvent }[] = [];
+  const n = sp.guesses.length;
+  sp.guesses.forEach((g, i) => {
+    if (g.warmth === null) return; // still being scored
+    const order = n - i; // sp.guesses is newest first
+    const key = g.seq ?? order - 1;
+    let ev: ReplayEvent;
+    if (g.correct) ev = { kind: "guess", rank: 1 };
+    else if (g.rank != null && g.rank > 1) ev = { kind: "guess", rank: g.rank };
+    else ev = { kind: "guess", rank: rankFromScore(g.warmth * 100), exact: false };
+    items.push({ key, tie: order, ev });
+  });
+  for (const r of sp.replies) {
+    if (!r.verdict || r.seq === undefined) continue;
+    items.push({ key: r.seq, tie: -1, ev: { kind: "question", verdict: { tone: toneFor(r.verdict), label: r.verdict } } });
+  }
+  items.sort((a, b) => a.key - b.key || a.tie - b.tie);
+  return items.map((x) => x.ev);
+}
+
+let replayAbort: AbortController | null = null;
+let replayURL: string | null = null;
+
+function stopReplay(): void {
+  replayAbort?.abort();
+  replayAbort = null;
+  if (replayURL) { URL.revokeObjectURL(replayURL); replayURL = null; }
+}
+
+function screenReplay(): void {
+  stopReplay();
+  const timeline = buildTimeline(replayEvents(), sp.solved ? "solved" : "revealed");
+  if (!timeline) { toast(t("replayFailed")); return; }
+
+  const daily = sp.mode === "daily";
+  const scored = sp.guesses.filter((g) => g.warmth !== null).length;
+  const copy: ReplayCopy = {
+    title: daily ? `Wick #${sp.puzzleNumber}` : `Wick · ${t("practice")}`,
+    tagline: t("replayTagline"),
+    stats: sp.solved ? t("revealShareSolved", sp.guesses.length) : t("replayRevealedAfter", scored),
+    best: t("replayBest"),
+    guessOf: (k, total) => t("replayGuessOf", k, total),
+    fastForward: (k) => t("replayFastForward", k),
+    revealed: t("replayRevealed"),
+    playFree: t("replayPlayFree"),
+    domain: "guesswick.com",
+    bandName: (b) => t("heat." + bandToken(b)),
+  };
+  // The server's rank list is about this long; only the meter's curve uses it.
+  const scene = new ReplayScene(timeline, copy, 10_000);
+  const name = daily ? `wick-replay-${sp.puzzleNumber}` : "wick-replay";
+
+  clear("dark");
+  const canvas = el("canvas", { class: "replay-media", width: REPLAY_W, height: REPLAY_H });
+  const stage = el("div", { class: "replay-stage" }, [canvas]);
+  const fill = el("div", { class: "replay-fill" });
+  const bar = el("div", { class: "replay-bar" }, [fill]);
+  const status = el("p", { class: "center muted" }, [t("replayRecording")]);
+  const actions = el("div", { class: "row-actions" });
+  const back = (): void => { stopReplay(); screenSolo(); };
+  app.append(el("main", { class: "card" }, [
+    el("div", { class: "solo-head" }, [
+      el("button", { class: "icon-btn dark", onclick: back, title: t("back") }, ["←"]),
+      el("span", { class: "solo-title dark" }, [t("replayTitle")]),
+      el("span", {}, [""]),
+    ]),
+    stage, bar, status, actions,
+  ]));
+
+  if (!canRecord()) {
+    const ctx = canvas.getContext("2d");
+    if (ctx) scene.draw(ctx, scene.duration - 1);
+    bar.remove();
+    status.textContent = t("replayUnsupported");
+    actions.append(el("button", { class: "btn secondary", onclick: back }, [t("back")]));
+    return;
+  }
+
+  const abort = new AbortController();
+  replayAbort = abort;
+  recordReplay(scene, canvas, (p) => { fill.style.width = `${Math.round(p * 100)}%`; }, abort.signal)
+    .then((rec) => { if (!abort.signal.aborted) showReplayReady(rec, name, stage, bar, status, actions); })
+    .catch((e: unknown) => {
+      if ((e as { name?: string }).name === "AbortError" || abort.signal.aborted) return;
+      bar.remove();
+      status.textContent = t("replayFailed");
+      actions.replaceChildren(el("button", { class: "btn primary", onclick: screenReplay }, [t("replayTryAgain")]));
+    });
+}
+
+function showReplayReady(rec: Recording, name: string, stage: HTMLElement, bar: HTMLElement,
+  status: HTMLElement, actions: HTMLElement): void {
+  replayURL = URL.createObjectURL(rec.blob);
+  const video = el("video", { class: "replay-media", src: replayURL, autoplay: true, loop: true, muted: true, controls: true });
+  video.playsInline = true;
+  stage.replaceChildren(video);
+  bar.remove();
+  status.textContent = rec.ext === "webm" ? `${t("replayReady")} ${t("replayWebmNote")}` : t("replayReady");
+
+  const download = (): void => {
+    if (downloadVideo(rec, name) === "downloaded") toast(t("replaySaved"));
+    else toast(t("replayFailed"));
+  };
+  const buttons: HTMLElement[] = [];
+  if (canShareFile(rec, name)) {
+    buttons.push(el("button", {
+      class: "btn primary",
+      onclick: () => {
+        void playSound("tap");
+        void shareVideo(rec, name).then((o) => { if (o === "failed") download(); });
+      },
+    }, [t("replayShareVideo")]));
+  }
+  buttons.push(el("button", { class: `btn ${buttons.length ? "secondary" : "primary"}`, onclick: download }, [t("replayDownload")]));
+  buttons.push(el("button", { class: "btn secondary", onclick: () => { stopReplay(); screenSolo(); } }, [t("back")]));
+  actions.replaceChildren(...buttons);
+}
+
 /** Someone sent you a race link. Shown instead of Home so the challenge is the
  *  first thing you see, with an explicit opt-out into a normal round. */
 function isIOS(): boolean {
@@ -1252,6 +1386,7 @@ function renderSolo(): void {
       }
       if (hasMap) {
         actions.push(el("button", { class: "btn secondary", onclick: () => { void screenReveal(); } }, [t("revealSeeMap")]));
+        actions.push(el("button", { class: "btn secondary", onclick: () => { void playSound("tap"); screenReplay(); } }, [t("replayShare")]));
       }
       if (sp.mode === "daily") {
         actions.push(el("button", { class: `btn ${hasMap ? "secondary" : "primary"}`, onclick: () => { void shareDaily(); } }, ["📋 " + t("shareResult")]));
@@ -1283,6 +1418,7 @@ function renderSolo(): void {
       }
       if (hasMap) {
         actions.push(el("button", { class: "btn secondary", onclick: () => { void screenReveal(); } }, [t("revealSeeMap")]));
+        actions.push(el("button", { class: "btn secondary", onclick: () => { void playSound("tap"); screenReplay(); } }, [t("replayShare")]));
       }
       if (sp.mode === "daily") {
         actions.push(el("button", { class: `btn ${hasMap ? "secondary" : "primary"}`, onclick: () => { void shareDaily(); } }, ["📋 " + t("shareResult")]));

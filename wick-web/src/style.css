@@ -833,3 +833,12 @@ a.btn { display: block; box-sizing: border-box; text-align: center; text-decorat
 @media (prefers-reduced-motion: reduce) {
   .gpip, .countdown-n.pop { animation: none !important; }
 }
+
+/* ── Solve Replay (3.4) ── */
+.replay-stage { display: flex; justify-content: center; margin: 8px 0 12px; }
+.replay-media {
+  width: 100%; max-width: 340px; aspect-ratio: 9 / 16; height: auto;
+  border-radius: 18px; background: #0f121a; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+}
+.replay-bar { height: 6px; border-radius: 3px; background: rgba(125, 92, 235, 0.18); overflow: hidden; width: 100%; max-width: 340px; margin: 0 auto 8px; }
+.replay-fill { height: 100%; width: 0; background: #7d5ceb; transition: width 0.2s linear; }

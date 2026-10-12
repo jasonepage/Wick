@@ -158,7 +158,7 @@ nonisolated final class ReplayScene {
         let board = ReplayBoard(count: request.timeline.tiles.count, area: Self.boardArea)
         self.request = request
         self.board = board
-        self.wickSize = min(150, max(84, board.cell * 0.66))
+        self.wickSize = min(160, max(84, board.cell * 0.74))
         let tileText = max(16, board.cell * 0.86 * 0.27)
         fonts = [
             .title: Self.font(60, .heavy),
