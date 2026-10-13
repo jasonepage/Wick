@@ -17,6 +17,7 @@
     "vite": "^6.0.5"
   },
   "dependencies": {
+    "mediabunny": "1.61.4",
     "qrcode": "^1.5.4"
   }
 }

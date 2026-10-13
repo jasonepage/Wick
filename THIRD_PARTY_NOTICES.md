@@ -29,6 +29,9 @@ word-list, qrcode, Vite, TypeScript, Vitest and their dependencies). Their
 licenses are recorded in each package's `node_modules/<name>/LICENSE` after
 `npm install` and in the lockfiles.
 
+`wick-web` also uses Mediabunny (https://mediabunny.dev, Mozilla Public
+License 2.0, the same license as Wick) to package Solve Replay videos as MP4.
+
 ## Apple frameworks
 
 The iOS app uses Apple's Natural Language, Foundation Models, StoreKit,
