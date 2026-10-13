@@ -22,9 +22,11 @@ export interface DailyWord {
   fr: string;
   it: string;
   de: string;
+  /** Simplified Chinese meaning, web only; shown to the player, never a puzzle word. */
+  zh: string;
   tier: number;
 }
-export type Lang = "en" | "es" | "fr" | "it" | "de";
+export type Lang = "en" | "es" | "fr" | "it" | "de" | "zh";
 
 const POOL = poolData as DailyWord[];
 const U64 = (1n << 64n) - 1n;

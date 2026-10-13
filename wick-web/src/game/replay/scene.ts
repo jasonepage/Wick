@@ -25,7 +25,8 @@ export const H = 1920;
 /** Clear of the title bar above and of short-video app buttons and captions. */
 const BOARD_AREA: Rect = { x: 120, y: 480, w: 840, h: 940 };
 
-const FONT = "ui-rounded, 'SF Pro Rounded', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif";
+// Chinese fonts go last so zh captions do not fall back to boxes.
+const FONT = "ui-rounded, 'SF Pro Rounded', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, 'PingFang SC', 'Noto Sans SC', 'Microsoft YaHei', sans-serif";
 
 /** Mirrors HunchTheme (Palette + rankColor) and RevealShareCard's inks. */
 const C = {

@@ -31,6 +31,7 @@ import { mountBackdrop, setBackdropHeat } from "./game/backdrop.ts";
 import { dailyStarters, starterText, type StarterItem } from "./game/starters.ts";
 import { play as playSound, playGuessTone, soundEnabled, setSoundEnabled, armAudioUnlock } from "./game/sound.ts";
 import { t, getLang, setLang, LANGS, LANG_LABEL } from "./i18n.ts";
+import { loadGloss, guessGloss, answerGloss, withGloss } from "./game/gloss.ts";
 import type { Lang } from "./i18n.ts";
 import { toDataURL as qrToDataURL } from "qrcode";
 
@@ -68,9 +69,9 @@ interface Guess {
 /** Heat readout for a guess: "#N" when close (top 100), else the heat word. */
 function heatText(g: Guess): string {
   if (g.warmth === null) return "…";
-  if (g.correct) return "Solved!";
+  if (g.correct) return t("heat.Solved!");
   if (g.rank != null && g.rank <= 100) return `#${g.rank}`;
-  return scoreLabel(g.warmth * 100).label;
+  return t("heat." + scoreLabel(g.warmth * 100).label);
 }
 
 // ── single-player state ──
@@ -78,6 +79,8 @@ interface SoloReply { question: string; verdict: string; reply: string; at?: num
 const sp = {
   mode: "daily" as "daily" | "practice",
   secret: "",
+  /** The pool entry behind `secret`, for its meaning in the menu language. */
+  secretWord: null as DailyWord | null,
   puzzleNumber: 0,
   guesses: [] as Guess[],
   replies: [] as SoloReply[],
@@ -254,9 +257,9 @@ function cycleTheme(): void {
 }
 function themeLabel(): string {
   switch (themePref()) {
-    case "light": return "☀️ Light";
-    case "dark": return "🌙 Dark";
-    default: return "🌗 Auto";
+    case "light": return "☀️ " + t("setLight");
+    case "dark": return "🌙 " + t("setDark");
+    default: return "🌗 " + t("setAuto");
   }
 }
 // Live-update when following the system and the OS theme flips.
@@ -322,7 +325,7 @@ function scheduleReminder(): void {
 function langPicker(): HTMLSelectElement {
   const sel = el("select", { class: "field" });
   for (const l of LANGS) sel.append(el("option", { value: l, selected: l === getLang() }, [LANG_LABEL[l]]));
-  sel.addEventListener("change", () => { setLang(sel.value as Lang); rerender(screenSettings); });
+  sel.addEventListener("change", () => { setLang(sel.value as Lang); applyLang(); rerender(screenSettings); });
   return sel;
 }
 
@@ -595,6 +598,7 @@ function enterDailyPuzzle(puzzleNumber: number, word: DailyWord): void {
   track("daily_start", { n: puzzleNumber });
   sp.mode = "daily";
   sp.secret = wordText(word, "en");
+  sp.secretWord = word;
   sp.puzzleNumber = puzzleNumber;
   const saved = loadDaily(sp.puzzleNumber);
   sp.guesses = saved?.guesses ?? [];
@@ -656,6 +660,7 @@ function startPractice(): void {
   const w: DailyWord = picked.word;
   sp.mode = "practice";
   sp.secret = wordText(w, "en");
+  sp.secretWord = w;
   sp.puzzleNumber = 0;
   sp.guesses = [];
   sp.replies = [];
@@ -1104,6 +1109,7 @@ function startGhostRace(run: GhostRun): void {
     if (!w) { toast(t("raceUnavailable")); goHome(); return; }
     sp.mode = "practice";
     sp.secret = wordText(w, "en");
+    sp.secretWord = w;
     sp.puzzleNumber = 0;
     sp.guesses = [];
     sp.replies = [];
@@ -1396,7 +1402,7 @@ function renderSolo(): void {
         actions.push(el("button", { class: `btn ${hasMap ? "secondary" : "primary"}`, onclick: startPractice }, [t("newWord")]));
       }
       latestEl.replaceChildren(
-        el("span", { class: "word" }, [`${t("solvedTitle")} ${t("theWordWas")} "${sp.secret}".`]),
+        el("span", { class: "word" }, [`${t("solvedTitle")} ${t("theWordWas")} "${withGloss(sp.secret, answerGloss(sp.secretWord, getLang()))}".`]),
         ...(banner ? [banner] : []),
         el("div", { class: "row-actions" }, actions),
       );
@@ -1428,7 +1434,7 @@ function renderSolo(): void {
         actions.push(el("button", { class: `btn ${hasMap ? "secondary" : "primary"}`, onclick: startPractice }, [t("newWord")]));
       }
       latestEl.replaceChildren(
-        el("span", { class: "word reveal" }, [`${t("theWordWas")} "${sp.secret}".`]),
+        el("span", { class: "word reveal" }, [`${t("theWordWas")} "${withGloss(sp.secret, answerGloss(sp.secretWord, getLang()))}".`]),
         ...(banner ? [banner] : []),
         el("div", { class: "row-actions" }, actions),
       );
@@ -1570,8 +1576,8 @@ function renderHero(sel: string, id: string, latest: Guess | undefined, revealed
   const w = latest && latest.warmth !== null ? latest.warmth : null;
   const score = w !== null ? w * 100 : null;
   const rankBig = latest && latest.rank != null && latest.rank <= 100 ? `#${latest.rank}` : null;
-  const big = !latest ? t("ready") : pending ? t("scoringBig") : latest.correct ? "Solved!" : rankBig ?? scoreLabel(score!).label;
-  const small = !latest ? t("makeGuess") : pending ? t("oneSec") : scoreLabel(score!).hint;
+  const big = !latest ? t("ready") : pending ? t("scoringBig") : latest.correct ? t("heat.Solved!") : rankBig ?? t("heat." + scoreLabel(score!).label);
+  const small = !latest ? t("makeGuess") : pending ? t("oneSec") : t("heatHint." + scoreLabel(score!).label);
   hero.replaceChildren(
     el("div", { class: "gauge" }, [
       raw("", ringSVG(w ?? 0, scoreColor(score))),
@@ -1594,7 +1600,7 @@ function renderLatestChip(latestEl: HTMLDivElement, latest: Guess | undefined): 
     return;
   }
   const score = latest.warmth * 100;
-  const chip = el("span", { class: "chip" }, [scoreLabel(score).label]);
+  const chip = el("span", { class: "chip" }, [t("heat." + scoreLabel(score).label)]);
   chip.style.background = scoreColorA(score, 0.18);
   chip.style.color = scoreColor(score);
   latestEl.replaceChildren(el("span", { class: "word" }, [latest.word]), chip);
@@ -1986,8 +1992,9 @@ function guessRowEl(g: Guess): HTMLElement {
   const fill = el("i");
   fill.style.width = pending ? "0%" : `${Math.round(g.warmth! * 100)}%`;
   if (!pending) fill.style.background = scoreColor(g.warmth! * 100);
+  const meaning = guessGloss(g.word, getLang());
   return el("li", { class: "guess-item" }, [
-    el("span", { class: "gw" }, [g.word]),
+    el("span", { class: "gw" }, meaning ? [g.word, el("small", { class: "gm" }, [` · ${meaning}`])] : [g.word]),
     el("span", { class: "gb" }, [fill]),
     el("span", { class: pending ? "gp muted" : "gp" }, [heatText(g)]),
   ]);
@@ -2008,7 +2015,18 @@ function fmtClock(ms: number): string {
 //  redirects to "/?p=<code>&m=…". Read that here and drop straight into the match.
 //  No app needed; anyone with the link can play. Dare links (m=dare) were retired
 //  in 3.3: they land on Home with a short note instead of a dead match.
+/** Mirror the menu language onto <html lang> and fetch its meanings dictionary
+ *  (zh only today). When it arrives mid-round, redraw so the rows pick it up. */
+function applyLang(): void {
+  const lang = getLang();
+  document.documentElement.lang = lang === "zh" ? "zh-Hans" : lang;
+  void loadGloss(lang).then((fresh) => {
+    if (fresh && document.querySelector("#latest")) renderSolo();
+  });
+}
+
 function boot(): void {
+  applyLang();
   mountBackdrop();
   initEvents(httpBase, live.kid);
   // Browsers refuse to start audio outside a user gesture, so the AudioContext

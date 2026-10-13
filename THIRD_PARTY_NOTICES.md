@@ -22,6 +22,29 @@ scripts in `debug/embeddings/`. These model files are derived works of the
 fastText vectors and are shared under CC BY-SA 3.0, not under the MPL.
 English uses Apple's built-in system embedding and ships nothing.
 
+## ECDICT (English to Chinese dictionary)
+
+`wick-web/public/gloss/zh.json` is the short Chinese meaning the web game shows
+next to each guess and the answer when the menus are in Chinese. It is built by
+`wick-web/scripts/build-gloss-zh.mjs` from ECDICT by Linwei (skywind3000):
+
+- Source: https://github.com/skywind3000/ECDICT
+- License: MIT License, Copyright (c) 2025 Linwei
+
+The file keeps only the game's scoring vocabulary (about 10,000 words) with one
+short sense each. It is a derived work of ECDICT and keeps the MIT license; the
+MIT notice is reproduced here:
+
+> Permission is hereby granted, free of charge, to any person obtaining a copy
+> of this software and associated documentation files (the "Software"), to deal
+> in the Software without restriction, including without limitation the rights
+> to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+> copies of the Software, and to permit persons to whom the Software is
+> furnished to do so, subject to the following conditions: The above copyright
+> notice and this permission notice shall be included in all copies or
+> substantial portions of the Software. THE SOFTWARE IS PROVIDED "AS IS",
+> WITHOUT WARRANTY OF ANY KIND.
+
 ## npm packages
 
 `wick-api` and `wick-web` depend on open-source npm packages (Hono, ws,
