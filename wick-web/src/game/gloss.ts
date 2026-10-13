@@ -26,13 +26,22 @@ type Table = Record<string, string>;
 // Plain JSON under public/ (fetched, not bundled): a bundled chunk escaped every
 // character to \uXXXX and doubled the download. Resolved against the page's base
 // so it works under a subpath (GitHub Pages).
-const FILES: Partial<Record<Lang, string>> = { zh: "gloss/zh.json" };
-const LOADERS: Partial<Record<Lang, () => Promise<Table>>> = {
-  zh: () => fetch(new URL(FILES.zh!, document.baseURI).href).then((r) => {
+const FILES: Partial<Record<Lang, string>> = {
+  zh: "gloss/zh.json",   // ECDICT, built by scripts/build-gloss-zh.mjs
+  es: "gloss/es.json",   // Open Multilingual Wordnet, scripts/build-gloss-wordnet.py
+  fr: "gloss/fr.json",
+  it: "gloss/it.json",
+  de: "gloss/de.json",   // Ding/FreeDict confirmed against OdeNet, same script
+};
+function fetchTable(file: string): Promise<Table> {
+  return fetch(new URL(file, document.baseURI).href).then((r) => {
     if (!r.ok) throw new Error(String(r.status));
     return r.json() as Promise<Table>;
-  }),
-};
+  });
+}
+const LOADERS: Partial<Record<Lang, () => Promise<Table>>> = Object.fromEntries(
+  Object.entries(FILES).map(([lang, file]) => [lang, () => fetchTable(file)]),
+);
 const tables: Partial<Record<Lang, Table>> = {};
 const pending: Partial<Record<Lang, Promise<boolean>>> = {};
 

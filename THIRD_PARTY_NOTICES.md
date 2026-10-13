@@ -45,6 +45,31 @@ MIT notice is reproduced here:
 > substantial portions of the Software. THE SOFTWARE IS PROVIDED "AS IS",
 > WITHOUT WARRANTY OF ANY KIND.
 
+## Open Multilingual Wordnet and OdeNet (Spanish, French, Italian, German meanings)
+
+`wick-web/public/gloss/es.json`, `fr.json` and `it.json` hold the short meaning
+the web game shows next to each guess in those languages. They are built by
+`wick-web/scripts/build-gloss-wordnet.py` from Open Multilingual Wordnet 1.4
+(https://github.com/omwn/omw-data), which links each language to English
+WordNet by sense:
+
+- Spanish: Multilingual Central Repository 3.0, Creative Commons Attribution
+  3.0 (CC BY 3.0)
+- Italian: MultiWordNet 1.5, Creative Commons Attribution 3.0 (CC BY 3.0)
+- French: WOLF (WordNet Libre du Francais), CeCILL-C license
+  (http://www.cecill.info/licences/Licence_CeCILL-C_V1-en.html)
+- English WordNet 3.0 (Princeton WordNet license), used only to link senses
+
+The derived files keep their source licenses and are not under the MPL.
+
+The German file (`wick-web/public/gloss/de.json`) is built by the same script
+from the Ding / FreeDict English-German dictionary 1.9 by Frank Richter and
+Einhard Leichtfuss (https://freedict.org/, GNU General Public License v3),
+with OdeNet 1.4 by Melanie Siegel and Francis Bond
+(https://github.com/hdaSprachtechnologie/odenet, Creative Commons
+Attribution-ShareAlike 4.0) used to confirm candidates. `de.json` is a derived
+work of Ding and is shared under the GPL v3, separately from Wick's own code.
+
 ## npm packages
 
 `wick-api` and `wick-web` depend on open-source npm packages (Hono, ws,

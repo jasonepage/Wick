@@ -313,9 +313,9 @@ a.btn { display: block; box-sizing: border-box; text-align: center; text-decorat
 .guesses { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-direction: column; gap: 7px; max-height: 34vh; overflow-y: auto; }
 .guess-item { display: flex; align-items: center; gap: 10px; }
 .guess-item .gw { font-weight: 700; flex: 1; }
-.guess-item .gw { min-width: 0; overflow-wrap: anywhere; }
+.guess-item .gw { min-width: 0; overflow-wrap: anywhere; flex: 1.25; }
 .guess-item .gm { font-weight: 500; font-size: 0.85em; opacity: 0.72; white-space: nowrap; }
-.guess-item .gb { flex: 1.3; height: 12px; border-radius: 999px; background: rgba(255,255,255,0.08); overflow: hidden; }
+.guess-item .gb { flex: 1.05; height: 12px; border-radius: 999px; background: rgba(255,255,255,0.08); overflow: hidden; }
 .guess-item .gb > i { display: block; height: 100%; border-radius: 999px; transition: width 0.4s ease; }
 .guess-item .gp { font-size: 0.72rem; font-weight: 700; opacity: 0.85; width: 62px; text-align: right; flex: 0 0 auto; }
 

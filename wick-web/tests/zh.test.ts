@@ -54,3 +54,12 @@ test("zh guess dictionary covers every daily answer", () => {
   for (const e of pool) assert.ok(hasChinese(zhGloss[e.en as string] ?? ""), `no gloss for ${e.en}`);
   for (const v of Object.values(zhGloss)) assert.ok(v.length > 0 && v.length <= 8);
 });
+
+test("es/fr/it/de guess dictionaries exist, are short, and match every daily answer", () => {
+  for (const lang of ["es", "fr", "it", "de"]) {
+    const table = JSON.parse(readFileSync(new URL(`../public/gloss/${lang}.json`, import.meta.url), "utf8")) as Record<string, string>;
+    assert.ok(Object.keys(table).length > 5000, `${lang} dictionary looks too small`);
+    for (const v of Object.values(table)) assert.ok(v.length > 0 && v.length <= 24 && !v.includes("\u2014"));
+    for (const e of pool) assert.equal(table[e.en as string], e[lang], `${lang} row for ${e.en} should match the pool`);
+  }
+});
