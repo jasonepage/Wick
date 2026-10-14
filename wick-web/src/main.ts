@@ -995,7 +995,7 @@ function replayEvents(): ReplayEvent[] {
   });
   for (const r of sp.replies) {
     if (!r.verdict || r.seq === undefined) continue;
-    items.push({ key: r.seq, tie: -1, ev: { kind: "question", verdict: { tone: toneFor(r.verdict), label: r.verdict } } });
+    items.push({ key: r.seq, tie: -1, ev: { kind: "question", verdict: { tone: toneFor(r.verdict), label: r.verdict, question: r.question } } });
   }
   items.sort((a, b) => a.key - b.key || a.tie - b.tie);
   return items.map((x) => x.ev);

@@ -18,8 +18,9 @@
 //    by quickly; new bests get a longer beat; a big jump (two or more heat
 //    bands hotter than the best so far, like Cold straight to Hot) gets the
 //    longest beat and the drama.
-//  * Keeper questions in a row become ONE speech bubble beat that shows only
-//    the verdicts. The question text never reaches this file.
+//  * Keeper questions in a row become ONE speech bubble beat: one row per
+//    question with its text and verdict. Question text is shown on every
+//    round; only guessed words follow the spoiler rule below.
 //  * Beats are 1 to 3 seconds. The whole video aims for 30 to 60 seconds.
 //    Too long: ordinary guesses get squeezed into fast-forward bursts until it
 //    fits. Too short: beats stretch a little, but nothing is padded with
@@ -89,6 +90,9 @@ nonisolated enum ReplayVerdictTone: Equatable, Sendable {
 nonisolated struct ReplayVerdict: Equatable, Sendable {
     let tone: ReplayVerdictTone
     let label: String
+    /// The text the player asked, shown in Wick's bubble on every round.
+    /// Rounds saved before it travelled have nil; then only the chip shows.
+    var question: String? = nil
 }
 
 /// One thing the player did, in play order.
@@ -221,6 +225,8 @@ nonisolated struct ReplayPacing: Equatable, Sendable {
     var newBest = 1.5
     var bigJump = 2.5
     var keeper = 1.2
+    /// A bubble that shows question text needs reading time.
+    var keeperText = 2.4
     var finale = 3.0
     var endCard = 3.0
     /// A burst of n tiles lasts burstBase + burstPerTile * n, capped at maxBeat.
@@ -536,7 +542,9 @@ nonisolated struct ReplayTimeline: Equatable, Sendable {
                 // A dropped bubble does not break a run of mergeable tiles.
                 guard level.keepsKeeper else { continue }
                 flush()
-                out.append(Middle(kind: .keeper(verdicts), duration: pacing.keeper))
+                let hasText = verdicts.contains { $0.question != nil }
+                out.append(Middle(kind: .keeper(verdicts),
+                                  duration: hasText ? pacing.keeperText : pacing.keeper))
             }
         }
         flush()

@@ -81,7 +81,8 @@ enum ReplayEvents {
         for q in questions where !q.verdict.isEmpty {
             guard let seq = q.seq else { continue }
             let verdict = ReplayVerdict(tone: ReplayVerdictTone(token: q.verdict),
-                                        label: verdictLabel(q.verdict))
+                                        label: verdictLabel(q.verdict),
+                                        question: q.question)
             keyed.append((seq, -1, ReplayEvent.question(verdict)))
         }
         keyed.sort { ($0.key, $0.tie) < ($1.key, $1.tie) }

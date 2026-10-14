@@ -267,3 +267,18 @@ test("Chinese words travel as labels unchanged", () => {
   const tl = build([w(2000, "石头"), w(300, "珊瑚礁岛"), w(1, "珊瑚")], "solved", STANDARD_PACING, { showAnswer: true });
   assert.deepEqual(tl.tiles.map((x) => x.label), ["石头", "珊瑚礁岛", "珊瑚"]);
 });
+
+test("question text rides along in the bubble on every round and gets reading time", () => {
+  const asked: ReplayEvent = { kind: "question", verdict: { tone: "yes", label: "Yes", question: "Is it alive?" } };
+  const tl = build([g(3000), asked, no, g(1)], "solved", noStretch);
+  const keeper = tl.beats.find((b) => b.kind.kind === "keeper")!;
+  assert.equal(keeper.duration, STANDARD_PACING.keeperText);
+  assert.equal(keeper.kind.kind === "keeper" && keeper.kind.verdicts[0]!.question, "Is it alive?");
+  assert.equal(keeper.kind.kind === "keeper" && keeper.kind.verdicts[1]!.question, undefined);
+  // Chips-only bubbles (older saved rounds) keep the short beat.
+  assert.equal(build([g(3000), no, g(1)], "solved", noStretch).beats[2]!.duration, STANDARD_PACING.keeper);
+  // The daily spoiler rule is about words, not questions: the text is kept on a daily.
+  const daily = build([g(3000), asked, g(1)], "solved", STANDARD_PACING);
+  const kb = daily.beats.find((b) => b.kind.kind === "keeper")!;
+  assert.equal(kb.kind.kind === "keeper" && kb.kind.verdicts[0]!.question, "Is it alive?");
+});

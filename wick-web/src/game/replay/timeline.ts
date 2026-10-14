@@ -54,7 +54,9 @@ export function toneFor(verdict: string): VerdictTone {
   return "other";
 }
 
-export interface Verdict { tone: VerdictTone; label: string }
+/** `question` is the text the player asked, shown in Wick's bubble on every
+ *  round. Older saved rounds may not have it; then only the chip shows. */
+export interface Verdict { tone: VerdictTone; label: string; question?: string }
 
 export type ReplayEvent =
   /** A scored guess. 1 = the answer, 0 = rank unknown. `exact` false means
@@ -144,6 +146,8 @@ export const beatEnd = (b: Beat): number => b.start + b.duration;
 
 export interface Pacing {
   intro: number; dip: number; newBest: number; bigJump: number; keeper: number;
+  /** A bubble that shows question text needs reading time. */
+  keeperText: number;
   finale: number; endCard: number;
   burstBase: number; burstPerTile: number; burstTail: number;
   maxBeat: number; minTotal: number; maxTotal: number; maxStretch: number;
@@ -151,7 +155,7 @@ export interface Pacing {
 }
 
 export const STANDARD_PACING: Pacing = {
-  intro: 1.5, dip: 1.0, newBest: 1.5, bigJump: 2.5, keeper: 1.2,
+  intro: 1.5, dip: 1.0, newBest: 1.5, bigJump: 2.5, keeper: 1.2, keeperText: 2.4,
   finale: 3.0, endCard: 3.0,
   burstBase: 1.2, burstPerTile: 0.12, burstTail: 0.25,
   maxBeat: 3.0, minTotal: 30, maxTotal: 60, maxStretch: 1.6,
@@ -284,7 +288,8 @@ function compose(units: Unit[], tiles: Tile[], level: Level, maxBurst: number, p
       // A dropped bubble does not break a run of mergeable tiles.
       if (level !== "dips") continue;
       flush();
-      out.push({ kind: { kind: "keeper", verdicts: u.verdicts }, duration: p.keeper });
+      const hasText = u.verdicts.some((v) => !!v.question);
+      out.push({ kind: { kind: "keeper", verdicts: u.verdicts }, duration: hasText ? p.keeperText : p.keeper });
     }
   }
   flush();

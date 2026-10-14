@@ -9,6 +9,9 @@
 //  The board keeps clear of the right edge and the bottom, where TikTok, Reels
 //  and Shorts put their buttons and captions.
 //
+//  Keeper questions show their text in Wick's bubble on every round; only the
+//  guessed words follow the spoiler rule.
+//
 //  Guessed words come from the timeline's tile labels, which are already
 //  masked for a daily round (timeline.ts, SPOILER_RANK_LIMIT). The answer is
 //  drawn only when the timeline's showAnswer flag is set AND the label is
@@ -621,14 +624,28 @@ export class ReplayScene {
     const fade = clamp((beatEnd(beat) - t) / 0.15);
     if (appear <= 0.01 || fade <= 0) return;
 
-    const chips: { label: string; color: string }[] = verdicts.slice(0, 3)
-      .map((v) => ({ label: v.label.toUpperCase(), color: verdictColor(v.tone) }));
-    if (verdicts.length > 3) chips.push({ label: `+${verdicts.length - 3}`, color: C.neutral });
-    const chipH = 64, gap = 14, pad = 20;
+    // One row per question: the text, then its verdict chip. Rounds saved
+    // before question text travelled show chips only, in one row.
+    const chipH = 64, gap = 14, pad = 20, textChipGap = 18, textMax = 560;
+    const shown = verdicts.slice(0, 3);
+    const extra = verdicts.length > 3 ? `+${verdicts.length - 3}` : null;
+    const hasText = shown.some((v) => !!v.question);
     ctx.font = `800 36px ${FONT}`;
-    const widths = chips.map((c) => ctx.measureText(c.label).width + 44);
-    const contentW = widths.reduce((a, b) => a + b, 0) + gap * Math.max(0, chips.length - 1);
-    const bw = contentW + pad * 2, bh = chipH + pad * 2;
+    const chipW = (label: string): number => ctx.measureText(label).width + 44;
+    const rows: { question: string | null; chip: string; color: string; chipW: number; textW: number }[] = shown.map((v) => {
+      const chip = v.label.toUpperCase();
+      const q = v.question ? this.fitted(ctx, v.question, 34, 24, 600, textMax) : null;
+      return { question: q?.text ?? null, chip, color: verdictColor(v.tone), chipW: chipW(chip), textW: q?.width ?? 0 };
+    });
+    if (extra) rows.push({ question: null, chip: extra, color: C.neutral, chipW: chipW(extra), textW: 0 });
+    let bw: number, bh: number;
+    if (hasText) {
+      bw = Math.max(...rows.map((r) => (r.question ? r.textW + textChipGap : 0) + r.chipW)) + pad * 2;
+      bh = rows.length * chipH + (rows.length - 1) * gap + pad * 2;
+    } else {
+      bw = rows.reduce((a, r) => a + r.chipW, 0) + gap * Math.max(0, rows.length - 1) + pad * 2;
+      bh = chipH + pad * 2;
+    }
 
     const p = this.placement(t);
     const headTop = p.gy - p.lift - this.wickSize * 1.18;
@@ -662,15 +679,29 @@ export class ReplayScene {
     ctx.lineWidth = 3;
     ctx.stroke();
 
-    let x = bx + pad;
-    chips.forEach((chip, i) => {
-      const w = widths[i]!;
-      roundRect(ctx, { x, y: by + pad, w, h: chipH }, chipH / 2);
-      ctx.fillStyle = chip.color;
-      ctx.fill();
-      this.text(ctx, chip.label, x + w / 2, by + pad + chipH / 2, 36, 800, "#fff", "center");
-      x += w + gap;
-    });
+    if (hasText) {
+      rows.forEach((row, i) => {
+        const y = by + pad + i * (chipH + gap);
+        let x = bx + pad;
+        if (row.question) {
+          this.text(ctx, row.question, x, y + chipH / 2, 34, 600, C.onInk, "left", textMax);
+          x += row.textW + textChipGap;
+        }
+        roundRect(ctx, { x, y, w: row.chipW, h: chipH }, chipH / 2);
+        ctx.fillStyle = row.color;
+        ctx.fill();
+        this.text(ctx, row.chip, x + row.chipW / 2, y + chipH / 2, 36, 800, "#fff", "center");
+      });
+    } else {
+      let x = bx + pad;
+      for (const row of rows) {
+        roundRect(ctx, { x, y: by + pad, w: row.chipW, h: chipH }, chipH / 2);
+        ctx.fillStyle = row.color;
+        ctx.fill();
+        this.text(ctx, row.chip, x + row.chipW / 2, by + pad + chipH / 2, 36, 800, "#fff", "center");
+        x += row.chipW + gap;
+      }
+    }
     ctx.restore();
   }
 
@@ -844,22 +875,31 @@ export class ReplayScene {
   private fitText(ctx: Ctx, s: string, x: number, y: number, size: number, minSize: number,
     weight: number, color: string, maxWidth: number): void {
     if (!s) return;
+    const f = this.fitted(ctx, s, size, minSize, weight, maxWidth);
+    this.text(ctx, f.text, x, y, f.size, weight, color, "center", maxWidth);
+  }
+
+  /** The text and font size that fit `maxWidth`: shrink first, then cut with
+   *  an ellipsis. Returns the measured width too. */
+  private fitted(ctx: Ctx, s: string, size: number, minSize: number, weight: number, maxWidth: number):
+    { text: string; size: number; width: number } {
     ctx.save();
-    const fits = (str: string, px: number): boolean => {
+    const width = (str: string, px: number): number => {
       ctx.font = `${weight} ${px}px ${FONT}`;
-      return ctx.measureText(str).width <= maxWidth;
+      return ctx.measureText(str).width;
     };
     let px = size;
-    while (px > minSize && !fits(s, px)) px = Math.max(minSize, px - Math.max(1, size * 0.06));
+    while (px > minSize && width(s, px) > maxWidth) px = Math.max(minSize, px - Math.max(1, size * 0.06));
     let shown = s;
-    if (!fits(shown, px)) {
+    if (width(shown, px) > maxWidth) {
       const chars = Array.from(s);
       let n = chars.length - 1;
-      while (n > 0 && !fits(chars.slice(0, n).join("") + "\u2026", px)) n--;
+      while (n > 1 && width(chars.slice(0, n).join("") + "\u2026", px) > maxWidth) n--;
       shown = chars.slice(0, Math.max(1, n)).join("") + "\u2026";
     }
+    const w = Math.min(maxWidth, width(shown, px));
     ctx.restore();
-    this.text(ctx, shown, x, y, px, weight, color, "center", maxWidth);
+    return { text: shown, size: px, width: w };
   }
 }
 

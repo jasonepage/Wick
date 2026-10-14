@@ -20,6 +20,9 @@
 //  repeated below. If the mascot's shape changes in KeeperView, change
 //  `flamePath` here too.
 //
+//  Keeper questions show their text in Wick's bubble on every round; only
+//  the guessed words follow the spoiler rule.
+//
 //  Guessed words come from the timeline's tile labels, which are already
 //  masked for a daily round (ReplayTimeline.swift, ReplaySpoiler.rankLimit).
 //  The answer is drawn only when the timeline's showAnswer flag is set AND
@@ -830,13 +833,32 @@ nonisolated final class ReplayScene {
         let fade = ReplayEase.clamp((beat.end - t) / 0.15)
         guard appear > 0.01, fade > 0 else { return }
 
-        // Chips: up to three verdicts, then "+n".
-        var chips: [(String, ReplayRGBA)] = verdicts.prefix(3).map { ($0.label.uppercased(), style.verdict($0.tone)) }
-        if verdicts.count > 3 { chips.append(("+\(verdicts.count - 3)", style.neutral)) }
+        // One row per question: the text, then its verdict chip. Rounds saved
+        // before question text travelled show chips only, in one row.
         let chipH: CGFloat = 64, gap: CGFloat = 14, pad: CGFloat = 20
-        let widths = chips.map { textWidth($0.0, .chip) + 44 }
-        let contentW = widths.reduce(0, +) + gap * CGFloat(max(0, chips.count - 1))
-        let bubbleW = contentW + pad * 2, bubbleH = chipH + pad * 2
+        let textChipGap: CGFloat = 18, textMax: CGFloat = 560
+        struct Row { var question: CTLine?; var textW: CGFloat; var chip: String; var color: ReplayRGBA; var chipW: CGFloat }
+        let shownVerdicts = verdicts.prefix(3)
+        let hasText = shownVerdicts.contains { $0.question != nil }
+        var rows: [Row] = shownVerdicts.map { v in
+            let chip = v.label.uppercased()
+            let fitted = v.question.map { fittedLine($0, size: 34, minSize: 24, weight: .semibold, maxWidth: textMax) }
+            return Row(question: fitted?.line, textW: fitted?.width ?? 0, chip: chip,
+                       color: style.verdict(v.tone), chipW: textWidth(chip, .chip) + 44)
+        }
+        if verdicts.count > 3 {
+            let extra = "+\(verdicts.count - 3)"
+            rows.append(Row(question: nil, textW: 0, chip: extra, color: style.neutral,
+                            chipW: textWidth(extra, .chip) + 44))
+        }
+        let bubbleW: CGFloat, bubbleH: CGFloat
+        if hasText {
+            bubbleW = (rows.map { ($0.question == nil ? 0 : $0.textW + textChipGap) + $0.chipW }.max() ?? 0) + pad * 2
+            bubbleH = CGFloat(rows.count) * chipH + CGFloat(rows.count - 1) * gap + pad * 2
+        } else {
+            bubbleW = rows.map(\.chipW).reduce(0, +) + gap * CGFloat(max(0, rows.count - 1)) + pad * 2
+            bubbleH = chipH + pad * 2
+        }
 
         let place = wickPlacement(at: t)
         let headTop = place.ground.y - place.lift - wickSize * 1.18
@@ -881,14 +903,30 @@ nonisolated final class ReplayScene {
         ctx.setLineWidth(3)
         ctx.strokePath()
 
-        var x = bubble.minX + pad
-        for (chip, w) in zip(chips, widths) {
-            let r = CGRect(x: x, y: bubble.minY + pad, width: w, height: chipH)
-            ctx.addPath(roundedPath(r, chipH / 2))
-            ctx.setFillColor(chip.1.cg())
-            ctx.fillPath()
-            drawText(chip.0, .chip, .white, at: CGPoint(x: r.midX, y: r.midY), align: .center, in: ctx)
-            x += w + gap
+        if hasText {
+            for (i, row) in rows.enumerated() {
+                let y = bubble.minY + pad + CGFloat(i) * (chipH + gap)
+                var x = bubble.minX + pad
+                if let line = row.question {
+                    drawLine(line, at: CGPoint(x: x, y: y + chipH / 2), in: ctx)
+                    x += row.textW + textChipGap
+                }
+                let r = CGRect(x: x, y: y, width: row.chipW, height: chipH)
+                ctx.addPath(roundedPath(r, chipH / 2))
+                ctx.setFillColor(row.color.cg())
+                ctx.fillPath()
+                drawText(row.chip, .chip, .white, at: CGPoint(x: r.midX, y: r.midY), align: .center, in: ctx)
+            }
+        } else {
+            var x = bubble.minX + pad
+            for row in rows {
+                let r = CGRect(x: x, y: bubble.minY + pad, width: row.chipW, height: chipH)
+                ctx.addPath(roundedPath(r, chipH / 2))
+                ctx.setFillColor(row.color.cg())
+                ctx.fillPath()
+                drawText(row.chip, .chip, .white, at: CGPoint(x: r.midX, y: r.midY), align: .center, in: ctx)
+                x += row.chipW + gap
+            }
         }
         ctx.restoreGState()
     }
@@ -1121,53 +1159,73 @@ nonisolated final class ReplayScene {
         return drawn
     }
 
-    /// A heavy font at a pixel size, cached, for text that must fit a tile.
-    private func sizedFont(_ size: CGFloat) -> CTFont {
-        let key = Int((size * 2).rounded())
+    /// A font at a pixel size and weight, cached, for text that must fit.
+    private func sizedFont(_ size: CGFloat, _ weight: UIFont.Weight = .heavy) -> CTFont {
+        let key = Int((size * 2).rounded()) * 10 + Int((weight.rawValue + 1) * 4)
         if let cached = sizedFonts[key] { return cached }
-        let made = Self.font(CGFloat(key) / 2, .heavy)
+        let made = Self.font((size * 2).rounded() / 2, weight)
         sizedFonts[key] = made
         return made
     }
 
-    private func sizedLine(_ text: String, _ size: CGFloat) -> CTLine {
+    private func sizedLine(_ text: String, _ size: CGFloat, _ weight: UIFont.Weight = .heavy,
+                           color: ReplayRGBA = .white) -> CTLine {
         let attributes: [NSAttributedString.Key: Any] = [
-            NSAttributedString.Key(kCTFontAttributeName as String): sizedFont(size),
-            NSAttributedString.Key(kCTForegroundColorAttributeName as String): ReplayRGBA.white.cg(),
+            NSAttributedString.Key(kCTFontAttributeName as String): sizedFont(size, weight),
+            NSAttributedString.Key(kCTForegroundColorAttributeName as String): color.cg(),
         ]
         return CTLineCreateWithAttributedString(NSAttributedString(string: text, attributes: attributes) as CFAttributedString)
     }
 
-    /// A word on a tile: shrink the font from `size` down to `minSize` until
-    /// it fits `maxWidth`; if it still does not fit, cut it and add an
-    /// ellipsis. Works for wide Chinese characters the same as for long
-    /// Latin words. Centered on `point`, white.
-    private func drawFitted(_ text: String, at point: CGPoint, size: CGFloat, minSize: CGFloat,
-                            maxWidth: CGFloat, in ctx: CGContext) {
-        guard !text.isEmpty else { return }
+    /// The line that fits `maxWidth`: shrink the font from `size` down to
+    /// `minSize`; if it still does not fit, cut the text and add an ellipsis.
+    /// Works for wide Chinese characters the same as for long Latin words.
+    private func fittedLine(_ text: String, size: CGFloat, minSize: CGFloat, weight: UIFont.Weight,
+                            maxWidth: CGFloat, color: ReplayRGBA = .white) -> (line: CTLine, width: CGFloat) {
         func width(_ l: CTLine) -> CGFloat { CGFloat(CTLineGetTypographicBounds(l, nil, nil, nil)) }
         var px = size
-        var l = sizedLine(text, px)
+        var l = sizedLine(text, px, weight, color: color)
         let step = max(1, size * 0.06)
         while px > minSize, width(l) > maxWidth {
             px = max(minSize, px - step)
-            l = sizedLine(text, px)
+            l = sizedLine(text, px, weight, color: color)
         }
         if width(l) > maxWidth {
             let chars = Array(text)
             var n = chars.count - 1
-            while n > 1, width(sizedLine(String(chars[0..<n]) + "\u{2026}", px)) > maxWidth { n -= 1 }
-            l = sizedLine(String(chars[0..<max(1, n)]) + "\u{2026}", px)
+            while n > 1, width(sizedLine(String(chars[0..<n]) + "\u{2026}", px, weight, color: color)) > maxWidth { n -= 1 }
+            l = sizedLine(String(chars[0..<max(1, n)]) + "\u{2026}", px, weight, color: color)
         }
+        return (l, min(maxWidth, width(l)))
+    }
+
+    /// Draws a prepared line with its left edge at `point.x`, vertically
+    /// centered on `point.y`.
+    private func drawLine(_ l: CTLine, at point: CGPoint, in ctx: CGContext) {
         var ascent: CGFloat = 0, descent: CGFloat = 0, leading: CGFloat = 0
-        let w = CGFloat(CTLineGetTypographicBounds(l, &ascent, &descent, &leading))
+        _ = CTLineGetTypographicBounds(l, &ascent, &descent, &leading)
+        ctx.saveGState()
+        ctx.translateBy(x: point.x, y: point.y + (ascent - descent) / 2)
+        ctx.textMatrix = CGAffineTransform(scaleX: 1, y: -1)
+        ctx.textPosition = .zero
+        CTLineDraw(l, ctx)
+        ctx.restoreGState()
+    }
+
+    /// A word on a tile: fitted (see `fittedLine`), centered on `point`, white.
+    private func drawFitted(_ text: String, at point: CGPoint, size: CGFloat, minSize: CGFloat,
+                            maxWidth: CGFloat, in ctx: CGContext) {
+        guard !text.isEmpty else { return }
+        let f = fittedLine(text, size: size, minSize: minSize, weight: .heavy, maxWidth: maxWidth)
+        var ascent: CGFloat = 0, descent: CGFloat = 0, leading: CGFloat = 0
+        let w = CGFloat(CTLineGetTypographicBounds(f.line, &ascent, &descent, &leading))
         let k: CGFloat = w > maxWidth && w > 0 ? maxWidth / w : 1
         ctx.saveGState()
         ctx.translateBy(x: point.x - w * k / 2, y: point.y + (ascent - descent) / 2 * k)
         ctx.scaleBy(x: k, y: k)
         ctx.textMatrix = CGAffineTransform(scaleX: 1, y: -1)
         ctx.textPosition = .zero
-        CTLineDraw(l, ctx)
+        CTLineDraw(f.line, ctx)
         ctx.restoreGState()
     }
 

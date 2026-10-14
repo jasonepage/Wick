@@ -359,11 +359,33 @@ struct ReplayEventsTests {
             verdictLabel: { $0.uppercased() })
         #expect(events == [
             .guess(rank: 900, label: "cold"),
-            .question(ReplayVerdict(tone: .yes, label: "YES")),
+            .question(ReplayVerdict(tone: .yes, label: "YES", question: "Is it alive?")),
             .guess(rank: 600, label: "warm"),
-            .question(ReplayVerdict(tone: .no, label: "NO")),
+            .question(ReplayVerdict(tone: .no, label: "NO", question: "Is it big?")),
             .guess(rank: 1, label: "answer"),
         ])
+    }
+}
+
+struct ReplayQuestionTextTests {
+    @Test func questionTextRidesAlongAndGetsReadingTime() throws {
+        let asked = ReplayEvent.question(ReplayVerdict(tone: .yes, label: "Yes", question: "Is it alive?"))
+        let t = try #require(ReplayTimeline.build(events: [g(3000), asked, no, g(1)],
+                                                  outcome: .solved, pacing: noStretch))
+        let keeper = try #require(t.beats.first { if case .keeper = $0.kind { return true } else { return false } })
+        #expect(keeper.duration == ReplayPacing.standard.keeperText)
+        guard case .keeper(let verdicts) = keeper.kind else { Issue.record("expected a keeper beat"); return }
+        #expect(verdicts[0].question == "Is it alive?")
+        #expect(verdicts[1].question == nil)
+        // Chips-only bubbles (older saved rounds) keep the short beat.
+        let plain = try #require(ReplayTimeline.build(events: [g(3000), no, g(1)],
+                                                      outcome: .solved, pacing: noStretch))
+        #expect(plain.beats[2].duration == ReplayPacing.standard.keeper)
+        // The daily spoiler rule is about words, not questions: the text is kept on a daily.
+        let daily = try #require(ReplayTimeline.build(events: [g(3000), asked, g(1)], outcome: .solved))
+        let kb = try #require(daily.beats.first { if case .keeper = $0.kind { return true } else { return false } })
+        guard case .keeper(let dv) = kb.kind else { Issue.record("expected a keeper beat"); return }
+        #expect(dv[0].question == "Is it alive?")
     }
 }
 
