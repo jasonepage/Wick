@@ -109,7 +109,7 @@ requests except the in-memory match rooms and the embedding cache.
 
 | Route | Body | Returns | What it is for |
 |---|---|---|---|
-| `POST /warmth` | `{ secret, guess }` | `{ score, rank, source }` | Score one guess. `source` is `rank`, `embeddings`, `exact` or `fallback` (no key). |
+| `POST /warmth` | `{ secret, guess, lang? }` | `{ score, rank, source, lang }` | Score one guess. `source` is `rank`, `embeddings`, `exact` or `fallback` (no key). `lang` is `en` (default), `es`, `fr`, `it` or `de`: it picks the reference vocabulary the guess is ranked against and the real-word gate. |
 | `POST /keeper` | `{ secret, question }` | `{ verdict, reply, source }` | Ask the Keeper. The reply is scrubbed of the secret before it leaves. |
 | `POST /validate-word` | `{ word }` | `{ ok, verdict }` | May this word be a Race secret? Checks the dictionary and that it embeds cleanly. |
 | `POST /reveal` | `{ guesses: [{ word, score }] }` | `{ points }` | The reveal map: a 2D layout of your guesses around the answer. Only words you sent come back. |

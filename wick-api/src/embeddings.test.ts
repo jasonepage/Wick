@@ -1,6 +1,9 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { LruCache, cosine, batchEmbed, warmRankVocab, rankVocabEntries, _clearCache } from "./embeddings.js";
 
+// Keep the warm test from writing a vocabulary cache file into the repo.
+process.env.WICK_VOCAB_CACHE = "0";
+
 describe("LruCache", () => {
   it("evicts the least-recently-used, not the oldest-inserted", () => {
     const c = new LruCache<number>(2);

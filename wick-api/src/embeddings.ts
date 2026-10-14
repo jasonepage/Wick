@@ -16,6 +16,9 @@
 //  fallback, C3) and records `lastEmbedError()`.
 //
 
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+
 const GEMINI_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models";
 const MODELS = (process.env.WICK_EMBED_MODEL ?? "gemini-embedding-001,gemini-embedding-2,text-embedding-004")
   .split(",")
@@ -415,24 +418,124 @@ export function cacheStats(): { size: number; hits: number; misses: number; inFl
 // The embedded reference words, PAIRED with the word so ranking can exclude the
 // secret and its morphological variants (matching the iOS engine). Stored as
 // Float32Array (half the memory of JS number[]) and never evicted — with 10k
-// words the vocab is the app's biggest allocation.
+// words a vocabulary is the app's biggest allocation (~30MB at 768 dims).
+//
+// One set per LANGUAGE. English is warmed at boot; the others are warmed the
+// first time a round asks for them (ensureRankVocab), so a server nobody plays
+// in German on never pays for German. A finished warm is written to disk
+// (WICK_VOCAB_CACHE, default data/rankvec) as int8 vectors, ~8MB per language,
+// and read back on the next boot instead of re-embedding 10k words through
+// Gemini. The file records the (model, taskType, dims) it was made with and is
+// ignored if the live mode differs, so a model change can never mix spaces.
 export interface RankEntry {
   word: string;
   vec: Float32Array;
 }
-let rankEntries: RankEntry[] = [];
+const rankByLang = new Map<string, RankEntry[]>();
+const rankExpectedByLang = new Map<string, number>();
+const rankProgressByLang = new Map<string, number>();
+const rankWarmInFlight = new Map<string, Promise<number>>();
+
+function vocabCacheDir(): string {
+  return process.env.WICK_VOCAB_CACHE ?? "data/rankvec";
+}
+
+/** Where a language's cached vectors live. */
+function vocabCachePath(lang: string): string {
+  return join(vocabCacheDir(), `${lang}.rankvec`);
+}
+
+interface VocabFileHeader {
+  model: string;
+  taskType: boolean;
+  dims: number;
+  words: string[];
+}
+
+/** Write a warmed vocabulary to disk: one JSON header line, then per word a
+ *  Float32 scale and `dims` int8 values (value = int8 * scale). Best effort;
+ *  a failure only means the next boot re-embeds. */
+function saveRankVocabToDisk(lang: string, entries: RankEntry[]): void {
+  if (!mode || entries.length === 0 || process.env.WICK_VOCAB_CACHE === "0") return;
+  try {
+    const header: VocabFileHeader = { model: mode.model, taskType: mode.taskType, dims, words: entries.map((e) => e.word) };
+    const head = Buffer.from(JSON.stringify(header) + "\n", "utf8");
+    const body = Buffer.alloc(entries.length * (4 + dims));
+    let off = 0;
+    for (const e of entries) {
+      let max = 0;
+      for (let i = 0; i < dims; i++) max = Math.max(max, Math.abs(e.vec[i] ?? 0));
+      const scale = max > 0 ? max / 127 : 1;
+      body.writeFloatLE(scale, off);
+      off += 4;
+      for (let i = 0; i < dims; i++) body.writeInt8(Math.round((e.vec[i] ?? 0) / scale), off++);
+    }
+    mkdirSync(vocabCacheDir(), { recursive: true });
+    writeFileSync(vocabCachePath(lang), Buffer.concat([head, body]));
+    console.log(`[wick-api] rank vocab ${lang}: cached ${entries.length} vectors to ${vocabCachePath(lang)}`);
+  } catch (e) {
+    console.warn(`[wick-api] rank vocab ${lang}: could not write cache: ${String(e).slice(0, 120)}`);
+  }
+}
+
+/** Read a cached vocabulary back, or null if there is none, it was made with a
+ *  different (model, taskType, dims), or it does not hold the words asked for. */
+function loadRankVocabFromDisk(lang: string, words: string[]): RankEntry[] | null {
+  if (!mode || process.env.WICK_VOCAB_CACHE === "0") return null;
+  let buf: Buffer;
+  try {
+    buf = readFileSync(vocabCachePath(lang));
+  } catch {
+    return null;
+  }
+  try {
+    const nl = buf.indexOf(0x0a);
+    if (nl < 0) return null;
+    const header = JSON.parse(buf.subarray(0, nl).toString("utf8")) as VocabFileHeader;
+    if (header.model !== mode.model || header.taskType !== mode.taskType || header.dims !== dims) return null;
+    const want = new Set(words);
+    if (header.words.length === 0 || !header.words.every((w) => want.has(w))) return null;
+    const have = new Set(header.words);
+    const missing = words.filter((w) => !have.has(w)).length;
+    if (missing > words.length * 0.02) return null; // too incomplete to be worth it; re-embed
+    const rows = new Map<string, Float32Array>();
+    let off = nl + 1;
+    for (const w of header.words) {
+      if (off + 4 + dims > buf.length) return null;
+      const scale = buf.readFloatLE(off);
+      off += 4;
+      const vec = new Float32Array(dims);
+      for (let i = 0; i < dims; i++) vec[i] = buf.readInt8(off++) * scale;
+      rows.set(w, vec);
+    }
+    return words.filter((w) => rows.has(w)).map((w) => ({ word: w, vec: rows.get(w)! }));
+  } catch {
+    return null;
+  }
+}
 
 /** Embed the rank vocabulary (batched) and hold the vectors for ranking.
  *  Returns how many embedded. Safe to call again (replaces the set).
- *  `concurrency` bounds how many batch requests are in flight at once. */
-export async function warmRankVocab(words: string[], concurrency = 4): Promise<number> {
+ *  `concurrency` bounds how many batch requests are in flight at once.
+ *  Reads the on-disk cache first when one matches the live embedding mode. */
+export async function warmRankVocab(words: string[], concurrency = 4, lang = "en"): Promise<number> {
   if (!hasEmbeddings()) return 0;
   const uniq = [...new Set(words.map((w) => w.trim().toLowerCase()).filter((w) => w.length > 0))];
   // Published immediately, not at the end: otherwise /healthz reads a useless
   // 0/0 for the several minutes the warm takes and there is no way to tell a
   // slow boot from a stalled one.
-  rankExpected = uniq.length;
-  rankProgress = 0;
+  rankExpectedByLang.set(lang, uniq.length);
+  rankProgressByLang.set(lang, 0);
+
+  // The cache file is only trusted once the (model, taskType) pair is known.
+  await ensureMode();
+  const cached = loadRankVocabFromDisk(lang, uniq);
+  if (cached) {
+    rankByLang.set(lang, cached);
+    rankProgressByLang.set(lang, cached.length);
+    console.log(`[wick-api] rank vocab ${lang}: loaded ${cached.length}/${uniq.length} from disk cache`);
+    return cached.length;
+  }
 
   // Words are keyed by name so repeat sweeps can target exactly what is missing.
   const got = new Map<string, Float32Array>();
@@ -451,7 +554,7 @@ export async function warmRankVocab(words: string[], concurrency = 4): Promise<n
         const vecs = await batchEmbed(chunk).catch(() => chunk.map(() => null));
         for (let j = 0; j < chunk.length; j++) {
           const v = vecs[j];
-          if (v) { got.set(chunk[j]!, Float32Array.from(v)); added++; rankProgress = got.size; }
+          if (v) { got.set(chunk[j]!, Float32Array.from(v)); added++; rankProgressByLang.set(lang, got.size); }
         }
       }
     };
@@ -468,7 +571,7 @@ export async function warmRankVocab(words: string[], concurrency = 4): Promise<n
   for (const workers of [2, 1]) {
     const missing = uniq.filter((w) => !got.has(w));
     if (missing.length === 0) break;
-    console.log(`[wick-api] rank vocab: re-sweeping ${missing.length} missing words at concurrency ${workers}`);
+    console.log(`[wick-api] rank vocab ${lang}: re-sweeping ${missing.length} missing words at concurrency ${workers}`);
     const added = await sweep(missing, workers);
     if (added === 0) break; // making no progress — stop rather than spin
   }
@@ -476,51 +579,84 @@ export async function warmRankVocab(words: string[], concurrency = 4): Promise<n
   const shortfall = uniq.length - got.size;
   if (shortfall > 0) {
     console.warn(
-      `[wick-api] rank vocab INCOMPLETE: ${got.size}/${uniq.length} (${shortfall} missing). ` +
+      `[wick-api] rank vocab ${lang} INCOMPLETE: ${got.size}/${uniq.length} (${shortfall} missing). ` +
       "Ranks will read warmer than iOS for the same guess — see WICK_EMBED_RETRIES.",
     );
   }
 
   // Preserve the caller's word order so the vocabulary is deterministic across
   // deploys (the sweeps finish out of order).
-  rankEntries = uniq.filter((w) => got.has(w)).map((w) => ({ word: w, vec: got.get(w)! }));
-  rankExpected = uniq.length;
-  return rankEntries.length;
+  const entries = uniq.filter((w) => got.has(w)).map((w) => ({ word: w, vec: got.get(w)! }));
+  rankByLang.set(lang, entries);
+  rankExpectedByLang.set(lang, uniq.length);
+  if (shortfall === 0) saveRankVocabToDisk(lang, entries);
+  return entries.length;
+}
+
+/** Warm a language's vocabulary if it is not ready, sharing one in-flight warm
+ *  per language. Resolves with the entry count (0 when embeddings are off).
+ *  Callers that cannot wait (a live guess) should not await this; they get the
+ *  absolute-cosine bands until it lands, exactly like English during boot. */
+export function ensureRankVocab(lang: string, words: string[], concurrency = 2): Promise<number> {
+  const have = rankByLang.get(lang);
+  if (have && have.length > 0) return Promise.resolve(have.length);
+  const pending = rankWarmInFlight.get(lang);
+  if (pending) return pending;
+  const p = warmRankVocab(words, concurrency, lang).finally(() => rankWarmInFlight.delete(lang));
+  rankWarmInFlight.set(lang, p);
+  return p;
 }
 
 /** How many words the vocabulary SHOULD hold, for /healthz to compare against. */
-let rankExpected = 0;
-export function rankVocabExpected(): number {
-  return rankExpected;
+export function rankVocabExpected(lang = "en"): number {
+  return rankExpectedByLang.get(lang) ?? 0;
 }
 
 /** Words embedded so far in the current warm. rankVocab stays 0 until the whole
  *  warm commits, so this is the only way to watch it progress. */
-let rankProgress = 0;
-export function rankVocabProgress(): number {
-  return rankProgress;
+export function rankVocabProgress(lang = "en"): number {
+  return rankProgressByLang.get(lang) ?? 0;
 }
 
+/** Per-language readiness, for /healthz. Only languages that have been asked
+ *  for appear. */
+export function rankVocabStatus(): Record<string, { ready: number; expected: number; progress: number }> {
+  const out: Record<string, { ready: number; expected: number; progress: number }> = {};
+  for (const lang of new Set([...rankByLang.keys(), ...rankExpectedByLang.keys()])) {
+    out[lang] = { ready: rankByLang.get(lang)?.length ?? 0, expected: rankVocabExpected(lang), progress: rankVocabProgress(lang) };
+  }
+  return out;
+}
 
-/** The embedded rank-vocab entries (empty until warmed). */
-export function rankVocabEntries(): RankEntry[] {
-  return rankEntries;
+/** The embedded rank-vocab entries for a language (empty until warmed). */
+export function rankVocabEntries(lang = "en"): RankEntry[] {
+  return rankByLang.get(lang) ?? [];
 }
 
 /** The embedded rank-vocab vectors (empty until warmed). Back-compat accessor. */
-export function rankVocabVectors(): Float32Array[] {
-  return rankEntries.map((e) => e.vec);
+export function rankVocabVectors(lang = "en"): Float32Array[] {
+  return rankVocabEntries(lang).map((e) => e.vec);
 }
 
 /** For tests: inject/clear the rank vocab directly. Accepts word-paired entries
  *  or bare vectors (words default to "" — fine for tests that don't exercise
  *  the secret/variant exclusion). */
-export function _setRankVectors(v: RankEntry[] | ArrayLike<number>[]): void {
-  rankEntries = v.map((e, i) =>
+export function _setRankVectors(v: RankEntry[] | ArrayLike<number>[], lang = "en"): void {
+  rankByLang.set(lang, v.map((e) =>
     "vec" in (e as RankEntry)
       ? { word: (e as RankEntry).word, vec: Float32Array.from((e as RankEntry).vec) }
       : { word: "", vec: Float32Array.from(e as ArrayLike<number>) },
-  );
+  ));
+}
+
+/** For tests: the disk cache round trip without a network warm. */
+export const _saveForTest = saveRankVocabToDisk;
+export const _loadForTest = loadRankVocabFromDisk;
+
+/** For tests: pretend the embedding mode was negotiated. */
+export function _setMode(m: { model: string; taskType: boolean; dims: number } | null): void {
+  mode = m ? { model: m.model, taskType: m.taskType } : null;
+  dims = m ? m.dims : 0;
 }
 
 /** Cosine similarity of two equal-length vectors, in [-1, 1]. */

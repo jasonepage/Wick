@@ -17,6 +17,7 @@
 import { embed, cosine, hasEmbeddings, rankVocabEntries, LruCache } from "./embeddings.js";
 import { normalizeWord } from "./room.js";
 import { isRealWord } from "./dictionary.js";
+import type { Lang } from "./lang.js";
 
 // Calibration for gemini-embedding-001 + SEMANTIC_SIMILARITY: this model runs hot
 // — unrelated words sit ~0.80, closely related ~0.87–0.94. So the useful window is
@@ -106,17 +107,18 @@ export function rankFromCosines(sortedDesc: number[], cos: number): number {
  *  secret and its morphological variants (substring either way) — matching the iOS
  *  engine so the rank number lines up. Cached per secret (a live match reuses one
  *  secret across many guesses). */
-function secretCosinesDesc(secretVec: number[], secretKey: string): number[] {
-  const cached = secretRef.get(secretKey);
+function secretCosinesDesc(secretVec: number[], secretKey: string, lang: Lang = "en"): number[] {
+  const key = `${lang}:${secretKey}`;
+  const cached = secretRef.get(key);
   if (cached) return cached;
   const s = secretKey;
   const cs: number[] = [];
-  for (const { word, vec } of rankVocabEntries()) {
+  for (const { word, vec } of rankVocabEntries(lang)) {
     if (word && (word === s || word.includes(s) || s.includes(word))) continue;
     cs.push(cosine(secretVec, vec));
   }
   cs.sort((a, b) => b - a);
-  secretRef.set(secretKey, cs);
+  secretRef.set(key, cs);
   return cs;
 }
 
@@ -150,6 +152,7 @@ export async function warmthScore(
   secret: string,
   guess: string,
   embedder: (t: string) => Promise<number[] | null> = embed,
+  lang: Lang = "en",
 ): Promise<WarmthResult> {
   const s = normalizeWord(secret);
   const g = normalizeWord(guess);
@@ -161,12 +164,12 @@ export async function warmthScore(
     if (es && eg) {
       const cos = cosine(es, eg);
       const round = Math.round(cos * 1000) / 1000;
-      const vocab = rankVocabEntries();
+      const vocab = rankVocabEntries(lang);
       if (vocab.length > 0) {
         // Contexto-style: rank the guess against the reference vocabulary, then
         // convert to the iOS 1-based rank (answer = 1, closest guess = 2) so the
         // "#N" and heat band match the single-player board exactly.
-        const closer = rankFromCosines(secretCosinesDesc(es, s), cos);
+        const closer = rankFromCosines(secretCosinesDesc(es, s, lang), cos);
         const rank = closer + 2;
         return { score: rankToScore(rank, vocab.length), source: "rank", cos: round, rank };
       }
@@ -235,19 +238,20 @@ function medianDesc(sortedDesc: number[]): number {
 export async function validateSecret(
   word: string,
   embedder: (t: string) => Promise<number[] | null> = embed,
+  lang: Lang = "en",
 ): Promise<SecretCheck> {
   const w = normalizeWord(word);
   if (!w) return { ok: false, verdict: "not_a_word" };
-  if (!isRealWord(w)) return { ok: false, verdict: "not_a_word" };
+  if (!isRealWord(w, lang)) return { ok: false, verdict: "not_a_word" };
 
   if (!hasEmbeddings()) return { ok: true, verdict: "ok" }; // can't check — allow
   const vec = await embedder(w);
   if (!vec) return { ok: false, verdict: "no_embedding" };
 
-  const vocab = rankVocabEntries();
+  const vocab = rankVocabEntries(lang);
   if (vocab.length === 0) return { ok: true, verdict: "ok" }; // not warmed — allow
 
-  const cs = secretCosinesDesc(vec, w);
+  const cs = secretCosinesDesc(vec, w, lang);
   const near = cs[24] ?? cs[cs.length - 1] ?? 0; // 25th closest, or the last we have
   const spread = Math.round((near - medianDesc(cs)) * 1000) / 1000;
   if (MIN_SPREAD > 0 && spread < MIN_SPREAD) return { ok: false, verdict: "too_flat", spread };

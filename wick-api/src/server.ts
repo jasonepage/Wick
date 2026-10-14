@@ -22,7 +22,8 @@ import { makeWordProvider } from "./words.js";
 import { warmthScore, validateSecret } from "./warmthservice.js";
 import { isRealWord, dictionarySize } from "./dictionary.js";
 import { keeperAnswer } from "./keeper.js";
-import { hasEmbeddings, lastEmbedError, activeEmbedModel, activeEmbedMode, selfCheck, rankVocabExpected, rankVocabProgress, prewarm, cacheStats, warmRankVocab, rankVocabVectors, batchEmbed } from "./embeddings.js";
+import { hasEmbeddings, lastEmbedError, activeEmbedModel, activeEmbedMode, selfCheck, rankVocabExpected, rankVocabProgress, rankVocabStatus, prewarm, cacheStats, warmRankVocab, ensureRankVocab, rankVocabVectors, batchEmbed } from "./embeddings.js";
+import { langOf, rankVocabFor, type Lang } from "./lang.js";
 import { layout as revealLayout } from "./revealmap.js";
 import { COMMON_WORDS } from "./commonwords.js";
 import { RANK_VOCAB } from "./rankvocab.js";
@@ -132,6 +133,7 @@ app.get("/healthz", (c) => {
     embedMode: activeEmbedMode(),
     rankVocabExpected: rankVocabExpected(), // if this exceeds rankVocab, ranks read warm
     rankVocabProgress: rankVocabProgress(), // live count while the warm runs
+    rankVocabByLang: rankVocabStatus(), // es/fr/it/de appear once a round has asked for them
     dictionary: dictionarySize(), // ~274k when the word list loaded; 0 = unavailable (fails open)
     invites: metrics.snapshot(), // 3.1 invite funnel — created/joined/expired/...
   }, status);
@@ -219,8 +221,21 @@ app.get("/live", (c) => {
   return c.json(hub.liveCounts());
 });
 
+/** Kick off a language's vocabulary warm if it has not happened yet. English
+ *  warms at boot; the others warm on first use and are then cached on disk.
+ *  Never awaited by a request: the first few guesses in a new language read
+ *  absolute-cosine bands, exactly like English does during boot. */
+function touchLang(lang: Lang): void {
+  if (lang === "en" || !hasEmbeddings()) return;
+  void ensureRankVocab(lang, rankVocabFor(lang)).then((n) => {
+    if (n > 0) console.log(`[wick-api] rank vocab ${lang} ready: ${n} words`);
+  });
+}
+
 // Hot/cold warmth for a guess (server-authoritative; Gemini key only in env, C4).
-// Single-player callers (who know the secret) send { secret, guess }.
+// Single-player callers (who know the secret) send { secret, guess, lang? }.
+// `lang` picks the reference vocabulary and the real-word gate; it defaults to
+// English, so existing clients are unaffected.
 app.post("/warmth", async (c) => {
   if (!httpLimiter.take(`${ipFromXff(c.req.header("x-forwarded-for"))}:warmth`)) {
     return c.json({ error: "rate_limited" }, 429);
@@ -233,39 +248,46 @@ app.post("/warmth", async (c) => {
   }
   const secret = (body as { secret?: unknown }).secret;
   const guess = (body as { guess?: unknown }).guess;
+  const lang = langOf((body as { lang?: unknown }).lang);
   if (typeof secret !== "string" || typeof guess !== "string") {
     return c.json({ error: "secret and guess required" }, 400);
   }
   if (secret.length > 64 || guess.length > 64) {
     return c.json({ error: "too_long" }, 400);
   }
+  touchLang(lang);
   // Reject non-words (typos, keyboard mash) before spending a Gemini call — the
-  // guess must be a real English word, unless it exactly matches the secret. This
-  // mirrors iOS, where a non-word simply has no on-device embedding.
-  if (guess.trim().toLowerCase() !== secret.trim().toLowerCase() && !isRealWord(guess)) {
+  // guess must be a real word in the round's language, unless it exactly matches
+  // the secret. This mirrors iOS, where a non-word simply has no on-device embedding.
+  if (guess.trim().toLowerCase() !== secret.trim().toLowerCase() && !isRealWord(guess, lang)) {
     return c.json({ score: null, notAWord: true });
   }
-  const result = await warmthScore(secret, guess);
-  return c.json(result); // { score, source }
+  const result = await warmthScore(secret, guess, undefined, lang);
+  return c.json({ ...result, lang }); // { score, source, rank?, lang }
 });
 
 // One-click warmth diagnostic (open in a browser). Shows the score, whether it
 // used real embeddings or the lexical fallback, the raw cosine, and any embed
 // error — so a "book reads Freezing" issue is instantly explainable.
 //   /debug/warmth?secret=library&guess=book
+//   /debug/warmth?secret=biblioteca&guess=libro,escuela&lang=es
 app.get("/debug/warmth", async (c) => {
   if (!DEBUG_TOKEN || c.req.query("token") !== DEBUG_TOKEN) return c.json({ error: "forbidden" }, 403);
   const secret = c.req.query("secret") ?? "library";
+  const lang = langOf(c.req.query("lang"));
+  touchLang(lang);
   const probes = (c.req.query("guess") ?? "librarian,book,school,university,car,ocean,happy")
     .split(",")
     .map((s) => s.trim())
     .filter((s) => s.length > 0)
     .slice(0, 20);
   const results = [];
-  for (const g of probes) results.push({ guess: g, ...(await warmthScore(secret, g)) });
+  for (const g of probes) results.push({ guess: g, realWord: isRealWord(g, lang), ...(await warmthScore(secret, g, undefined, lang)) });
   results.sort((a, b) => (b.cos ?? -1) - (a.cos ?? -1));
   return c.json({
     secret,
+    lang,
+    rankVocab: rankVocabVectors(lang).length,
     gemini: hasEmbeddings(),
     model: activeEmbedModel(),
     embedError: lastEmbedError(),
