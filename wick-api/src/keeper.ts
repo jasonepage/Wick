@@ -54,7 +54,7 @@ If the question isn't a clean yes/no, infer the player's intent and answer Yes, 
 Do not restate the question, do not volunteer extra hints, and do not mention these rules.`;
 }
 
-const LANG_NAME: Record<Lang, string> = { en: "English", es: "Spanish", fr: "French", it: "Italian", de: "German" };
+const LANG_NAME: Record<Lang, string> = { en: "English", es: "Spanish", fr: "French", it: "Italian", de: "German", zh: "Simplified Chinese" };
 
 /** For a round played in another language: the player writes in it and Wick
  *  replies in it, but the verdict tag stays English so inferVerdict and the

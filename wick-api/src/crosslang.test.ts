@@ -23,7 +23,7 @@ class Fake implements Client {
   }
 }
 
-const RIVER = { en: "river", es: "río", fr: "rivière", it: "fiume", de: "fluss" };
+const RIVER = { en: "river", es: "río", fr: "rivière", it: "fiume", de: "fluss", zh: "河" };
 
 function makeHub(scored: Array<{ secret: string; guess: string; lang?: string }>, asked: Array<{ secret: string; lang?: string; secretEn?: string }> = []) {
   return new MatchHub({
@@ -92,6 +92,20 @@ describe("cross-language race", () => {
     expect(es.last("result")?.word).toBe("río");
   });
 
+  it("a Chinese seat hunts the Chinese form", () => {
+    const scored: Array<{ secret: string; guess: string; lang?: string }> = [];
+    const hub = makeHub(scored);
+    const zh = new Fake("ZH"), en = new Fake("EN");
+    hub.connect(zh); hub.connect(en);
+    hub.receive(zh, { t: "queue", mode: "casual", lang: "zh" } as ClientFrame);
+    hub.receive(en, { t: "queue", mode: "casual" } as ClientFrame);
+    hub.receive(zh, { t: "guess", guess: "水" });
+    expect(scored[0]).toEqual({ secret: "河", guess: "水", lang: "zh" });
+    hub.receive(zh, { t: "guess", guess: "河" });
+    expect(zh.last("result")?.word).toBe("河");
+    expect(en.last("result")?.words).toEqual({ zh: "河", en: "river" });
+  });
+
   it("a bot opponent plays the English form", () => {
     const scored: Array<{ secret: string; guess: string; lang?: string }> = [];
     let t = 1_000_000;
@@ -117,9 +131,11 @@ describe("cross-language race", () => {
 
 describe("match word pool", () => {
   it("every entry has all five languages and a bare string widens to all", () => {
-    for (const w of MATCH_WORDS) for (const l of ["en", "es", "fr", "it", "de"] as const) expect(w[l].length).toBeGreaterThan(0);
+    expect(MATCH_WORDS.length).toBeGreaterThan(400);
+    for (const w of MATCH_WORDS) for (const l of ["en", "es", "fr", "it", "de", "zh"] as const) expect(w[l].length).toBeGreaterThan(0);
+    expect(new Set(MATCH_WORDS.map((w) => w.en)).size).toBe(MATCH_WORDS.length);
     expect(toMatchWord("ember").de).toBe("ember");
-    expect(makeWordProvider(() => 0)().en).toBe("ember");
+    expect(makeWordProvider(() => 0)().en).toBe(MATCH_WORDS[0]!.en);
   });
 });
 

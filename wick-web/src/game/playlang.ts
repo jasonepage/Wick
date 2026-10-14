@@ -6,14 +6,13 @@
 //  learning mode), or play the round in Spanish: Spanish answer, Spanish
 //  guesses scored against the Spanish word list, Wick answering in Spanish.
 //
-//  The server can score en/es/fr/it/de (wick-api/src/lang.ts). Chinese has
-//  menus and meanings only, so a zh menu always plays in English.
+//  The server can score en/es/fr/it/de/zh (wick-api/src/lang.ts).
 //
 
 import { getLang } from "../i18n.ts";
 
-export type PlayLang = "en" | "es" | "fr" | "it" | "de";
-const PLAYABLE: readonly PlayLang[] = ["es", "fr", "it", "de"];
+export type PlayLang = "en" | "es" | "fr" | "it" | "de" | "zh";
+const PLAYABLE: readonly PlayLang[] = ["es", "fr", "it", "de", "zh"];
 const KEY = "wick.playNative";
 
 /** Can the menu language also be a play language? */

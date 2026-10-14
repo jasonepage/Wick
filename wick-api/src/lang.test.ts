@@ -17,20 +17,22 @@ import { _setRankVectors, _setMode, _clearCache, rankVocabEntries, rankVocabStat
 
 describe("language registry", () => {
   it("knows five languages and defaults to English", () => {
-    expect(LANGS).toEqual(["en", "es", "fr", "it", "de"]);
+    expect(LANGS).toEqual(["en", "es", "fr", "it", "de", "zh"]);
     expect(isLang("es")).toBe(true);
-    expect(isLang("zh")).toBe(false);
+    expect(isLang("ja")).toBe(false);
     expect(langOf("fr")).toBe("fr");
     expect(langOf(undefined)).toBe("en");
     expect(langOf("klingon")).toBe("en");
   });
 
   it("carries a full 10k vocabulary per language, in iOS order", () => {
-    for (const lang of ["es", "fr", "it", "de"] as const) {
+    for (const lang of ["es", "fr", "it", "de", "zh"] as const) {
       const v = rankVocabFor(lang);
       expect(v.length).toBe(10_000);
       expect(new Set(v).size).toBe(10_000);
     }
+    expect(isRealWord("图书馆", "zh")).toBe(true);
+    expect(isRealWord("library", "zh")).toBe(false);
     expect(rankVocabFor("es")[0]).toBe("que");
     expect(rankVocabFor("en")[0]).toBe("the");
   });

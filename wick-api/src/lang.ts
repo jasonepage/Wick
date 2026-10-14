@@ -1,8 +1,9 @@
 //
 //  lang.ts: the languages the server can score a round in.
 //
-//  Each has its own ~10k frequency-ranked reference vocabulary (ported from the
-//  iOS app, so a rank number means the same thing on both platforms). Gemini's
+//  Each has its own ~10k frequency-ranked reference vocabulary (es/fr/it/de
+//  ported from the iOS app, so a rank number means the same thing on both
+//  platforms; zh generated from the same wordfreq corpus, web only for now). Gemini's
 //  embedding model is multilingual, so a Spanish guess and a Spanish secret
 //  embed in the same space as English ones; what changes per language is only
 //  the reference list the guess is ranked against, and the "is this a real
@@ -17,9 +18,10 @@ import { RANK_VOCAB_ES } from "./rankvocab/es.js";
 import { RANK_VOCAB_FR } from "./rankvocab/fr.js";
 import { RANK_VOCAB_IT } from "./rankvocab/it.js";
 import { RANK_VOCAB_DE } from "./rankvocab/de.js";
+import { RANK_VOCAB_ZH } from "./rankvocab/zh.js";
 
-export type Lang = "en" | "es" | "fr" | "it" | "de";
-export const LANGS: readonly Lang[] = ["en", "es", "fr", "it", "de"] as const;
+export type Lang = "en" | "es" | "fr" | "it" | "de" | "zh";
+export const LANGS: readonly Lang[] = ["en", "es", "fr", "it", "de", "zh"] as const;
 
 export function isLang(x: unknown): x is Lang {
   return typeof x === "string" && (LANGS as readonly string[]).includes(x);
@@ -37,6 +39,7 @@ const VOCAB: Record<Lang, string[]> = {
   fr: RANK_VOCAB_FR,
   it: RANK_VOCAB_IT,
   de: RANK_VOCAB_DE,
+  zh: RANK_VOCAB_ZH,
 };
 
 /** The reference vocabulary for a language, in rank order. */

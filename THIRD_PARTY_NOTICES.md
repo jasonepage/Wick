@@ -70,6 +70,21 @@ with OdeNet 1.4 by Melanie Siegel and Francis Bond
 Attribution-ShareAlike 4.0) used to confirm candidates. `de.json` is a derived
 work of Ding and is shared under the GPL v3, separately from Wick's own code.
 
+## wordfreq (word frequency lists)
+
+The server's Chinese reference vocabulary (`wick-api/src/rankvocab/zh.ts`,
+the 10,000 most common Chinese words a guess is ranked against) is generated
+by `wick-api/scripts/build-zh-vocab.py` from wordfreq by Robyn Speer:
+
+- Source: https://github.com/rspeer/wordfreq
+- License: the wordfreq code is Apache 2.0; its word-frequency data is
+  Creative Commons Attribution-ShareAlike 4.0 (CC BY-SA 4.0)
+
+The Spanish, French, Italian and German lists (`rankvocab/{es,fr,it,de}.ts`
+and the iOS `RankVocabulary*.swift` files) were generated from the same
+corpus. These lists are derived works of the wordfreq data and are shared
+under CC BY-SA 4.0, not under the MPL.
+
 ## npm packages
 
 `wick-api` and `wick-web` depend on open-source npm packages (Hono, ws,

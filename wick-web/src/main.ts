@@ -698,7 +698,10 @@ function startPractice(): void {
 }
 
 function looksLikeQuestion(s: string): boolean {
-  if (s.endsWith("?") || s.startsWith("¿")) return true;
+  if (s.endsWith("?") || s.endsWith("？") || s.startsWith("¿")) return true;
+  // Chinese has no spaces: a question particle, or anything longer than a
+  // word, is a question. Guesses are one to four characters.
+  if (sp.lang === "zh" && (s.includes("吗") || s.includes("是不是") || s.includes("有没有") || s.length > 5)) return true;
   if (/\s/.test(s.trim())) {
     // More than one word in a round played in another language is a question,
     // never a guess: a guess is always a single word.
