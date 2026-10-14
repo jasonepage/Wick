@@ -11,8 +11,11 @@
 //  and how long Wick takes to hop off it. scene.ts only asks "what is happening
 //  at time t?" and draws the answer.
 //
-//  Shape crosses over, content never does: this file only ever sees ranks and
-//  verdict labels, never a guessed word.
+//  Shape crosses over, content never does: this file decides WHEN a guessed
+//  word may be shown, never what the words mean. Each guess event may carry
+//  the word the player typed as a label. On a daily round the answer and the
+//  closest guesses are masked here, once, when the timeline is built, so no
+//  later layer can leak them. On a practice round everything shows.
 //
 
 // ── heat bands ──────────────────────────────────────────────────────────────
@@ -55,11 +58,42 @@ export interface Verdict { tone: VerdictTone; label: string }
 
 export type ReplayEvent =
   /** A scored guess. 1 = the answer, 0 = rank unknown. `exact` false means
-   *  the rank is an estimate from the score: color the tile, print no number. */
-  | { kind: "guess"; rank: number; exact?: boolean }
+   *  the rank is an estimate from the score: color the tile, print no number.
+   *  `label` is the word the player typed, in the play language. */
+  | { kind: "guess"; rank: number; exact?: boolean; label?: string }
   | { kind: "question"; verdict: Verdict };
 
 export type Outcome = "solved" | "revealed";
+
+// ── spoilers ────────────────────────────────────────────────────────────────
+
+/** On a round where the answer must stay secret (today's daily), a guess
+ *  ranked this close or closer is masked: its rank and heat still show, but the
+ *  word is drawn as dots, because "coral #3" gives the word away. Rank 1 is the
+ *  answer itself; 2 to 11 are the ten closest words. One edit here changes the
+ *  rule on the web; keep ReplayTimeline.swift's spoilerRankLimit the same. */
+export const SPOILER_RANK_LIMIT = 11;
+
+/** Which words a replay may print. Decided once, from the game mode. */
+export interface WordPolicy {
+  /** True on a practice round: the answer may appear on the final tile and the
+   *  end card, and every guess shows its word. False on a daily round: the
+   *  answer never appears anywhere and the closest guesses are masked. */
+  showAnswer: boolean;
+  /** The answer, for the final tile and the end card. Only used when
+   *  `showAnswer` is true; a revealed round has no rank-1 event to take it from. */
+  answer?: string;
+}
+
+export const HIDE_ANSWER: WordPolicy = { showAnswer: false };
+
+/** Whether a daily replay must hide this guess's word. Inexact ranks are
+ *  estimates from the score, so a boiling-hot estimate is masked too. */
+export function isSpoiler(rank: number, exact: boolean): boolean {
+  if (rank <= 0) return false;
+  if (rank <= SPOILER_RANK_LIMIT) return true;
+  return !exact && bandForRank(rank) === "boiling";
+}
 
 // ── tiles and beats ─────────────────────────────────────────────────────────
 
@@ -80,6 +114,12 @@ export interface Tile {
   exact: boolean;
   kind: TileKind;
   emphasis: Emphasis | null;
+  /** The word to print on the tile, or null when there is none to print. For
+   *  the answer and revealed tiles this is the answer, set only when the
+   *  timeline's `showAnswer` is true. */
+  label: string | null;
+  /** True when the word was withheld as a spoiler: draw dots in its place. */
+  masked: boolean;
   /** When the tile starts popping in (seconds). */
   landsAt: number;
   /** How long Wick takes to hop to the next cell. 0 for the last tile. */
@@ -124,6 +164,10 @@ export interface Timeline {
   tiles: Tile[];
   beats: Beat[];
   outcome: Outcome;
+  /** Whether the answer may be drawn (final tile, end card). See WordPolicy. */
+  showAnswer: boolean;
+  /** The answer for the end card. Always null when `showAnswer` is false. */
+  answer: string | null;
 }
 
 export const duration = (tl: Timeline): number => {
@@ -265,13 +309,16 @@ function schedule(slots: number[], start: number, dur: number, tiles: Tile[], p:
 
 /** Builds the replay, or null when there is nothing to show (a reveal with no
  *  scored guesses). */
-export function buildTimeline(events: ReplayEvent[], outcome: Outcome, p: Pacing = STANDARD_PACING): Timeline | null {
+export function buildTimeline(events: ReplayEvent[], outcome: Outcome, p: Pacing = STANDARD_PACING,
+  words: WordPolicy = HIDE_ANSWER): Timeline | null {
   const tiles: Tile[] = [];
   const units: Unit[] = [];
   let verdicts: Verdict[] = [];
   let best = Infinity;
   let guessNumber = 0;
   let answerNumber: number | null = null;
+  const showAnswer = words.showAnswer;
+  let answer: string | null = showAnswer ? (words.answer ?? null) : null;
   const flushVerdicts = (): void => {
     if (verdicts.length) { units.push({ kind: "keeper", verdicts }); verdicts = []; }
   };
@@ -280,7 +327,11 @@ export function buildTimeline(events: ReplayEvent[], outcome: Outcome, p: Pacing
     if (e.kind === "question") { verdicts.push(e.verdict); continue; }
     if (e.rank === 1) {
       // The answer ends a solved round; on a revealed round it can't happen.
-      if (outcome === "solved") { answerNumber = guessNumber + 1; break; }
+      if (outcome === "solved") {
+        answerNumber = guessNumber + 1;
+        if (showAnswer && e.label) answer = answer ?? e.label;
+        break;
+      }
       continue;
     }
     guessNumber++;
@@ -294,19 +345,21 @@ export function buildTimeline(events: ReplayEvent[], outcome: Outcome, p: Pacing
     } else {
       emphasis = { kind: "dip" };
     }
-    tiles.push({ slot: tiles.length, guessNumber, rank: e.rank, exact: e.exact ?? true,
-      kind: "guess", emphasis, landsAt: 0, hop: 0 });
+    const exact = e.exact ?? true;
+    const masked = !showAnswer && isSpoiler(e.rank, exact);
+    tiles.push({ slot: tiles.length, guessNumber, rank: e.rank, exact,
+      kind: "guess", emphasis, label: masked ? null : (e.label ?? null), masked, landsAt: 0, hop: 0 });
     units.push({ kind: "tile", index: tiles.length - 1 });
   }
   flushVerdicts();
 
   if (outcome === "solved") {
     tiles.push({ slot: tiles.length, guessNumber: answerNumber ?? guessNumber + 1, rank: 1, exact: true,
-      kind: "answer", emphasis: null, landsAt: 0, hop: 0 });
+      kind: "answer", emphasis: null, label: answer, masked: !showAnswer, landsAt: 0, hop: 0 });
   } else {
     if (!tiles.length) return null;
     tiles.push({ slot: tiles.length, guessNumber: null, rank: 0, exact: true,
-      kind: "revealed", emphasis: null, landsAt: 0, hop: 0 });
+      kind: "revealed", emphasis: null, label: answer, masked: !showAnswer, landsAt: 0, hop: 0 });
   }
 
   // Fit the middle into the budget, compressing as little as possible.
@@ -340,7 +393,7 @@ export function buildTimeline(events: ReplayEvent[], outcome: Outcome, p: Pacing
   beats.push({ kind: { kind: "finale", outcome }, start: t, duration: p.finale });
   t += p.finale;
   beats.push({ kind: { kind: "endCard" }, start: t, duration: p.endCard });
-  return { tiles, beats, outcome };
+  return { tiles, beats, outcome, showAnswer, answer };
 }
 
 // ── formatting ──────────────────────────────────────────────────────────────

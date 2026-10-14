@@ -28,7 +28,11 @@
 //    dim "?" and there is no gold.
 //
 //  Shape crosses over, content never does (see RevealShareCard.swift): this
-//  file only ever sees ranks and verdict labels, never a guessed word.
+//  file decides WHEN a guessed word may be shown, never what the words mean.
+//  Each guess event may carry the word the player typed as a label. On a
+//  daily round the answer and the closest guesses are masked here, once,
+//  when the timeline is built, so no later layer can leak them. On a
+//  practice round everything shows.
 //
 
 import Foundation
@@ -89,9 +93,41 @@ nonisolated struct ReplayVerdict: Equatable, Sendable {
 
 /// One thing the player did, in play order.
 nonisolated enum ReplayEvent: Equatable, Sendable {
-    /// A scored guess. 1 = the answer, 0 = rank list not ready.
-    case guess(rank: Int)
+    /// A scored guess. 1 = the answer, 0 = rank list not ready. `label` is
+    /// the word the player typed, in the play language.
+    case guess(rank: Int, label: String? = nil)
     case question(ReplayVerdict)
+}
+
+// MARK: - Spoilers
+
+/// Which words a replay may print. Decided once, from the game mode.
+nonisolated struct ReplayWordPolicy: Equatable, Sendable {
+    /// True on a practice round: the answer may appear on the final tile and
+    /// the end card, and every guess shows its word. False on a daily round:
+    /// the answer never appears anywhere and the closest guesses are masked.
+    var showAnswer: Bool
+    /// The answer, for the final tile and the end card. Only used when
+    /// `showAnswer` is true; a revealed round has no rank-1 event to take it
+    /// from.
+    var answer: String? = nil
+
+    static let hideAnswer = ReplayWordPolicy(showAnswer: false)
+}
+
+nonisolated enum ReplaySpoiler {
+    /// On a round where the answer must stay secret (today's daily), a guess
+    /// ranked this close or closer is masked: its rank and heat still show,
+    /// but the word is drawn as dots, because "coral #3" gives the word
+    /// away. Rank 1 is the answer itself; 2 to 11 are the ten closest words.
+    /// One edit here changes the rule on iOS; keep timeline.ts's
+    /// SPOILER_RANK_LIMIT the same.
+    static let rankLimit = 11
+
+    /// Whether a daily replay must hide this guess's word.
+    static func isSpoiler(rank: Int) -> Bool {
+        rank > 0 && rank <= rankLimit
+    }
 }
 
 nonisolated enum ReplayOutcome: Equatable, Sendable {
@@ -132,6 +168,12 @@ nonisolated struct ReplayTile: Equatable, Sendable {
     /// 1 for the answer, 0 for the revealed "?" (or a rank that was not ready).
     let rank: Int
     let kind: Kind
+    /// The word to print on the tile, or nil when there is none to print.
+    /// For the answer and revealed tiles this is the answer, set only when
+    /// the timeline's `showAnswer` is true.
+    var label: String? = nil
+    /// True when the word was withheld as a spoiler: draw dots in its place.
+    var masked: Bool = false
     /// When the tile starts popping in (seconds from the start of the video).
     var landsAt: Double = 0
     /// How long Wick takes to hop from this tile's cell to the next one.
@@ -208,6 +250,11 @@ nonisolated struct ReplayTimeline: Equatable, Sendable {
     let tiles: [ReplayTile]
     let beats: [ReplayBeat]
     let outcome: ReplayOutcome
+    /// Whether the answer may be drawn (final tile, end card). See
+    /// ReplayWordPolicy.
+    var showAnswer: Bool = false
+    /// The answer for the end card. Always nil when `showAnswer` is false.
+    var answer: String? = nil
 
     var duration: Double { beats.last?.end ?? 0 }
     var finalSlot: Int { tiles.count - 1 }
@@ -275,7 +322,8 @@ nonisolated struct ReplayTimeline: Equatable, Sendable {
     /// reveal with no scored guesses).
     static func build(events: [ReplayEvent],
                       outcome: ReplayOutcome,
-                      pacing: ReplayPacing = .standard) -> ReplayTimeline? {
+                      pacing: ReplayPacing = .standard,
+                      words: ReplayWordPolicy = .hideAnswer) -> ReplayTimeline? {
 
         // 1. Walk the events into tiles and the "middle" units between the
         //    intro and the finale.
@@ -285,6 +333,8 @@ nonisolated struct ReplayTimeline: Equatable, Sendable {
         var best = Int.max
         var guessNumber = 0
         var answerNumber: Int?
+        let showAnswer = words.showAnswer
+        var answer: String? = showAnswer ? words.answer : nil
 
         func flushVerdicts() {
             guard !verdicts.isEmpty else { return }
@@ -297,12 +347,13 @@ nonisolated struct ReplayTimeline: Equatable, Sendable {
             case .question(let v):
                 verdicts.append(v)
 
-            case .guess(let rank):
+            case .guess(let rank, let label):
                 if rank == 1 {
                     // The answer ends a solved round. On a revealed round it
                     // cannot happen, so it is ignored rather than trusted.
                     if outcome == .solved {
                         answerNumber = guessNumber + 1
+                        if showAnswer, answer == nil { answer = label }
                         break walk
                     }
                     continue
@@ -320,8 +371,10 @@ nonisolated struct ReplayTimeline: Equatable, Sendable {
                 } else {
                     emphasis = .dip
                 }
+                let masked = !showAnswer && ReplaySpoiler.isSpoiler(rank: rank)
                 tiles.append(ReplayTile(slot: tiles.count, guessNumber: guessNumber,
-                                        rank: rank, kind: .guess(emphasis)))
+                                        rank: rank, kind: .guess(emphasis),
+                                        label: masked ? nil : label, masked: masked))
                 units.append(.tile(tiles.count - 1))
             }
         }
@@ -332,11 +385,13 @@ nonisolated struct ReplayTimeline: Equatable, Sendable {
         case .solved:
             tiles.append(ReplayTile(slot: tiles.count,
                                     guessNumber: answerNumber ?? guessNumber + 1,
-                                    rank: 1, kind: .answer))
+                                    rank: 1, kind: .answer,
+                                    label: answer, masked: !showAnswer))
         case .revealed:
             guard !tiles.isEmpty else { return nil }
             tiles.append(ReplayTile(slot: tiles.count, guessNumber: nil,
-                                    rank: 0, kind: .revealed))
+                                    rank: 0, kind: .revealed,
+                                    label: answer, masked: !showAnswer))
         }
 
         // 2. Fit the middle into the time budget, compressing as little as
@@ -381,7 +436,8 @@ nonisolated struct ReplayTimeline: Equatable, Sendable {
         t += pacing.finale
         beats.append(ReplayBeat(kind: .endCard, start: t, duration: pacing.endCard))
 
-        return ReplayTimeline(tiles: tiles, beats: beats, outcome: outcome)
+        return ReplayTimeline(tiles: tiles, beats: beats, outcome: outcome,
+                              showAnswer: showAnswer, answer: answer)
     }
 
     // MARK: - Building helpers

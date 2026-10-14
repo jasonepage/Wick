@@ -20,8 +20,11 @@
 //  repeated below. If the mascot's shape changes in KeeperView, change
 //  `flamePath` here too.
 //
-//  Nothing in this file can print a guessed word: the timeline only carries
-//  ranks and verdict labels.
+//  Guessed words come from the timeline's tile labels, which are already
+//  masked for a daily round (ReplayTimeline.swift, ReplaySpoiler.rankLimit).
+//  The answer is drawn only when the timeline's showAnswer flag is set AND
+//  the label is present, so a daily replay never contains the answer in any
+//  frame.
 //
 
 import CoreGraphics
@@ -118,6 +121,8 @@ nonisolated struct ReplayCopy: Equatable, Sendable {
     var domain: String = "guesswick.com"
     /// Localized heat words, keyed by band.
     var bandNames: [ReplayBand: String]
+    /// "The word was %@", for the practice end card.
+    var answerWasFormat: String = "The word was %@"
 }
 
 /// Everything the renderer needs, safe to hand to a background task.
@@ -140,6 +145,12 @@ nonisolated final class ReplayScene {
     /// Where the board may go. Clear of the title bar above, and of the app
     /// buttons (right) and caption (bottom) that short-video apps overlay.
     static let boardArea = CGRect(x: 120, y: 480, width: 840, height: 940)
+    /// Guess tiles narrower than this print the rank only.
+    static let minTileForWord: CGFloat = 60
+    /// Narrower still, and the tile is color only.
+    static let minTileForRank: CGFloat = 52
+    /// Three dots stand in for a masked word.
+    static let maskedWord = "\u{2022}\u{2022}\u{2022}"
 
     let board: ReplayBoard
     private let request: ReplayRequest
@@ -150,6 +161,7 @@ nonisolated final class ReplayScene {
 
     private let wickSize: CGFloat
     private var fonts: [FontRole: CTFont] = [:]
+    private var sizedFonts: [Int: CTFont] = [:]
     private var lines: [String: CTLine] = [:]
     private var backdrop: CGImage?
     private var boardCache: (settled: Int, image: CGImage)?
@@ -168,6 +180,9 @@ nonisolated final class ReplayScene {
             .tagline: Self.font(38, .medium),
             .tile: Self.font(tileText, .heavy),
             .tileMark: Self.font(tileText * 1.6, .heavy),
+            .tileRank: Self.font(max(13, board.cell * 0.86 * 0.19), .bold),
+            .hudAnswer: Self.font(40, .heavy),
+            .endAnswer: Self.font(52, .bold),
             .chip: Self.font(36, .heavy),
             .flash: Self.font(84, .heavy),
             .badge: Self.font(36, .bold),
@@ -395,20 +410,70 @@ nonisolated final class ReplayScene {
         ctx.fillPath()
 
         let center = CGPoint(x: face.midX, y: face.midY)
+        let wordRoom = base.width >= Self.minTileForWord
+        // Two lines: the word (or what stands in for it) above, the rank below.
+        let wordAt = CGPoint(x: center.x, y: center.y - face.height * 0.13)
+        let rankAt = CGPoint(x: center.x, y: center.y + face.height * 0.17)
+        let maxW = base.width * 0.86 * scale
+        let wordSize = max(14, base.width * 0.21) * scale
+        let minWordSize = max(11, base.width * 0.12) * scale
+
         switch tile.kind {
         case .answer:
-            ctx.addPath(starPath(center: center, radius: face.width * 0.26, points: 5))
+            let word = timeline.showAnswer ? tile.label : nil
+            ctx.setFillColor(ReplayRGBA.white.cg())
+            if wordRoom, let word {
+                drawFitted(word, at: wordAt, size: wordSize, minSize: minWordSize, maxWidth: maxW, in: ctx)
+                ctx.addPath(starPath(center: rankAt, radius: face.width * 0.14, points: 5))
+            } else if wordRoom {
+                drawCheckmark(at: wordAt, size: face.width * 0.22 * scale, in: ctx)
+                ctx.addPath(starPath(center: rankAt, radius: face.width * 0.14, points: 5))
+            } else {
+                ctx.addPath(starPath(center: center, radius: face.width * 0.26, points: 5))
+            }
             ctx.setFillColor(ReplayRGBA.white.cg())
             ctx.fillPath()
         case .revealed:
-            guard base.width >= 40 else { break }
-            drawText("?", .tileMark, .white, at: center, align: .center, in: ctx,
-                     scale: scale, alpha: 0.9)
+            let word = timeline.showAnswer ? tile.label : nil
+            if wordRoom, let word {
+                drawFitted(word, at: wordAt, size: wordSize, minSize: minWordSize, maxWidth: maxW, in: ctx)
+                drawText("?", .tileRank, .white, at: rankAt, align: .center, in: ctx,
+                         scale: scale, alpha: 0.9)
+            } else if base.width >= 40 {
+                drawText("?", .tileMark, .white, at: center, align: .center, in: ctx,
+                         scale: scale, alpha: 0.9)
+            }
         case .guess:
-            guard base.width >= 52 else { break }
-            drawText(ReplayFormat.rank(tile.rank), .tile, .white, at: center, align: .center,
-                     in: ctx, scale: scale, maxWidth: base.width * 0.86)
+            if wordRoom {
+                let word = tile.masked ? Self.maskedWord : tile.label
+                if let word {
+                    drawFitted(word, at: wordAt, size: wordSize, minSize: minWordSize, maxWidth: maxW, in: ctx)
+                    drawText(ReplayFormat.rank(tile.rank), .tileRank, .white, at: rankAt, align: .center,
+                             in: ctx, scale: scale, alpha: 0.85, maxWidth: maxW)
+                } else {
+                    drawText(ReplayFormat.rank(tile.rank), .tile, .white, at: center, align: .center,
+                             in: ctx, scale: scale, maxWidth: base.width * 0.86)
+                }
+            } else if base.width >= Self.minTileForRank {
+                drawText(ReplayFormat.rank(tile.rank), .tile, .white, at: center, align: .center,
+                         in: ctx, scale: scale, maxWidth: base.width * 0.86)
+            }
         }
+    }
+
+    /// A simple check, centered on `point`, about `size` wide.
+    private func drawCheckmark(at point: CGPoint, size: CGFloat, in ctx: CGContext) {
+        ctx.saveGState()
+        ctx.setStrokeColor(ReplayRGBA.white.cg())
+        ctx.setLineWidth(max(3, size * 0.2))
+        ctx.setLineCap(.round)
+        ctx.setLineJoin(.round)
+        ctx.beginPath()
+        ctx.move(to: CGPoint(x: point.x - size * 0.5, y: point.y + size * 0.02))
+        ctx.addLine(to: CGPoint(x: point.x - size * 0.15, y: point.y + size * 0.34))
+        ctx.addLine(to: CGPoint(x: point.x + size * 0.5, y: point.y - size * 0.3))
+        ctx.strokePath()
+        ctx.restoreGState()
     }
 
     /// A thin ring around the best guess so far, so viewers can follow it.
@@ -853,7 +918,15 @@ nonisolated final class ReplayScene {
             x += drawText(ReplayFormat.rank(best), .rank, c, at: CGPoint(x: x, y: rowY - 2), in: ctx) + 16
             x += drawText(copy.bandNames[band] ?? band.token, .label, c, at: CGPoint(x: x, y: rowY), in: ctx)
             if timeline.outcome == .revealed, let last = timeline.tiles.last, t >= last.landsAt {
-                drawText("·  " + copy.revealed, .label, style.onInkDim,
+                x += drawText("·  " + copy.revealed, .label, style.onInkDim,
+                              at: CGPoint(x: x + 16, y: rowY), in: ctx, maxWidth: right - x - 16) + 16
+            }
+            // Practice only: Wick stands on the final tile, so the answer goes
+            // up here too once that tile lands. Both the flag and the word
+            // must be set.
+            if let last = timeline.tiles.last, t >= last.landsAt,
+               timeline.showAnswer, let answer = timeline.answer {
+                drawText("·  " + answer, .hudAnswer, style.gold.mixed(.white, 0.5),
                          at: CGPoint(x: x + 16, y: rowY), in: ctx, maxWidth: right - x - 16)
             }
             drawMeter(in: ctx, at: t, best: best, color: c)
@@ -977,14 +1050,19 @@ nonisolated final class ReplayScene {
                  align: .center, in: ctx, maxWidth: 940)
         drawText("\(copy.title)  ·  \(copy.stats)", .endStats, style.onInkDim,
                  at: CGPoint(x: 540, y: 1232), align: .center, in: ctx, maxWidth: 900)
+        // Practice only: the answer. Both the flag and the word must be set.
+        if timeline.showAnswer, let answer = timeline.answer {
+            drawText(String(format: copy.answerWasFormat, answer), .endAnswer, style.gold.mixed(.white, 0.5),
+                     at: CGPoint(x: 540, y: 1330), align: .center, in: ctx, maxWidth: 900)
+        }
         ctx.restoreGState()
     }
 
     // MARK: Text
 
     nonisolated enum FontRole: String {
-        case title, counter, label, rank, tagline, tile, tileMark, chip, flash, badge, watermark
-        case endSmall, endBig, endStats
+        case title, counter, label, rank, tagline, tile, tileMark, tileRank, chip, flash, badge, watermark
+        case endSmall, endBig, endStats, hudAnswer, endAnswer
     }
 
     nonisolated enum Align { case left, center, right }
@@ -1041,6 +1119,56 @@ nonisolated final class ReplayScene {
         CTLineDraw(l, ctx)
         ctx.restoreGState()
         return drawn
+    }
+
+    /// A heavy font at a pixel size, cached, for text that must fit a tile.
+    private func sizedFont(_ size: CGFloat) -> CTFont {
+        let key = Int((size * 2).rounded())
+        if let cached = sizedFonts[key] { return cached }
+        let made = Self.font(CGFloat(key) / 2, .heavy)
+        sizedFonts[key] = made
+        return made
+    }
+
+    private func sizedLine(_ text: String, _ size: CGFloat) -> CTLine {
+        let attributes: [NSAttributedString.Key: Any] = [
+            NSAttributedString.Key(kCTFontAttributeName as String): sizedFont(size),
+            NSAttributedString.Key(kCTForegroundColorAttributeName as String): ReplayRGBA.white.cg(),
+        ]
+        return CTLineCreateWithAttributedString(NSAttributedString(string: text, attributes: attributes) as CFAttributedString)
+    }
+
+    /// A word on a tile: shrink the font from `size` down to `minSize` until
+    /// it fits `maxWidth`; if it still does not fit, cut it and add an
+    /// ellipsis. Works for wide Chinese characters the same as for long
+    /// Latin words. Centered on `point`, white.
+    private func drawFitted(_ text: String, at point: CGPoint, size: CGFloat, minSize: CGFloat,
+                            maxWidth: CGFloat, in ctx: CGContext) {
+        guard !text.isEmpty else { return }
+        func width(_ l: CTLine) -> CGFloat { CGFloat(CTLineGetTypographicBounds(l, nil, nil, nil)) }
+        var px = size
+        var l = sizedLine(text, px)
+        let step = max(1, size * 0.06)
+        while px > minSize, width(l) > maxWidth {
+            px = max(minSize, px - step)
+            l = sizedLine(text, px)
+        }
+        if width(l) > maxWidth {
+            let chars = Array(text)
+            var n = chars.count - 1
+            while n > 1, width(sizedLine(String(chars[0..<n]) + "\u{2026}", px)) > maxWidth { n -= 1 }
+            l = sizedLine(String(chars[0..<max(1, n)]) + "\u{2026}", px)
+        }
+        var ascent: CGFloat = 0, descent: CGFloat = 0, leading: CGFloat = 0
+        let w = CGFloat(CTLineGetTypographicBounds(l, &ascent, &descent, &leading))
+        let k: CGFloat = w > maxWidth && w > 0 ? maxWidth / w : 1
+        ctx.saveGState()
+        ctx.translateBy(x: point.x - w * k / 2, y: point.y + (ascent - descent) / 2 * k)
+        ctx.scaleBy(x: k, y: k)
+        ctx.textMatrix = CGAffineTransform(scaleX: 1, y: -1)
+        ctx.textPosition = .zero
+        CTLineDraw(l, ctx)
+        ctx.restoreGState()
     }
 
     // MARK: Shapes and easing

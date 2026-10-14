@@ -5,8 +5,9 @@
 //  Solve Replay (3.4): the bridge from a finished round to a ReplayRequest.
 //
 //  Reads the round exactly as it is stored (`guesses`, `questions`); no data
-//  model changes. Words are dropped here, one layer above the timeline, the
-//  same way RevealShareCard drops them: only ranks and verdict labels travel.
+//  model changes. Each guess travels with its word; the spoiler rule is
+//  decided once here from the game mode (`ReplayWordPolicy`) and the
+//  timeline masks what must stay secret.
 //
 
 import SwiftUI
@@ -26,8 +27,19 @@ extension GameViewModel {
         let events = ReplayEvents.from(guesses: guesses, questions: questions,
                                        rank: { rank(forScore: $0) },
                                        verdictLabel: { displayVerdict($0) })
+        // Spoiler rule, decided once: only a practice round is a random word
+        // nobody else is playing, so only it may show the answer and the
+        // closest guesses. Daily, archive and duel rounds keep the answer
+        // secret and mask the top 10.
+        let words: ReplayWordPolicy
+        if case .practice = mode {
+            words = ReplayWordPolicy(showAnswer: true, answer: target)
+        } else {
+            words = .hideAnswer
+        }
         guard let timeline = ReplayTimeline.build(events: events,
-                                                  outcome: solved ? .solved : .revealed)
+                                                  outcome: solved ? .solved : .revealed,
+                                                  words: words)
         else { return nil }
 
         let loc = self.loc
@@ -45,15 +57,16 @@ extension GameViewModel {
                               fastForwardFormat: loc.replayFastForwardFormat,
                               revealed: loc.replayRevealed,
                               playFree: loc.replayPlayFree,
-                              bandNames: bandNames)
+                              bandNames: bandNames,
+                              answerWasFormat: loc.replayAnswerWasFormat)
         let fileName = mode == .daily ? "Wick-Replay-\(puzzleNumber)" : "Wick-Replay"
         return ReplayRequest(timeline: timeline, copy: copy, style: .current(),
                              maxRank: maxRank, fileName: fileName)
     }
 }
 
-/// Turns stored guesses and questions into the ordered, word-free events the
-/// timeline builds from.
+/// Turns stored guesses and questions into the ordered events the timeline
+/// builds from. Each guess carries its word; the timeline decides what shows.
 enum ReplayEvents {
     static func from(guesses: [Guess], questions: [AskedQuestion],
                      rank: (Double) -> Int,
@@ -62,7 +75,8 @@ enum ReplayEvents {
         for g in guesses where g.known {
             // `seq` orders guesses and questions together. Boards saved before
             // it existed fall back to the guess number.
-            keyed.append((g.seq ?? (g.order - 1), g.order, ReplayEvent.guess(rank: rank(g.score))))
+            keyed.append((g.seq ?? (g.order - 1), g.order,
+                          ReplayEvent.guess(rank: rank(g.score), label: g.word)))
         }
         for q in questions where !q.verdict.isEmpty {
             guard let seq = q.seq else { continue }

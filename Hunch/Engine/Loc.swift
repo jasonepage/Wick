@@ -441,6 +441,8 @@ struct Loc {
     /// off the main thread, so it formats these itself.
     var replayGuessOfFormat: String { s("replayGuessOf") }
     var replayFastForwardFormat: String { s("replayFastForward") }
+    /// "The word was %@": the practice replay's end card formats it itself.
+    var replayAnswerWasFormat: String { s("replayAnswerWas") }
 
     // MARK: - Tables
 
@@ -788,6 +790,7 @@ struct Loc {
         "replayTagline": "Guess the word by meaning",
         "replayPlayFree": "Play free at",
         "replayRevealed": "Revealed",
+        "replayAnswerWas": "The word was %@",
         "replayRevealedAfter": "revealed after %d guesses",
         "replayFastForward": "+%d guesses",
     ]
@@ -1125,6 +1128,7 @@ struct Loc {
         "replayTagline": "Adivina la palabra por su significado",
         "replayPlayFree": "Juega gratis en",
         "replayRevealed": "Revelada",
+        "replayAnswerWas": "La palabra era %@",
         "replayRevealedAfter": "revelada tras %d intentos",
         "replayFastForward": "+%d intentos",
     ]
@@ -1464,6 +1468,7 @@ struct Loc {
         "replayTagline": "Devine le mot par son sens",
         "replayPlayFree": "Joue gratuitement sur",
         "replayRevealed": "Révélé",
+        "replayAnswerWas": "Le mot était %@",
         "replayRevealedAfter": "révélé après %d essais",
         "replayFastForward": "+%d essais",
     ]
@@ -1803,6 +1808,7 @@ struct Loc {
         "replayTagline": "Indovina la parola dal significato",
         "replayPlayFree": "Gioca gratis su",
         "replayRevealed": "Rivelata",
+        "replayAnswerWas": "La parola era %@",
         "replayRevealedAfter": "rivelata dopo %d tentativi",
         "replayFastForward": "+%d tentativi",
     ]
@@ -2141,6 +2147,7 @@ struct Loc {
         "replayTagline": "Errate das Wort über seine Bedeutung",
         "replayPlayFree": "Spiel gratis auf",
         "replayRevealed": "Aufgedeckt",
+        "replayAnswerWas": "Das Wort war %@",
         "replayRevealedAfter": "aufgedeckt nach %d Versuchen",
         "replayFastForward": "+%d Versuche",
     ]

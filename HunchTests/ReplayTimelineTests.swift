@@ -358,11 +358,94 @@ struct ReplayEventsTests {
             rank: { $0 >= 100 ? 1 : Int(1000 - $0 * 10) },
             verdictLabel: { $0.uppercased() })
         #expect(events == [
-            .guess(rank: 900),
+            .guess(rank: 900, label: "cold"),
             .question(ReplayVerdict(tone: .yes, label: "YES")),
-            .guess(rank: 600),
+            .guess(rank: 600, label: "warm"),
             .question(ReplayVerdict(tone: .no, label: "NO")),
-            .guess(rank: 1),
+            .guess(rank: 1, label: "answer"),
         ])
+    }
+}
+
+// MARK: - Words and spoilers
+
+private func w(_ rank: Int, _ label: String) -> ReplayEvent { .guess(rank: rank, label: label) }
+private let secret = "coral"
+/// A solved round with cold, warm and top-10 guesses, ending on the answer.
+private let solvedRound: [ReplayEvent] = [
+    w(3000, "pebble"), w(400, "reef"), yes, w(11, "kelp"), w(2, "anemone"), w(60, "tide"), w(1, secret),
+]
+private let practice = ReplayWordPolicy(showAnswer: true, answer: secret)
+
+/// Every string a frame could print from the timeline.
+private func allStrings(_ t: ReplayTimeline) -> [String] {
+    var out: [String] = []
+    for tile in t.tiles { if let l = tile.label { out.append(l) } }
+    for beat in t.beats {
+        if case .keeper(let verdicts) = beat.kind { out += verdicts.map(\.label) }
+    }
+    if let a = t.answer { out.append(a) }
+    return out
+}
+
+struct ReplaySpoilerTests {
+    @Test func thresholdIsTheTopTenAfterTheAnswer() {
+        #expect(ReplaySpoiler.rankLimit == 11)
+        #expect(ReplaySpoiler.isSpoiler(rank: 1))
+        #expect(ReplaySpoiler.isSpoiler(rank: 11))
+        #expect(!ReplaySpoiler.isSpoiler(rank: 12))
+        #expect(!ReplaySpoiler.isSpoiler(rank: 0))
+    }
+
+    @Test func dailyReplayNeverContainsTheAnswerAndMasksTheTopTen() throws {
+        let t = try #require(ReplayTimeline.build(events: solvedRound, outcome: .solved))
+        #expect(t.showAnswer == false)
+        #expect(t.answer == nil)
+        for s in allStrings(t) { #expect(s != secret) }
+        for tile in t.tiles {
+            guard case .guess = tile.kind else {
+                #expect(tile.label == nil)
+                continue
+            }
+            if tile.rank <= ReplaySpoiler.rankLimit {
+                #expect(tile.label == nil)
+                #expect(tile.masked)
+            } else {
+                #expect(!tile.masked)
+            }
+        }
+        #expect(t.tiles.map(\.label) == ["pebble", "reef", nil, nil, "tide", nil])
+    }
+
+    @Test func dailyRevealNeverShowsTheAnswerEither() throws {
+        let t = try #require(ReplayTimeline.build(events: [w(3000, "pebble"), w(5, "kelp")],
+                                                  outcome: .revealed))
+        #expect(t.answer == nil)
+        #expect(t.tiles.map(\.label) == ["pebble", nil, nil])
+        #expect(t.tiles.last?.masked == true)
+    }
+
+    @Test func practiceReplayShowsEveryWordAndTheAnswer() throws {
+        let t = try #require(ReplayTimeline.build(events: solvedRound, outcome: .solved, words: practice))
+        #expect(t.showAnswer)
+        #expect(t.answer == secret)
+        #expect(t.tiles.map(\.label) == ["pebble", "reef", "kelp", "anemone", "tide", secret])
+        #expect(t.tiles.allSatisfy { !$0.masked })
+        // The answer comes from the rank-1 event when the policy does not name it.
+        let unnamed = try #require(ReplayTimeline.build(events: solvedRound, outcome: .solved,
+                                                        words: ReplayWordPolicy(showAnswer: true)))
+        #expect(unnamed.answer == secret)
+        // A revealed practice round takes the answer from the policy.
+        let rv = try #require(ReplayTimeline.build(events: [w(3000, "pebble")], outcome: .revealed,
+                                                   words: practice))
+        #expect(rv.tiles.last?.label == secret)
+        #expect(rv.answer == secret)
+    }
+
+    @Test func chineseWordsTravelAsLabelsUnchanged() throws {
+        let t = try #require(ReplayTimeline.build(
+            events: [w(2000, "石头"), w(300, "珊瑚礁岛"), w(1, "珊瑚")], outcome: .solved,
+            words: ReplayWordPolicy(showAnswer: true)))
+        #expect(t.tiles.map(\.label) == ["石头", "珊瑚礁岛", "珊瑚"])
     }
 }

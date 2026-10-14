@@ -21,7 +21,7 @@ import { fetchWarmth, httpBaseFrom, askKeeper, fetchReveal, fetchLiveCounts } fr
 import type { RevealPointDTO, WarmthResult } from "./net/api.ts";
 import { computeStats } from "./game/stats.ts";
 import { revealSVG, shareRevealCard } from "./game/revealcard.ts";
-import { buildTimeline, bandToken, toneFor, type ReplayEvent } from "./game/replay/timeline.ts";
+import { buildTimeline, bandToken, toneFor, HIDE_ANSWER, STANDARD_PACING, type ReplayEvent, type WordPolicy } from "./game/replay/timeline.ts";
 import { ReplayScene, W as REPLAY_W, H as REPLAY_H, type ReplayCopy } from "./game/replay/scene.ts";
 import { canRecord, canShareFile, downloadVideo, recordReplay, shareVideo, type Recording } from "./game/replay/record.ts";
 import { initEvents, track } from "./net/events.ts";
@@ -978,7 +978,8 @@ function rankFromScore(score: number): number {
   return score >= 60 ? 15 : score >= 45 ? 60 : score >= 30 ? 250 : score >= 18 ? 800 : 3000;
 }
 
-/** The round as word-free events in play order. Words are dropped here. */
+/** The round as events in play order. Each guess carries the word the player
+ *  typed; the timeline decides which words may be shown (see WordPolicy). */
 function replayEvents(): ReplayEvent[] {
   const items: { key: number; tie: number; ev: ReplayEvent }[] = [];
   const n = sp.guesses.length;
@@ -987,9 +988,9 @@ function replayEvents(): ReplayEvent[] {
     const order = n - i; // sp.guesses is newest first
     const key = g.seq ?? order - 1;
     let ev: ReplayEvent;
-    if (g.correct) ev = { kind: "guess", rank: 1 };
-    else if (g.rank != null && g.rank > 1) ev = { kind: "guess", rank: g.rank };
-    else ev = { kind: "guess", rank: rankFromScore(g.warmth * 100), exact: false };
+    if (g.correct) ev = { kind: "guess", rank: 1, label: g.word };
+    else if (g.rank != null && g.rank > 1) ev = { kind: "guess", rank: g.rank, label: g.word };
+    else ev = { kind: "guess", rank: rankFromScore(g.warmth * 100), exact: false, label: g.word };
     items.push({ key, tie: order, ev });
   });
   for (const r of sp.replies) {
@@ -1011,10 +1012,13 @@ function stopReplay(): void {
 
 function screenReplay(): void {
   stopReplay();
-  const timeline = buildTimeline(replayEvents(), sp.solved ? "solved" : "revealed");
+  const daily = sp.mode === "daily";
+  // Spoiler rule, decided once: a daily replay never shows the answer and masks
+  // the closest guesses; a practice round is a random word, so it shows all.
+  const words: WordPolicy = daily ? HIDE_ANSWER : { showAnswer: true, answer: sp.secret };
+  const timeline = buildTimeline(replayEvents(), sp.solved ? "solved" : "revealed", STANDARD_PACING, words);
   if (!timeline) { toast(t("replayFailed")); return; }
 
-  const daily = sp.mode === "daily";
   const scored = sp.guesses.filter((g) => g.warmth !== null).length;
   const copy: ReplayCopy = {
     title: daily ? `Wick #${sp.puzzleNumber}` : `Wick · ${t("practice")}`,
@@ -1027,6 +1031,7 @@ function screenReplay(): void {
     playFree: t("replayPlayFree"),
     domain: "guesswick.com",
     bandName: (b) => t("heat." + bandToken(b)),
+    answerWas: (w) => t("replayAnswerWas", w),
   };
   // The server's rank list is about this long; only the meter's curve uses it.
   const scene = new ReplayScene(timeline, copy, 10_000);

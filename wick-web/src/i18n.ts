@@ -28,6 +28,7 @@ export function t(key: string, ...args: Array<string | number>): string {
 }
 export const TABLES: Record<Lang, Record<string, string>> = {
   "en": {
+    "replayAnswerWas": "The word was %@",
     "replayShare": "🎬 Share replay",
     "replayTitle": "Solve replay",
     "replayRecording": "Recording your replay. Keep this tab open…",
@@ -384,6 +385,7 @@ export const TABLES: Record<Lang, Record<string, string>> = {
     "firstGuessHint": "Type your first guess to warm up."
   },
   "es": {
+    "replayAnswerWas": "La palabra era %@",
     "replayShare": "🎬 Compartir repetición",
     "replayTitle": "Repetición",
     "replayRecording": "Grabando tu repetición. Deja esta pestaña abierta…",
@@ -740,6 +742,7 @@ export const TABLES: Record<Lang, Record<string, string>> = {
     "firstGuessHint": "Escribe tu primera conjetura para empezar."
   },
   "fr": {
+    "replayAnswerWas": "Le mot était %@",
     "replayShare": "🎬 Partager le replay",
     "replayTitle": "Replay",
     "replayRecording": "Enregistrement de ton replay. Garde cet onglet ouvert…",
@@ -1096,6 +1099,7 @@ export const TABLES: Record<Lang, Record<string, string>> = {
     "firstGuessHint": "Tapez votre première proposition pour vous lancer."
   },
   "it": {
+    "replayAnswerWas": "La parola era %@",
     "replayShare": "🎬 Condividi replay",
     "replayTitle": "Replay",
     "replayRecording": "Sto registrando il tuo replay. Tieni aperta questa scheda…",
@@ -1452,6 +1456,7 @@ export const TABLES: Record<Lang, Record<string, string>> = {
     "firstGuessHint": "Digita il primo tentativo per iniziare."
   },
   "de": {
+    "replayAnswerWas": "Das Wort war %@",
     "replayShare": "🎬 Replay teilen",
     "replayTitle": "Replay",
     "replayRecording": "Dein Replay wird aufgenommen. Lass diesen Tab offen…",
@@ -1808,6 +1813,7 @@ export const TABLES: Record<Lang, Record<string, string>> = {
     "firstGuessHint": "Gib deinen ersten Tipp ein, um warm zu werden."
   },
   "zh": {
+    "replayAnswerWas": "答案是 %@",
     "replayShare": "🎬 分享回放",
     "replayTitle": "解题回放",
     "replayRecording": "正在录制回放，请不要关闭此页面…",

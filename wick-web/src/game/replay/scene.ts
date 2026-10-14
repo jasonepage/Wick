@@ -9,8 +9,10 @@
 //  The board keeps clear of the right edge and the bottom, where TikTok, Reels
 //  and Shorts put their buttons and captions.
 //
-//  Nothing here can print a guessed word: the timeline carries only ranks and
-//  verdict labels.
+//  Guessed words come from the timeline's tile labels, which are already
+//  masked for a daily round (timeline.ts, SPOILER_RANK_LIMIT). The answer is
+//  drawn only when the timeline's showAnswer flag is set AND the label is
+//  present, so a daily replay never contains the answer in any frame.
 //
 
 import {
@@ -68,7 +70,16 @@ export interface ReplayCopy {
   playFree: string;     // "Play free at"
   domain: string;       // "guesswick.com"
   bandName: (b: Band) => string;
+  /** "The word was %@", for the practice end card. */
+  answerWas: (word: string) => string;
 }
+
+/** Guess tiles narrower than this print the rank only. */
+const MIN_TILE_FOR_WORD = 60;
+/** Narrower still, and the tile is color only. */
+const MIN_TILE_FOR_RANK = 52;
+/** Three dots stand in for a masked word. */
+const MASKED_WORD = "\u2022\u2022\u2022";
 
 // ── easing ──────────────────────────────────────────────────────────────────
 
@@ -277,15 +288,62 @@ export class ReplayScene {
     ctx.fill();
 
     const cx = face.x + face.w / 2, cy = face.y + face.h / 2;
+    const wordRoom = base.w >= MIN_TILE_FOR_WORD;
+    // Two lines: the word (or what stands in for it) above, the rank below.
+    const wordY = cy - face.h * 0.13, rankY = cy + face.h * 0.17;
+    const maxW = base.w * 0.86 * scale;
+    const wordSize = Math.max(14, base.w * 0.21) * scale;
+    const minWordSize = Math.max(11, base.w * 0.12) * scale;
+    const rankSize = Math.max(13, base.w * 0.19) * scale;
+
     if (tile.kind === "answer") {
-      starPath(ctx, cx, cy, face.w * 0.26, 5);
+      const word = this.tl.showAnswer ? tile.label : null;
+      if (wordRoom && word) {
+        this.fitText(ctx, word, cx, wordY, wordSize, minWordSize, 800, "#fff", maxW);
+        starPath(ctx, cx, rankY, face.w * 0.14, 5);
+      } else if (wordRoom) {
+        this.checkmark(ctx, cx, wordY, face.w * 0.22 * scale);
+        starPath(ctx, cx, rankY, face.w * 0.14, 5);
+      } else {
+        starPath(ctx, cx, cy, face.w * 0.26, 5);
+      }
       ctx.fillStyle = "#fff";
       ctx.fill();
     } else if (tile.kind === "revealed") {
-      if (base.w >= 40) this.text(ctx, "?", cx, cy, base.w * 0.86 * 0.27 * 1.6 * scale, 800, "#fff", "center", undefined, 0.9);
-    } else if (base.w >= 52 && tile.exact) {
-      this.text(ctx, formatRank(tile.rank), cx, cy, Math.max(16, base.w * 0.27) * scale, 800, "#fff", "center", base.w * 0.86 * scale);
+      const word = this.tl.showAnswer ? tile.label : null;
+      if (wordRoom && word) {
+        this.fitText(ctx, word, cx, wordY, wordSize, minWordSize, 800, "#fff", maxW);
+        this.text(ctx, "?", cx, rankY, rankSize, 800, "#fff", "center", undefined, 0.9);
+      } else if (base.w >= 40) {
+        this.text(ctx, "?", cx, cy, base.w * 0.86 * 0.27 * 1.6 * scale, 800, "#fff", "center", undefined, 0.9);
+      }
+    } else if (wordRoom) {
+      const word = tile.masked ? MASKED_WORD : tile.label;
+      const under = tile.exact ? formatRank(tile.rank) : this.copy.bandName(tileBand(tile));
+      if (word) {
+        this.fitText(ctx, word, cx, wordY, wordSize, minWordSize, 800, "#fff", maxW);
+        this.text(ctx, under, cx, rankY, rankSize, 700, "rgba(255,255,255,0.85)", "center", maxW);
+      } else if (tile.exact) {
+        this.text(ctx, formatRank(tile.rank), cx, cy, Math.max(16, base.w * 0.27) * scale, 800, "#fff", "center", maxW);
+      }
+    } else if (base.w >= MIN_TILE_FOR_RANK && tile.exact) {
+      this.text(ctx, formatRank(tile.rank), cx, cy, Math.max(16, base.w * 0.27) * scale, 800, "#fff", "center", maxW);
     }
+  }
+
+  /** A simple check, centered on (cx, cy), about `size` wide. */
+  private checkmark(ctx: Ctx, cx: number, cy: number, size: number): void {
+    ctx.save();
+    ctx.strokeStyle = "#fff";
+    ctx.lineWidth = Math.max(3, size * 0.2);
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.beginPath();
+    ctx.moveTo(cx - size * 0.5, cy + size * 0.02);
+    ctx.lineTo(cx - size * 0.15, cy + size * 0.34);
+    ctx.lineTo(cx + size * 0.5, cy - size * 0.3);
+    ctx.stroke();
+    ctx.restore();
   }
 
   private drawBestRing(ctx: Ctx, t: number): void {
@@ -641,7 +699,12 @@ export class ReplayScene {
       x += this.text(ctx, this.copy.bandName(band), x, rowY, 36, 600, c, "left");
       const last = this.tl.tiles[this.tl.tiles.length - 1];
       if (this.tl.outcome === "revealed" && last && t >= last.landsAt) {
-        this.text(ctx, "·  " + this.copy.revealed, x + 16, rowY, 36, 600, C.onInkDim, "left", right - x - 16);
+        x += this.text(ctx, "·  " + this.copy.revealed, x + 16, rowY, 36, 600, C.onInkDim, "left", right - x - 16) + 16;
+      }
+      // Practice only: Wick stands on the final tile, so the answer goes up
+      // here too once that tile lands. Both the flag and the word must be set.
+      if (last && t >= last.landsAt && this.tl.showAnswer && this.tl.answer) {
+        this.text(ctx, "·  " + this.tl.answer, x + 16, rowY, 40, 800, C.goldLight, "left", right - x - 16);
       }
       this.drawMeter(ctx, t, best, c);
     } else {
@@ -745,6 +808,10 @@ export class ReplayScene {
     this.text(ctx, this.copy.playFree, 540, 1010, 62, 600, C.onInk, "center", 900);
     this.text(ctx, this.copy.domain, 540, 1120, 108, 800, C.violetLight, "center", 940);
     this.text(ctx, `${this.copy.title}  ·  ${this.copy.stats}`, 540, 1232, 40, 500, C.onInkDim, "center", 900);
+    // Practice only: the answer. Both the flag and the word must be set.
+    if (this.tl.showAnswer && this.tl.answer) {
+      this.text(ctx, this.copy.answerWas(this.tl.answer), 540, 1330, 52, 700, C.goldLight, "center", 900);
+    }
     ctx.restore();
   }
 
@@ -769,6 +836,30 @@ export class ReplayScene {
     ctx.restore();
     w *= k;
     return w;
+  }
+
+  /** A word on a tile: shrink the font from `size` down to `minSize` until it
+   *  fits `maxWidth`; if it still does not fit, cut it and add an ellipsis.
+   *  Works for wide Chinese characters the same as for long Latin words. */
+  private fitText(ctx: Ctx, s: string, x: number, y: number, size: number, minSize: number,
+    weight: number, color: string, maxWidth: number): void {
+    if (!s) return;
+    ctx.save();
+    const fits = (str: string, px: number): boolean => {
+      ctx.font = `${weight} ${px}px ${FONT}`;
+      return ctx.measureText(str).width <= maxWidth;
+    };
+    let px = size;
+    while (px > minSize && !fits(s, px)) px = Math.max(minSize, px - Math.max(1, size * 0.06));
+    let shown = s;
+    if (!fits(shown, px)) {
+      const chars = Array.from(s);
+      let n = chars.length - 1;
+      while (n > 0 && !fits(chars.slice(0, n).join("") + "\u2026", px)) n--;
+      shown = chars.slice(0, Math.max(1, n)).join("") + "\u2026";
+    }
+    ctx.restore();
+    this.text(ctx, shown, x, y, px, weight, color, "center", maxWidth);
   }
 }
 

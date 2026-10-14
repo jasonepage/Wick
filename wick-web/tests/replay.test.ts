@@ -9,9 +9,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  bandForRank, beatEnd, bestRank, buildTimeline, duration, formatRank, guessesShown,
-  makeBoard, meterFill, slotPosition, STANDARD_PACING, totalGuesses, wickTravel,
-  type Pacing, type ReplayEvent, type Timeline,
+  bandForRank, beatEnd, bestRank, buildTimeline, duration, formatRank, guessesShown, isSpoiler,
+  makeBoard, meterFill, slotPosition, SPOILER_RANK_LIMIT, STANDARD_PACING, totalGuesses, wickTravel,
+  type Pacing, type ReplayEvent, type Timeline, type WordPolicy,
 } from "../src/game/replay/timeline.ts";
 
 const g = (rank: number): ReplayEvent => ({ kind: "guess", rank });
@@ -19,8 +19,8 @@ const yes: ReplayEvent = { kind: "question", verdict: { tone: "yes", label: "Yes
 const no: ReplayEvent = { kind: "question", verdict: { tone: "no", label: "No" } };
 const noStretch: Pacing = { ...STANDARD_PACING, minTotal: 0 };
 
-function build(events: ReplayEvent[], outcome: "solved" | "revealed" = "solved", p?: Pacing): Timeline {
-  const tl = buildTimeline(events, outcome, p);
+function build(events: ReplayEvent[], outcome: "solved" | "revealed" = "solved", p?: Pacing, words?: WordPolicy): Timeline {
+  const tl = buildTimeline(events, outcome, p, words);
   assert.ok(tl);
   return tl;
 }
@@ -196,4 +196,74 @@ test("board: snake path, one step per slot, fits the area", () => {
       assert.equal(Math.abs(p.row - q.row) + Math.abs(p.column - q.column), 1);
     }
   }
+});
+
+// ── words and spoilers ──────────────────────────────────────────────────────
+
+const w = (rank: number, label: string, exact = true): ReplayEvent => ({ kind: "guess", rank, label, exact });
+const SECRET = "coral";
+/** A solved round with cold, warm and top-10 guesses, ending on the answer. */
+const solvedRound: ReplayEvent[] = [w(3000, "pebble"), w(400, "reef"), yes, w(11, "kelp"), w(2, "anemone"), w(60, "tide"), w(1, SECRET)];
+const practice: WordPolicy = { showAnswer: true, answer: SECRET };
+
+/** Every string a frame could print from the timeline. */
+function allStrings(tl: Timeline): string[] {
+  const out: string[] = [];
+  for (const t of tl.tiles) if (t.label !== null) out.push(t.label);
+  for (const b of tl.beats) if (b.kind.kind === "keeper") for (const v of b.kind.verdicts) out.push(v.label);
+  if (tl.answer !== null) out.push(tl.answer);
+  return out;
+}
+
+test("the spoiler threshold is the top 10 after the answer", () => {
+  assert.equal(SPOILER_RANK_LIMIT, 11);
+  assert.equal(isSpoiler(1, true), true);
+  assert.equal(isSpoiler(11, true), true);
+  assert.equal(isSpoiler(12, true), false);
+  assert.equal(isSpoiler(0, true), false);
+  // An estimated rank in the boiling band is masked too: it could be the top 10.
+  assert.equal(isSpoiler(15, false), true);
+  assert.equal(isSpoiler(60, false), false);
+});
+
+test("a daily replay never contains the answer and masks the top 10", () => {
+  const tl = build(solvedRound, "solved", STANDARD_PACING);
+  assert.equal(tl.showAnswer, false);
+  assert.equal(tl.answer, null);
+  for (const s of allStrings(tl)) assert.notEqual(s, SECRET);
+  for (const tile of tl.tiles) {
+    if (tile.kind !== "guess") { assert.equal(tile.label, null); continue; }
+    if (tile.rank <= SPOILER_RANK_LIMIT) { assert.equal(tile.label, null); assert.equal(tile.masked, true); }
+    else { assert.equal(tile.masked, false); }
+  }
+  assert.deepEqual(tl.tiles.map((x) => x.label), ["pebble", "reef", null, null, "tide", null]);
+  // Even a policy that shows the answer cannot leak it through the event list by mistake: the
+  // default policy is to hide.
+  assert.equal(buildTimeline(solvedRound, "solved")!.answer, null);
+});
+
+test("a daily reveal never shows the answer either", () => {
+  const tl = build([w(3000, "pebble"), w(5, "kelp")], "revealed", STANDARD_PACING);
+  assert.equal(tl.answer, null);
+  assert.deepEqual(tl.tiles.map((x) => x.label), ["pebble", null, null]);
+  assert.equal(tl.tiles.at(-1)?.masked, true);
+});
+
+test("a practice replay shows every word, the answer on the final tile and the end card", () => {
+  const tl = build(solvedRound, "solved", STANDARD_PACING, practice);
+  assert.equal(tl.showAnswer, true);
+  assert.equal(tl.answer, SECRET);
+  assert.deepEqual(tl.tiles.map((x) => x.label), ["pebble", "reef", "kelp", "anemone", "tide", SECRET]);
+  assert.ok(tl.tiles.every((x) => !x.masked));
+  // The answer comes from the rank-1 event when the policy does not name it.
+  assert.equal(build(solvedRound, "solved", STANDARD_PACING, { showAnswer: true }).answer, SECRET);
+  // A revealed practice round takes the answer from the policy.
+  const rv = build([w(3000, "pebble")], "revealed", STANDARD_PACING, practice);
+  assert.equal(rv.tiles.at(-1)?.label, SECRET);
+  assert.equal(rv.answer, SECRET);
+});
+
+test("Chinese words travel as labels unchanged", () => {
+  const tl = build([w(2000, "石头"), w(300, "珊瑚礁岛"), w(1, "珊瑚")], "solved", STANDARD_PACING, { showAnswer: true });
+  assert.deepEqual(tl.tiles.map((x) => x.label), ["石头", "珊瑚礁岛", "珊瑚"]);
 });
