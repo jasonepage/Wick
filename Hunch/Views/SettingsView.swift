@@ -3,7 +3,10 @@
 //  Hunch
 //
 //  A single, card-styled settings page: language, notifications, and about.
-//  Switching language rebuilds the engine/Keeper and starts a fresh round.
+//  The language picker sets the MENU language; the "Play in X" toggle under it
+//  decides whether the round is played in that language or in English with
+//  meanings shown (the same two controls as the web app). Either change can
+//  rebuild the engine/Keeper and start a fresh round.
 //
 
 import SwiftUI
@@ -29,7 +32,6 @@ struct SettingsView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: HunchTheme.Spacing.l) {
                     languageSection
-                    learnSection
                     feedbackSection
                     if !odrLanguages.isEmpty { dictionariesSection }
                     notificationsSection
@@ -65,19 +67,36 @@ struct SettingsView: View {
                     if lang != GameLanguage.all.first { Divider().padding(.leading, 60) }
                     languageRow(
                         lang,
-                        selected: game.language == lang,
+                        selected: game.uiLanguage == lang,
                         tint: HunchTheme.Palette.keeper
                     ) {
-                        withAnimation(.snappy) { game.setLanguage(lang) }
+                        withAnimation(.snappy) { game.setUILanguage(lang) }
                     }
                 }
             }
             .hunchCard(radius: 18)
-            Text(game.loc.languagePickHint)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .padding(.leading, HunchTheme.Spacing.xs)
+            if game.uiLanguage != .english {
+                VStack(alignment: .leading, spacing: HunchTheme.Spacing.s) {
+                    Toggle(game.loc.setPlayIn(game.uiLanguage.nativeName), isOn: playNativeBinding)
+                        .font(.body.weight(.medium))
+                        .tint(HunchTheme.Palette.keeper)
+                    Text(game.playNative ? game.loc.setPlayInHintOn : game.loc.setPlayInHintOff)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(HunchTheme.Spacing.l)
+                .hunchCard(radius: 18)
+            } else {
+                Text(game.loc.languagePickHint)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .padding(.leading, HunchTheme.Spacing.xs)
+            }
         }
+    }
+
+    private var playNativeBinding: Binding<Bool> {
+        Binding(get: { game.playNative }, set: { on in withAnimation(.snappy) { game.setPlayNative(on) } })
     }
 
     /// One flag-and-name row, shared by the Play and Learn pickers.
@@ -198,39 +217,6 @@ struct SettingsView: View {
         }
     }
 
-    // MARK: - Learn mode
-
-    private var learnSection: some View {
-        VStack(alignment: .leading, spacing: HunchTheme.Spacing.s) {
-            sectionHeader(game.loc.learnTitle, system: "character.book.closed.fill", color: HunchTheme.Palette.solved)
-            VStack(alignment: .leading, spacing: HunchTheme.Spacing.s) {
-                Toggle(game.loc.learnToggle(game.learnLanguage.name(in: game.language)), isOn: learnBinding)
-                    .font(.body.weight(.medium))
-                    .tint(HunchTheme.Palette.solved)
-                if game.learnMode, learnChoices.count > 1 {
-                    Divider()
-                    VStack(spacing: 0) {
-                        ForEach(learnChoices) { lang in
-                            if lang != learnChoices.first { Divider().padding(.leading, 60) }
-                            languageRow(
-                                lang,
-                                selected: game.learnLanguage == lang,
-                                tint: HunchTheme.Palette.solved
-                            ) {
-                                withAnimation(.snappy) { game.setLearnLanguage(lang) }
-                            }
-                        }
-                    }
-                }
-                Text(learnBlurbText)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            .padding(HunchTheme.Spacing.l)
-            .hunchCard(radius: 18)
-        }
-    }
-
     // MARK: - Sound & Haptics
 
     private var feedbackSection: some View {
@@ -248,26 +234,6 @@ struct SettingsView: View {
             .padding(HunchTheme.Spacing.l)
             .hunchCard(radius: 18)
         }
-    }
-
-    /// Languages you can learn: everything except the one you're playing in.
-    private var learnChoices: [GameLanguage] {
-        GameLanguage.all.filter { $0 != game.language }
-    }
-
-    /// The learn blurb with a live example pair (playWord → learnWord),
-    /// pulled from the shared "apple" concept so it's right in any language.
-    private var learnBlurbText: String {
-        let pair = DailyWords.all.first { $0.en == "apple" }
-        return game.loc.learnBlurb(
-            game.learnLanguage.name(in: game.language),
-            pair?.word(for: game.language) ?? "apple",
-            pair?.word(for: game.learnLanguage) ?? "manzana"
-        )
-    }
-
-    private var learnBinding: Binding<Bool> {
-        Binding(get: { game.learnMode }, set: { game.learnMode = $0 })
     }
 
     // MARK: - Notifications

@@ -118,6 +118,31 @@ enum GameLanguage: String, CaseIterable, Codable, Identifiable {
     static let storageKey = "hunch.language"
     /// Persisted LEARN language choice (independent of play since 1.8).
     static let learnStorageKey = "hunch.learnLanguage"
+    /// Persisted MENU (UI) language choice. Since 2.0 this is what the Settings
+    /// picker sets; the play language follows it only when "Play in X" is on.
+    static let uiStorageKey = "hunch.uiLanguage"
+    /// Persisted "Play in X" toggle: true = the round is played in the menu
+    /// language; false = English round, with meanings in the menu language.
+    static let playNativeKey = "hunch.playNative"
+
+    /// The persisted menu language. A player upgrading from a version with a
+    /// single picker keeps what they had: their old play language.
+    static var storedUI: GameLanguage {
+        if let raw = UserDefaults.standard.string(forKey: uiStorageKey),
+           let lang = GameLanguage(rawValue: raw) {
+            return lang
+        }
+        return stored
+    }
+
+    /// The persisted "Play in X" choice. Defaults to true for anyone already
+    /// playing in a non-English language, so an upgrade changes nothing.
+    static var storedPlayNative: Bool {
+        if UserDefaults.standard.object(forKey: playNativeKey) != nil {
+            return UserDefaults.standard.bool(forKey: playNativeKey)
+        }
+        return stored != .english
+    }
 
     /// The persisted play choice if the player has picked one; otherwise the
     /// device language (when we support it), else English.

@@ -55,6 +55,9 @@ final class LiveDuelViewModel: ObservableObject, MatchClientDelegate {
     @Published private(set) var result: MatchResult?
     /// The secret, revealed by the server once the match ends.
     @Published private(set) var revealedWord: String?
+    /// In a cross-language race: the opponent's form of the word and their
+    /// language's name, for the end screen. nil when both played the same language.
+    @Published private(set) var opponentWord: (word: String, language: String)?
     @Published private(set) var banner: String?
 
     /// This device's player id (used to read the winner out of a result).
@@ -178,7 +181,9 @@ final class LiveDuelViewModel: ObservableObject, MatchClientDelegate {
     func matchClientDidOpen() {
         // Queue as soon as the socket is up (with the friend code + create/join
         // intent if this is a private match).
-        client?.queue(mode: requestedMode, friendCode: requestedFriendCode, create: requestedCreate)
+        // Race in the play language: the server pairs across languages and
+        // scores each seat in its own.
+        client?.queue(mode: requestedMode, friendCode: requestedFriendCode, create: requestedCreate, lang: GameLanguage.stored.rawValue)
     }
 
     func matchClient(didReceive frame: ServerFrame) {
@@ -202,7 +207,7 @@ final class LiveDuelViewModel: ObservableObject, MatchClientDelegate {
                 if notAWord {
                     // Not a real word — it never counted; drop it, matching solo.
                     guesses.remove(at: i)
-                    banner = Loc(lang: .stored).liveNotAWord
+                    banner = Loc(lang: .storedUI).liveNotAWord
                     break
                 }
                 guesses[i].warmth = score
@@ -229,13 +234,17 @@ final class LiveDuelViewModel: ObservableObject, MatchClientDelegate {
                 replies[i].pending = false
             }
 
-        case .result(let r, let word):
+        case .result(let r, let word, let words):
+            // What the other seat was hunting, when it was another language.
+            opponentWord = words?.first { $0.value != word }.map { entry in
+                (entry.value, GameLanguage(rawValue: entry.key)?.nativeName ?? entry.key)
+            }
             result = r
             revealedWord = word
             phase = .finished
 
         case .opponentLeft:
-            banner = Loc(lang: .stored).liveOppLeftHangTight
+            banner = Loc(lang: .storedUI).liveOppLeftHangTight
 
         case .error(let code, let message):
             // "already_in_match" is now handled as a resume server-side; never
@@ -249,7 +258,7 @@ final class LiveDuelViewModel: ObservableObject, MatchClientDelegate {
                 return
             }
             if code == "no_such_invite" {
-                banner = Loc(lang: .stored).liveInviteExpired
+                banner = Loc(lang: .storedUI).liveInviteExpired
                 phase = .disconnected
                 return
             }
@@ -262,7 +271,7 @@ final class LiveDuelViewModel: ObservableObject, MatchClientDelegate {
         // A clean close after a result is expected; otherwise we dropped.
         if phase == .searching || phase == .playing {
             phase = .disconnected
-            if banner == nil { banner = Loc(lang: .stored).liveConnectionLost }
+            if banner == nil { banner = Loc(lang: .storedUI).liveConnectionLost }
         }
     }
 
@@ -281,6 +290,7 @@ final class LiveDuelViewModel: ObservableObject, MatchClientDelegate {
         startsAt = nil
         result = nil
         revealedWord = nil
+        opponentWord = nil
         banner = nil
         isHosting = false
     }

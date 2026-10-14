@@ -94,7 +94,7 @@ struct LiveInvite: Identifiable, Equatable {
 
     /// A friendly message to accompany the link in the share sheet (localized).
     var shareMessage: String {
-        let loc = Loc(lang: .stored)
+        let loc = Loc(lang: .storedUI)
         switch mode {
         case .race: return loc.liveShareMsgRace
         }

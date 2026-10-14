@@ -352,6 +352,10 @@ struct Loc {
     var about: String { s("about") }
     var privacyPolicy: String { s("privacyPolicy") }
     var languagePickHint: String { s("languagePickHint") }
+    func setPlayIn(_ name: String) -> String { f("setPlayIn", name) }
+    var setPlayInHintOn: String { s("setPlayInHintOn") }
+    var setPlayInHintOff: String { s("setPlayInHintOff") }
+    func raceTheirWord(_ word: String, _ language: String) -> String { f("raceTheirWord", word, language) }
 
     // MARK: - How to play
     var meetKeeper: String { s("meetKeeper") }
@@ -741,7 +745,11 @@ struct Loc {
         "notifications": "Notifications",
         "about": "About",
         "privacyPolicy": "Privacy Policy",
-        "languagePickHint": "Choose the game's language",
+        "languagePickHint": "Choose the language of the menus.",
+        "setPlayIn": "Play in %@",
+        "raceTheirWord": "They were hunting \u{201C}%@\u{201D} (%@).",
+        "setPlayInHintOn": "The word, your guesses and Wick are all in this language. Turn it off to play in English with meanings shown.",
+        "setPlayInHintOff": "Menus and word meanings only. The word, your guesses and Wick stay in English, so you can learn English as you play. Turn it on to play the round in this language.",
         // How to play
         "meetKeeper": "Meet the Keeper",
         "meetKeeperSub": "It guards the secret word — and warms up as you get close.",
@@ -1074,7 +1082,11 @@ struct Loc {
         "notifications": "Notificaciones",
         "about": "Acerca de",
         "privacyPolicy": "Política de privacidad",
-        "languagePickHint": "Elige el idioma del juego",
+        "languagePickHint": "Elige el idioma de los menús.",
+        "setPlayIn": "Jugar en %@",
+        "raceTheirWord": "Buscaba \u{201C}%@\u{201D} (%@).",
+        "setPlayInHintOn": "La palabra, tus intentos y Wick están en este idioma. Desactívalo para jugar en inglés con los significados a la vista.",
+        "setPlayInHintOff": "Solo menús y significados. La palabra, tus intentos y Wick siguen en inglés, para que aprendas inglés mientras juegas. Actívalo para jugar la ronda en este idioma.",
         // How to play
         "meetKeeper": "Conoce al Guardián",
         "meetKeeperSub": "Custodia la palabra secreta y se calienta a medida que te acercas.",
@@ -1409,7 +1421,11 @@ struct Loc {
         "notifications": "Notifications",
         "about": "À propos",
         "privacyPolicy": "Politique de confidentialité",
-        "languagePickHint": "Choisis la langue du jeu",
+        "languagePickHint": "Choisis la langue des menus.",
+        "setPlayIn": "Jouer en %@",
+        "raceTheirWord": "Il cherchait \u{201C}%@\u{201D} (%@).",
+        "setPlayInHintOn": "Le mot, tes essais et Wick sont dans cette langue. Désactive pour jouer en anglais avec les sens affichés.",
+        "setPlayInHintOff": "Menus et sens des mots seulement. Le mot, tes essais et Wick restent en anglais, pour apprendre l'anglais en jouant. Active pour jouer la manche dans cette langue.",
         // How to play
         "meetKeeper": "Voici le Gardien",
         "meetKeeperSub": "Il garde le mot secret — et se réchauffe quand tu approches.",
@@ -1744,7 +1760,11 @@ struct Loc {
         "notifications": "Notifiche",
         "about": "Informazioni",
         "privacyPolicy": "Informativa sulla privacy",
-        "languagePickHint": "Scegli la lingua del gioco",
+        "languagePickHint": "Scegli la lingua dei menu.",
+        "setPlayIn": "Gioca in %@",
+        "raceTheirWord": "Cercava \u{201C}%@\u{201D} (%@).",
+        "setPlayInHintOn": "La parola, i tuoi tentativi e Wick sono in questa lingua. Disattiva per giocare in inglese con i significati visibili.",
+        "setPlayInHintOff": "Solo menu e significati. La parola, i tuoi tentativi e Wick restano in inglese, così impari l'inglese giocando. Attiva per giocare il round in questa lingua.",
         // How to play
         "meetKeeper": "Ecco il Custode",
         "meetKeeperSub": "Custodisce la parola segreta — e si scalda quando ti avvicini.",
@@ -2078,7 +2098,11 @@ struct Loc {
         "notifications": "Mitteilungen",
         "about": "Über",
         "privacyPolicy": "Datenschutzerklärung",
-        "languagePickHint": "Wähle die Spielsprache",
+        "languagePickHint": "Wähle die Sprache der Menüs.",
+        "setPlayIn": "Auf %@ spielen",
+        "raceTheirWord": "Gesucht wurde \u{201E}%@\u{201C} (%@).",
+        "setPlayInHintOn": "Das Wort, deine Versuche und Wick sind in dieser Sprache. Ausschalten, um auf Englisch mit Bedeutungen zu spielen.",
+        "setPlayInHintOff": "Nur Menüs und Wortbedeutungen. Das Wort, deine Versuche und Wick bleiben auf Englisch, damit du beim Spielen Englisch lernst. Einschalten, um die Runde in dieser Sprache zu spielen.",
         // How to play
         "meetKeeper": "Das ist der Hüter",
         "meetKeeperSub": "Er hütet das geheime Wort – und wird wärmer, je näher du kommst.",

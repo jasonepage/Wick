@@ -32,7 +32,7 @@ struct LiveDuelView: View {
     @Environment(\.dismiss) private var dismiss
 
     /// Localized UI strings for the player's chosen language (3.1).
-    private var loc: Loc { Loc(lang: .stored) }
+    private var loc: Loc { Loc(lang: .storedUI) }
 
     var body: some View {
         NavigationStack {
@@ -441,7 +441,7 @@ struct LiveDuelView: View {
     /// closest guessable word), so this reveals it exactly like the single-player
     /// board (HunchTheme.rankRevealThreshold == 100).
     static func heatLabel(warmth: Double?, rank: Int?, correct: Bool) -> String {
-        if correct { return Loc(lang: .stored).liveSolvedExcl }
+        if correct { return Loc(lang: .storedUI).liveSolvedExcl }
         guard let w = warmth else { return "…" }
         if let rank, rank <= 100 { return "#\(rank)" }
         return HunchTheme.label(for: w)
@@ -531,6 +531,12 @@ struct LiveDuelView: View {
                 VStack(spacing: 2) {
                     Text(loc.liveTheWordWas).font(.subheadline).foregroundStyle(.secondary)
                     Text(word).font(HunchTheme.Fonts.revealWord)
+                    if let theirs = model.opponentWord {
+                        Text(loc.raceTheirWord(theirs.word, theirs.language))
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .padding(.top, 2)
+                    }
                 }
                 .padding(.top, HunchTheme.Spacing.s)
             }

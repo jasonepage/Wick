@@ -106,7 +106,7 @@ enum ServerFrame: Equatable {
     case queued(waitMs: Double)
     case state(StateSnapshot)
     /// The final result, plus the revealed secret (safe: the match has ended).
-    case result(MatchResult, word: String)
+    case result(MatchResult, word: String, words: [String: String]?)
     /// The server's authoritative warmth (0..100) + Contexto rank for a guess.
     case scored(guess: String, score: Double, rank: Int?, notAWord: Bool)
     /// The Keeper's reply to an in-match `ask` (verdict + short persona line).
@@ -127,7 +127,7 @@ enum ServerFrame: Equatable {
         case "state":
             return (try? dec.decode(StateWrap.self, from: data)).map { .state($0.state) }
         case "result":
-            return (try? dec.decode(ResultWrap.self, from: data)).map { .result($0.result, word: $0.word) }
+            return (try? dec.decode(ResultWrap.self, from: data)).map { .result($0.result, word: $0.word, words: $0.words) }
         case "scored":
             return (try? dec.decode(ScoredWrap.self, from: data)).map { .scored(guess: $0.guess, score: $0.score, rank: $0.rank, notAWord: $0.notAWord ?? false) }
         case "answer":
@@ -146,7 +146,9 @@ enum ServerFrame: Equatable {
     private struct TypeProbe: Codable { let t: String }
     private struct QueuedWrap: Codable { let waitMs: Double }
     private struct StateWrap: Codable { let state: StateSnapshot }
-    private struct ResultWrap: Codable { let result: MatchResult; let word: String }
+    /// `words`: the concept in every language the race was played in (keyed by
+    /// language code), so the end screen can show what the other seat hunted.
+    private struct ResultWrap: Codable { let result: MatchResult; let word: String; let words: [String: String]? }
     private struct ScoredWrap: Codable { let guess: String; let score: Double; let rank: Int?; let notAWord: Bool? }
     private struct AnswerWrap: Codable { let question: String; let verdict: String; let reply: String }
     private struct ErrorWrap: Codable { let code: String; let message: String }
@@ -157,7 +159,9 @@ enum ServerFrame: Equatable {
 /// An outbound frame. Mirrors protocol.ts ClientFrame. Encoded by hand so the
 /// wire JSON matches the server's `parseClientFrame` exactly.
 enum ClientFrame {
-    case queue(mode: MatchMode, friendCode: String?, create: Bool?)
+    /// `lang` is the play language the seat hunts the word in; the server races
+    /// two seats with different languages for the same concept. Omitted = English.
+    case queue(mode: MatchMode, friendCode: String?, create: Bool?, lang: String? = nil)
     case guess(_ word: String, warmth: Double?)
     case question(warmth: Double)
     case ask(_ question: String)
@@ -166,10 +170,11 @@ enum ClientFrame {
     func encoded() -> String? {
         var obj: [String: Any]
         switch self {
-        case let .queue(mode, friendCode, create):
+        case let .queue(mode, friendCode, create, lang):
             obj = ["t": "queue", "mode": mode.rawValue]
             if let friendCode { obj["friendCode"] = friendCode }
             if let create { obj["create"] = create }
+            if let lang, lang != "en" { obj["lang"] = lang }
         case let .guess(word, warmth):
             obj = ["t": "guess", "guess": word]
             if let warmth { obj["warmth"] = warmth }

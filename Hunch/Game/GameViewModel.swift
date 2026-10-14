@@ -298,6 +298,50 @@ final class GameViewModel {
         didSet { UserDefaults.standard.set(language.rawValue, forKey: GameLanguage.storageKey) }
     }
 
+    /// The MENU language (persisted): every UI string, verdict badge and hint.
+    /// Matches the web app since 2.0: the Settings picker sets this, and the
+    /// "Play in X" toggle decides whether the round itself is in this language
+    /// or in English with meanings shown (Learn mode) so the player picks up
+    /// English while playing.
+    private(set) var uiLanguage: GameLanguage = GameLanguage.storedUI {
+        didSet { UserDefaults.standard.set(uiLanguage.rawValue, forKey: GameLanguage.uiStorageKey) }
+    }
+
+    /// "Play in X" (persisted). On: the round is played in the menu language.
+    /// Off: an English round with each guess translated into the menu language.
+    private(set) var playNative: Bool = GameLanguage.storedPlayNative {
+        didSet { UserDefaults.standard.set(playNative, forKey: GameLanguage.playNativeKey) }
+    }
+
+    /// Change the menu language. The play language follows the "Play in X"
+    /// choice, so this may also restart the round in a new language.
+    func setUILanguage(_ new: GameLanguage) {
+        guard new != uiLanguage else { return }
+        uiLanguage = new
+        applyLanguageChoice()
+    }
+
+    /// Flip "Play in X" for the current menu language.
+    func setPlayNative(_ on: Bool) {
+        guard on != playNative else { return }
+        playNative = on
+        applyLanguageChoice()
+    }
+
+    /// Make the play language and Learn mode agree with the menu language and
+    /// the "Play in X" toggle. English menus always play in English with no
+    /// Learn mode, exactly as before.
+    private func applyLanguageChoice() {
+        if playNative || uiLanguage == .english {
+            learnMode = false
+            setLanguage(uiLanguage)
+        } else {
+            setLearnLanguage(uiLanguage)
+            learnMode = true
+            setLanguage(.english)
+        }
+    }
+
     /// Learn mode: show each guess (and the revealed answer) translated into the
     /// partner language, so the player picks up vocabulary while playing.
     var learnMode: Bool = UserDefaults.standard.bool(forKey: "hunch.learnMode") {
@@ -543,11 +587,11 @@ final class GameViewModel {
 
     /// Localized label for a canonical verdict token ("Yes"/"No"/"Sort of"/…).
     func displayVerdict(_ token: String) -> String {
-        Self.verdictTables[language]?[token.lowercased()] ?? token
+        Self.verdictTables[uiLanguage]?[token.lowercased()] ?? token
     }
 
-    /// UI string table for the current language.
-    var loc: Loc { Loc(lang: language) }
+    /// UI string table for the MENU language (not the play language).
+    var loc: Loc { Loc(lang: uiLanguage) }
 
     // MARK: - Round setup
 

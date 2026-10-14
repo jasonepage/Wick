@@ -72,8 +72,8 @@ final class MatchClient: NSObject {
     /// `true` = host a fresh invite (server rejects a colliding code with
     /// `code_taken`); `false` = join an existing one (`no_such_invite` if it's dead);
     /// nil = legacy first-hosts/second-joins.
-    func queue(mode: MatchMode, friendCode: String? = nil, create: Bool? = nil) {
-        send(.queue(mode: mode, friendCode: friendCode, create: create))
+    func queue(mode: MatchMode, friendCode: String? = nil, create: Bool? = nil, lang: String? = nil) {
+        send(.queue(mode: mode, friendCode: friendCode, create: create, lang: lang))
     }
 
     func guess(_ word: String, warmth: Double? = nil) {
