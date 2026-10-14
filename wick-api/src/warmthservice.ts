@@ -15,7 +15,7 @@
 //
 
 import { embed, cosine, hasEmbeddings, rankVocabEntries, LruCache } from "./embeddings.js";
-import { normalizeWord } from "./room.js";
+import { normalizeWord, sameWord } from "./room.js";
 import { isRealWord } from "./dictionary.js";
 import type { Lang } from "./lang.js";
 
@@ -157,7 +157,7 @@ export async function warmthScore(
   const s = normalizeWord(secret);
   const g = normalizeWord(guess);
   if (!g) return { score: 0, source: "fallback" };
-  if (s === g) return { score: 100, source: "exact" };
+  if (s === g || sameWord(s, g)) return { score: 100, source: "exact" };
 
   if (hasEmbeddings()) {
     const [es, eg] = await Promise.all([embedder(s), embedder(g)]);

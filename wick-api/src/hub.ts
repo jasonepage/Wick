@@ -16,7 +16,9 @@
 //  with real App Attest verification before production; it is the anti-abuse gate.
 //
 
-import { Room, type MatchMode } from "./room.js";
+import { Room, type MatchMode, type PlayerSeed } from "./room.js";
+import { langOf, type Lang } from "./lang.js";
+import type { MatchWord } from "./words.js";
 import { Matchmaker, type Pairing, type MatchmakerDeps } from "./matchmaker.js";
 import { Bot, type BotConfig } from "./bot.js";
 import { DareRoom, type DareRole, type DareEvent } from "./dare.js";
@@ -44,7 +46,7 @@ export interface HubDeps {
   attest?: (client: Client, frame: ClientFrame) => boolean;
   /** Server-authoritative warmth for a guess → {score 0..100, rank?}. Injected
    *  (server wires the Gemini-backed scorer; tests inject a fake). Default score 0. */
-  scoreWarmth?: (secret: string, guess: string) => Promise<{ score: number; rank?: number }>;
+  scoreWarmth?: (secret: string, guess: string, lang?: Lang) => Promise<{ score: number; rank?: number }>;
   /** Is the setter's word a real word? SYNCHRONOUS on purpose — onDare mutates
    *  pending-dare state and awaiting inside it would let a guesser's frame arrive
    *  before the setter is registered. Injected like scoreWarmth so the hub stays
@@ -53,7 +55,7 @@ export interface HubDeps {
   /** In-match Keeper: answer a yes/no question about the room secret without
    *  leaking it (server wires the Gemini/deterministic Keeper; tests inject a
    *  fake). Default: a polite "unavailable". */
-  answerKeeper?: (secret: string, question: string) => Promise<{ verdict: string; reply: string }>;
+  answerKeeper?: (secret: string, question: string, lang?: Lang, secretEn?: string) => Promise<{ verdict: string; reply: string }>;
   /** Difficulty knobs for the bot fill-in (FR-13). The server tunes the practice
    *  flame to be beatable; omitted → the bot's own DEFAULT_BOT_CONFIG. */
   botConfig?: Partial<BotConfig>;
@@ -66,8 +68,12 @@ interface ActiveRoom {
   room: Room;
   /** Bot seats: playerId → Bot driver. */
   bots: Map<string, Bot>;
-  /** The match secret — held hub-side so warmth can be scored server-authoritatively. */
+  /** The match secret (English form), held hub-side so warmth can be scored server-authoritatively. */
   secret: string;
+  /** The same concept in every language, for seats that hunt it in their own. */
+  words: MatchWord;
+  /** Each seat's language ("en" for bots and clients that sent none). */
+  langs: Map<string, Lang>;
   /** The match mode, kept so a resuming/reconnecting client can be re-`paired`. */
   mode: MatchMode;
 }
@@ -76,12 +82,16 @@ export class MatchHub {
   private readonly mm: Matchmaker;
   private readonly now: () => number;
   private readonly attest: (client: Client, frame: ClientFrame) => boolean;
-  private readonly scoreWarmth: (secret: string, guess: string) => Promise<{ score: number; rank?: number }>;
+  private readonly scoreWarmth: (secret: string, guess: string, lang?: Lang) => Promise<{ score: number; rank?: number }>;
   private readonly isPlayableSecret: (word: string) => boolean;
   private readonly answerKeeper: (
     secret: string,
     question: string,
+    lang?: Lang,
+    secretEn?: string,
   ) => Promise<{ verdict: string; reply: string }>;
+  /** The language each connected client last queued with. */
+  private readonly clientLang = new Map<string, Lang>();
   private readonly botConfig?: Partial<BotConfig>;
   private readonly metrics: Metrics;
 
@@ -135,6 +145,7 @@ export class MatchHub {
 
   disconnect(client: Client): void {
     this.clients.delete(client.id);
+    this.clientLang.delete(client.id);
     // In a live dare? End it (no reconnect grace for dares in v1) and notify.
     const dareId = this.playerDare.get(client.id);
     if (dareId) {
@@ -167,6 +178,7 @@ export class MatchHub {
     }
     switch (frame.t) {
       case "queue":
+        this.clientLang.set(client.id, langOf(frame.lang));
         this.onQueue(client, frame.mode, frame.friendCode, frame.create);
         return;
       case "dare":
@@ -369,10 +381,12 @@ export class MatchHub {
     }
     const playerId = client.id;
     const roomId = ar.room.roomId;
+    const lang = ar.langs.get(playerId) ?? "en";
+    const secret = ar.room.secretFor(playerId);
     // 0) Reject non-words (typo/keyboard mash) before they count — the guess must
-    //    be a real word, unless it exactly matches the secret. Matches iOS + web
-    //    single-player. The client removes the guess on `notAWord`.
-    if (guess.trim().toLowerCase() !== ar.secret.trim().toLowerCase() && !isRealWord(guess)) {
+    //    be a real word in the seat's language, unless it exactly matches the
+    //    secret. Matches iOS + web single-player. The client removes the guess on `notAWord`.
+    if (guess.trim().toLowerCase() !== secret.trim().toLowerCase() && !isRealWord(guess, lang)) {
       client.send({ t: "scored", guess, score: 0, notAWord: true });
       return;
     }
@@ -385,7 +399,7 @@ export class MatchHub {
     //    out: update the room's progress (opponent sees it) and tell the guesser
     //    their own score via `scored`.
     if (ar.room.isActive()) {
-      void this.scoreWarmth(ar.secret, guess).then(({ score, rank }) => {
+      void this.scoreWarmth(secret, guess, lang).then(({ score, rank }) => {
         const cur = this.rooms.get(roomId);
         if (!cur || !cur.room.isActive()) return;
         this.dispatch(
@@ -420,7 +434,7 @@ export class MatchHub {
       return;
     }
     const playerId = client.id;
-    void this.answerKeeper(ar.secret, question).then(({ verdict, reply }) => {
+    void this.answerKeeper(ar.room.secretFor(playerId), question, ar.langs.get(playerId) ?? "en", ar.secret).then(({ verdict, reply }) => {
       // The player may have finished/left while the Keeper was thinking.
       this.clients.get(playerId)?.send({ t: "answer", question, verdict, reply });
     });
@@ -475,11 +489,19 @@ export class MatchHub {
 
   private startMatch(pairing: Pairing): void {
     const now = this.now();
+    // Each human seat hunts the concept in the language it queued with; bots
+    // and ghosts play the English form.
+    const langs = new Map<string, Lang>();
+    const seats = pairing.players.map((seat) => {
+      const lang = seat.kind === "human" ? (this.clientLang.get(seat.id) ?? "en") : "en";
+      langs.set(seat.id, lang);
+      return { ...seat, secret: pairing.words[lang] };
+    }) as [PlayerSeed, PlayerSeed];
     const room = new Room({
       roomId: pairing.roomId,
       mode: pairing.mode,
       secret: pairing.secret,
-      players: pairing.players,
+      players: seats,
       now,
     });
     const bots = new Map<string, Bot>();
@@ -493,7 +515,7 @@ export class MatchHub {
         this.playerRoom.set(seat.id, pairing.roomId);
       }
     }
-    this.rooms.set(pairing.roomId, { room, bots, secret: pairing.secret, mode: pairing.mode });
+    this.rooms.set(pairing.roomId, { room, bots, secret: pairing.secret, words: pairing.words, langs, mode: pairing.mode });
 
     // Tell each human seat it's paired, then send the opening state.
     for (const seat of pairing.players) {
@@ -533,9 +555,14 @@ export class MatchHub {
           break;
         }
         case "ended": {
-          // The match is over → reveal the word in the result (safe now).
+          // The match is over → reveal the word in the result (safe now). Each
+          // seat gets the word as it hunted it, plus every language in play so
+          // the end screen can show what the other player was chasing.
+          const played = new Set(ar.langs.values());
+          const words: Record<string, string> = {};
+          for (const l of played) words[l] = ar.words[l];
           for (const id of ar.room.playerIds()) {
-            this.clients.get(id)?.send({ t: "result", result: ev.result, word: ar.secret });
+            this.clients.get(id)?.send({ t: "result", result: ev.result, word: ar.room.secretFor(id), words });
           }
           this.cleanupRoom(roomId);
           break;

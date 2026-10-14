@@ -145,8 +145,9 @@ export class WickMatchClient {
    *  `true` = host a fresh invite (server rejects a colliding code with `code_taken`);
    *  `false` = join an existing one (server replies `no_such_invite` if it's dead);
    *  omitted = legacy first-hosts/second-joins. */
-  queue(mode: MatchMode, friendCode?: string, create?: boolean): void {
+  queue(mode: MatchMode, friendCode?: string, create?: boolean, lang?: string): void {
     const frame: QueueFrame = { t: "queue", mode };
+    if (lang && lang !== "en") frame.lang = lang;
     if (friendCode) frame.friendCode = friendCode;
     if (create !== undefined) frame.create = create;
     this.send(frame);

@@ -8,7 +8,9 @@
 //  iOS: only the daily feeds stats). Fully on-device; no network, no new storage keys.
 //
 
-const DAILY_KEY_RE = /^wick\.daily\.(\d+)$/;
+// `wick.daily.<n>` is the English round; `wick.daily.<n>.<lang>` a round played in
+// another language. A puzzle counts once: solved if any language solved it.
+const DAILY_KEY_RE = /^wick\.daily\.(\d+)(?:\.[a-z]{2})?$/;
 
 export interface DailyStat {
   puzzleNumber: number;
@@ -70,8 +72,13 @@ export function readDailyStats(): DailyStat[] {
       /* skip a malformed row */
     }
   }
-  out.sort((a, b) => b.puzzleNumber - a.puzzleNumber);
-  return out;
+  // One row per puzzle, preferring a solved round, then the one with guesses.
+  const byPuzzle = new Map<number, DailyStat>();
+  for (const s of out) {
+    const cur = byPuzzle.get(s.puzzleNumber);
+    if (!cur || (s.solved && !cur.solved) || (!cur.solved && !cur.revealed && s.guessCount > cur.guessCount)) byPuzzle.set(s.puzzleNumber, s);
+  }
+  return [...byPuzzle.values()].sort((a, b) => b.puzzleNumber - a.puzzleNumber);
 }
 
 const BUCKETS: ReadonlyArray<{ label: string; lo: number; hi: number }> = [

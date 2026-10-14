@@ -21,12 +21,14 @@ export async function fetchWarmth(
   httpBase: string,
   secret: string,
   guess: string,
+  /** The round's play language; the server ranks against that language's list. */
+  lang: string = "en",
 ): Promise<WarmthResult | "not_a_word" | null> {
   try {
     const res = await fetch(`${httpBase}/warmth`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ secret, guess }),
+      body: JSON.stringify({ secret, guess, lang }),
     });
     if (!res.ok) return null;
     const json = (await res.json()) as { score?: unknown; rank?: unknown; notAWord?: unknown };
@@ -79,12 +81,16 @@ export async function askKeeper(
   httpBase: string,
   secret: string,
   question: string,
+  /** The round's play language, plus the English form of the secret so the
+   *  server's deterministic engine can still answer the suggested questions. */
+  lang: string = "en",
+  secretEn?: string,
 ): Promise<KeeperReply | null> {
   try {
     const res = await fetch(`${httpBase}/keeper`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ secret, question }),
+      body: JSON.stringify({ secret, question, lang, secretEn }),
     });
     if (!res.ok) return null;
     const json = (await res.json()) as { verdict?: unknown; reply?: unknown };

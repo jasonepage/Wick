@@ -22,6 +22,7 @@
 //
 
 import type { MatchMode, PlayerSeed } from "./room.js";
+import { toMatchWord, type MatchWord } from "./words.js";
 import { Metrics } from "./metrics.js";
 
 /** A formed match the server should turn into a Room (and, if `botSeed` is set,
@@ -29,8 +30,11 @@ import { Metrics } from "./metrics.js";
 export interface Pairing {
   roomId: string;
   mode: MatchMode;
-  /** The answer for this match, from the injected word provider. Held server-side. */
+  /** The answer for this match, from the injected word provider. Held server-side.
+   *  This is the ENGLISH form; `words` carries the same concept in every language
+   *  so each seat can hunt it in its own (hub.ts picks per seat). */
   secret: string;
+  words: MatchWord;
   /** Exactly two seats with honesty labels (FR-13/C9). */
   players: [PlayerSeed, PlayerSeed];
   /** Present iff one seat is a bot — the deterministic seed for its play. */
@@ -65,8 +69,9 @@ export const DEFAULT_MATCHMAKER_CONFIG: MatchmakerConfig = {
 
 export interface MatchmakerDeps {
   /** Supplies the secret word for a new match. The server injects this so the
-   *  word pool lives outside this module. */
-  wordProvider: () => string;
+   *  word pool lives outside this module. A bare string is one word in every
+   *  language; a MatchWord carries the concept in all five. */
+  wordProvider: () => string | MatchWord;
   /** Unique room id per match. Defaults to a deterministic counter (tests);
    *  production injects a random/opaque id. */
   roomIdProvider?: () => string;
@@ -92,7 +97,7 @@ interface FriendRoom {
 
 export class Matchmaker {
   readonly config: MatchmakerConfig;
-  private readonly wordProvider: () => string;
+  private readonly wordProvider: () => string | MatchWord;
   private readonly nextRoomId: () => string;
   private readonly nextBotSeed: () => number;
   private readonly metrics: Metrics;
@@ -334,10 +339,12 @@ export class Matchmaker {
     players: [PlayerSeed, PlayerSeed];
     withBot?: boolean;
   }): Pairing {
+    const words = toMatchWord(this.wordProvider());
     const pairing: Pairing = {
       roomId: this.nextRoomId(),
       mode: args.mode,
-      secret: this.wordProvider(),
+      secret: words.en,
+      words,
       players: args.players,
       origin: args.origin,
     };

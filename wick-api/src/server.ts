@@ -302,8 +302,9 @@ app.get("/debug/keeper", async (c) => {
   if (!DEBUG_TOKEN || c.req.query("token") !== DEBUG_TOKEN) return c.json({ error: "forbidden" }, 403);
   const secret = c.req.query("secret") ?? "library";
   const q = c.req.query("q") ?? "is it alive?";
-  const result = await keeperAnswer(secret, q);
-  return c.json({ secret, question: q, ...result });
+  const lang = langOf(c.req.query("lang"));
+  const result = await keeperAnswer(secret, q, undefined, lang, c.req.query("secretEn"));
+  return c.json({ secret, lang, question: q, ...result });
 });
 
 // The Keeper: answer a yes/no question about the secret without revealing it
@@ -361,7 +362,13 @@ app.post("/keeper", async (c) => {
   if (secret.length > 64 || question.length > 280) {
     return c.json({ error: "too_long" }, 400);
   }
-  const result = await keeperAnswer(secret, question);
+  // A round in another language sends { lang, secretEn }: the secret in that
+  // language plus its English form, so the deterministic engine (keyed by
+  // English words) can still answer the suggested questions.
+  const lang = langOf((body as { lang?: unknown }).lang);
+  const secretEnRaw = (body as { secretEn?: unknown }).secretEn;
+  const secretEn = typeof secretEnRaw === "string" && secretEnRaw.length <= 64 ? secretEnRaw : undefined;
+  const result = await keeperAnswer(secret, question, undefined, lang, secretEn);
   return c.json(result); // { verdict, reply, source }
 });
 
@@ -457,8 +464,9 @@ const hub = new MatchHub({
   metrics, // 3.1 invite-funnel counters, shared with the matchmaker
   // attest: (client, frame) => verifyAppAttest(...)  // future identity layer (FR-16)
   // Server-authoritative warmth for live matches (Gemini embeddings, C8).
-  scoreWarmth: async (secret, guess) => {
-    const r = await warmthScore(secret, guess);
+  scoreWarmth: async (secret, guess, lang = "en") => {
+    touchLang(lang);
+    const r = await warmthScore(secret, guess, undefined, lang);
     return { score: r.score, rank: r.rank };
   },
   // Gate on the SETTER's word before a Dare can start. Synchronous dictionary
@@ -466,8 +474,8 @@ const hub = new MatchHub({
   // which the client calls while the setter is still typing.
   isPlayableSecret: (word) => isRealWord(word),
   // In-match Keeper: leak-proof yes/no answers on the room secret (FR-19).
-  answerKeeper: async (secret, question) => {
-    const r = await keeperAnswer(secret, question);
+  answerKeeper: async (secret, question, lang = "en", secretEn) => {
+    const r = await keeperAnswer(secret, question, undefined, lang, secretEn);
     return { verdict: r.verdict, reply: r.reply };
   },
   // Practice flame: never solves — it warms up and applies light pressure, but

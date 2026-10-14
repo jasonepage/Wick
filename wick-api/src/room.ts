@@ -67,6 +67,10 @@ export interface PlayerSeed {
   id: PlayerId;
   /** "human" for a live person; "bot"/"ghost" for a disclosed fill-in (FR-13, C9). */
   kind: OpponentKind;
+  /** The form of the secret THIS seat is hunting, when it differs from the
+   *  room's `secret` (a Spanish player racing an English one for the same
+   *  concept). Omitted = the room secret. Never exposed. */
+  secret?: string;
 }
 
 export interface RoomSeed {
@@ -173,6 +177,13 @@ export function normalizeWord(w: string): string {
     .toLocaleLowerCase();
 }
 
+/** Same word, ignoring accents: "oceano" solves "océano", "strasse" solves
+ *  "straße". Phones often drop accents, and the English rounds are unaffected. */
+export function sameWord(a: string, b: string): boolean {
+  const fold = (s: string) => normalizeWord(s).normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/ß/g, "ss");
+  return fold(a) === fold(b);
+}
+
 function clamp01(x: number): number {
   if (Number.isNaN(x)) return 0;
   if (x < 0) return 0;
@@ -193,6 +204,8 @@ export class Room {
   readonly t0Wall: number;
 
   private readonly secret: string; // never exposed
+  /** Per-seat form of the secret, for cross-language races. Never exposed. */
+  private readonly secrets = new Map<PlayerId, string>();
   private readonly players: [PlayerState, PlayerState];
   private status: RoomStatus = "active";
   private result: MatchResult | null = null;
@@ -210,6 +223,15 @@ export class Room {
     this.t0Wall = seed.now;
     this.secret = normalizeWord(seed.secret);
     this.players = [makePlayer(seed.players[0]), makePlayer(seed.players[1])];
+    for (const p of seed.players) {
+      const own = normalizeWord(p.secret ?? "");
+      if (own.length > 0) this.secrets.set(p.id, own);
+    }
+  }
+
+  /** The secret as this seat hunts it (its own language), else the room's. */
+  secretFor(playerId: PlayerId): string {
+    return this.secrets.get(playerId) ?? this.secret;
   }
 
   // ── Queries ────────────────────────────────────────────────────────────────
@@ -258,7 +280,7 @@ export class Room {
       p.bestWarmth = Math.max(p.bestWarmth, clamp01(args.warmth));
     }
 
-    const correct = normalizeWord(args.guess) === this.secret;
+    const correct = sameWord(args.guess, this.secretFor(args.playerId));
     if (correct && p.solvedAtMs === null) {
       p.solvedAtMs = args.now - this.t0Wall;
       p.bestWarmth = 1; // solving is maximal warmth

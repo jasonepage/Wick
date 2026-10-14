@@ -32,6 +32,7 @@ import { dailyStarters, starterText, type StarterItem } from "./game/starters.ts
 import { play as playSound, playGuessTone, soundEnabled, setSoundEnabled, armAudioUnlock } from "./game/sound.ts";
 import { t, getLang, setLang, LANGS, LANG_LABEL } from "./i18n.ts";
 import { loadGloss, guessGloss, answerGloss, withGloss } from "./game/gloss.ts";
+import { playLang, playNative, setPlayNative, canPlayNative, type PlayLang } from "./game/playlang.ts";
 import type { Lang } from "./i18n.ts";
 import { toDataURL as qrToDataURL } from "qrcode";
 
@@ -81,6 +82,9 @@ const sp = {
   secret: "",
   /** The pool entry behind `secret`, for its meaning in the menu language. */
   secretWord: null as DailyWord | null,
+  /** The language this round is played in (playlang.ts). "en" unless the
+   *  player chose to play in their menu language. */
+  lang: "en" as PlayLang,
   puzzleNumber: 0,
   guesses: [] as Guess[],
   replies: [] as SoloReply[],
@@ -135,7 +139,9 @@ function setSoloSort(hottest: boolean): void {
 }
 
 // ── daily persistence (localStorage) — your daily round survives a reload/exit ──
-function dailyKey(n: number): string { return `wick.daily.${n}`; }
+/** English rounds keep the historic key; a round in another language gets its
+ *  own, so playing today in Spanish does not overwrite the English round. */
+function dailyKey(n: number, lang: PlayLang = sp.lang): string { return lang === "en" ? `wick.daily.${n}` : `wick.daily.${n}.${lang}`; }
 function saveDaily(): void {
   if (sp.mode !== "daily") return;
   try {
@@ -342,6 +348,13 @@ function screenSettings(): void {
     onclick: () => { setSoundEnabled(!soundEnabled()); rerender(screenSettings); },
   }, [soundEnabled() ? t("setOn") : t("setOff")]);
 
+  // Play the round itself in the menu language (es/fr/it/de), or in English
+  // with meanings shown (the learning mode). Takes effect on the next round.
+  const playNativeToggle = el("button", {
+    class: `toggle ${playNative() ? "on" : ""}`,
+    onclick: () => { setPlayNative(!playNative()); rerender(screenSettings); },
+  }, [playNative() ? t("setOn") : t("setOff")]);
+
   const notifSupported = typeof Notification !== "undefined";
   const timeInput = el("input", { class: "field time", type: "time", value: reminderTime() });
   timeInput.addEventListener("change", () => setReminder(reminderOn(), timeInput.value));
@@ -373,7 +386,10 @@ function screenSettings(): void {
     el("p", { class: "hint" }, [t("setSoundHint")]),
     el("div", { class: "lbl" }, [t("langLabel")]),
     langPicker(),
-    el("p", { class: "hint" }, [t("setLangHint")]),
+    ...(canPlayNative() ? [
+      el("div", { class: "set-row" }, [el("span", { class: "set-label" }, [t("setPlayIn", LANG_LABEL[getLang()])]), playNativeToggle]),
+      el("p", { class: "hint" }, [playNative() ? t("setPlayInHintOn") : t("setPlayInHintOff")]),
+    ] : [el("p", { class: "hint" }, [t("setLangHint")])]),
     el("div", { class: "lbl" }, [t("setReminder")]),
     el("div", { class: "set-row" }, [el("span", { class: "set-label" }, [t("setRemindMe")]), reminderToggle]),
   ];
@@ -455,6 +471,11 @@ function clear(_hint?: "light" | "dark"): void {
 }
 function normalize(w: string): string {
   return w.normalize("NFC").trim().replace(/\s+/g, " ").toLocaleLowerCase();
+}
+/** Same word ignoring accents, matching the server: "oceano" solves "océano". */
+function sameWord(a: string, b: string): boolean {
+  const fold = (s: string) => normalize(s).normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/ß/g, "ss");
+  return fold(a) === fold(b);
 }
 
 // ── invite links (3.1) ───────────────────────────────────────────────────────
@@ -598,7 +619,8 @@ function toast(msg: string): void {
 function enterDailyPuzzle(puzzleNumber: number, word: DailyWord): void {
   track("daily_start", { n: puzzleNumber });
   sp.mode = "daily";
-  sp.secret = wordText(word, "en");
+  sp.lang = playLang();
+  sp.secret = wordText(word, sp.lang);
   sp.secretWord = word;
   sp.puzzleNumber = puzzleNumber;
   const saved = loadDaily(sp.puzzleNumber);
@@ -614,7 +636,7 @@ function enterDailyPuzzle(puzzleNumber: number, word: DailyWord): void {
   // Finish scoring any guess that was still "…" when the tab closed.
   for (const g of sp.guesses) {
     if (!g.correct && g.warmth === null) {
-      fetchWarmth(httpBase, sp.secret, g.word).then((r) => applyGuessWarmth(g, r));
+      fetchWarmth(httpBase, sp.secret, g.word, sp.lang).then((r) => applyGuessWarmth(g, r));
     }
   }
 }
@@ -660,7 +682,8 @@ function startPractice(): void {
   const picked = randomPracticeAt();
   const w: DailyWord = picked.word;
   sp.mode = "practice";
-  sp.secret = wordText(w, "en");
+  sp.lang = playLang();
+  sp.secret = wordText(w, sp.lang);
   sp.secretWord = w;
   sp.puzzleNumber = 0;
   sp.guesses = [];
@@ -675,7 +698,12 @@ function startPractice(): void {
 }
 
 function looksLikeQuestion(s: string): boolean {
-  if (s.endsWith("?")) return true;
+  if (s.endsWith("?") || s.startsWith("¿")) return true;
+  if (/\s/.test(s.trim())) {
+    // More than one word in a round played in another language is a question,
+    // never a guess: a guess is always a single word.
+    if (sp.lang !== "en") return true;
+  }
   return /^(is|are|does|do|can|could|will|would|has|have|had|was|were|should|am|whats|what|why|how|who|whom|where|when|which|any)\b/i.test(s);
 }
 
@@ -684,8 +712,8 @@ function showKeeper(verdict: string, reply: string): void {
   if (!box) return;
   const kind = verdict.toLowerCase().replace(/[^a-z]/g, "");
   const children: (Node | string)[] = [];
-  if (verdict) children.push(el("span", { class: `kbadge ${kind}` }, [verdict]));
-  children.push(el("span", { class: "kreply" }, [reply]));
+  if (verdict) children.push(el("span", { class: `kbadge ${kind}` }, [verdictLabel(verdict)]));
+  if (reply) children.push(el("span", { class: "kreply" }, [reply]));
   // A rejected / invalid input ("Won't say") gets the unimpressed grey "-_-" Wick;
   // anything else gets the normal resting Wick.
   const neutral = kind === "wontsay";
@@ -815,7 +843,7 @@ function askSolo(text: string): void {
   sp.replies.unshift(r);
   showKeeper("", "Wick is thinking…");
   renderSolo();
-  askKeeper(httpBase, sp.secret, q).then((ans) => {
+  askKeeper(httpBase, sp.secret, q, sp.lang, sp.secretWord?.en).then((ans) => {
     if (ans) { r.verdict = ans.verdict; r.reply = ans.reply; showKeeper(ans.verdict, ans.reply); }
     else { r.reply = "Wick is quiet right now."; showKeeper("", "Wick is quiet right now."); }
     saveDaily();
@@ -1109,7 +1137,8 @@ function startGhostRace(run: GhostRun): void {
     const w = practiceAt(run.ref);
     if (!w) { toast(t("raceUnavailable")); goHome(); return; }
     sp.mode = "practice";
-    sp.secret = wordText(w, "en");
+    sp.lang = playLang();
+    sp.secret = wordText(w, sp.lang);
     sp.secretWord = w;
     sp.puzzleNumber = 0;
     sp.guesses = [];
@@ -1175,13 +1204,13 @@ function screenSolo(): void {
     if (!text || sp.solved || sp.revealed) return;
 
     // A question → ask the Keeper (Gemini). A word → a guess.
-    if (looksLikeQuestion(text) && normalize(text) !== normalize(sp.secret)) {
+    if (looksLikeQuestion(text) && !sameWord(text, sp.secret)) {
       input.value = "";
       askSolo(text);
       return;
     }
 
-    const correct = normalize(text) === normalize(sp.secret);
+    const correct = sameWord(text, sp.secret);
     const g: Guess = { word: text, warmth: correct ? 1 : null, correct, ...stampAction() }; // null = scoring…
     sp.guesses.unshift(g);
     if (correct) {
@@ -1193,7 +1222,7 @@ function screenSolo(): void {
     renderSolo();
     saveDaily();
     if (!correct) {
-      fetchWarmth(httpBase, sp.secret, text).then((r) => applyGuessWarmth(g, r, true));
+      fetchWarmth(httpBase, sp.secret, text, sp.lang).then((r) => applyGuessWarmth(g, r, true));
     }
   };
   input.addEventListener("keydown", (e) => { if (e.key === "Enter") submit(); });
@@ -1403,7 +1432,7 @@ function renderSolo(): void {
         actions.push(el("button", { class: `btn ${hasMap ? "secondary" : "primary"}`, onclick: startPractice }, [t("newWord")]));
       }
       latestEl.replaceChildren(
-        el("span", { class: "word" }, [`${t("solvedTitle")} ${t("theWordWas")} "${withGloss(sp.secret, answerGloss(sp.secretWord, getLang()))}".`]),
+        el("span", { class: "word" }, [`${t("solvedTitle")} ${t("theWordWas")} "${withGloss(sp.secret, soloAnswerMeaning())}".`]),
         ...(banner ? [banner] : []),
         el("div", { class: "row-actions" }, actions),
       );
@@ -1435,7 +1464,7 @@ function renderSolo(): void {
         actions.push(el("button", { class: `btn ${hasMap ? "secondary" : "primary"}`, onclick: startPractice }, [t("newWord")]));
       }
       latestEl.replaceChildren(
-        el("span", { class: "word reveal" }, [`${t("theWordWas")} "${withGloss(sp.secret, answerGloss(sp.secretWord, getLang()))}".`]),
+        el("span", { class: "word reveal" }, [`${t("theWordWas")} "${withGloss(sp.secret, soloAnswerMeaning())}".`]),
         ...(banner ? [banner] : []),
         el("div", { class: "row-actions" }, actions),
       );
@@ -1543,11 +1572,18 @@ function sortGuessesHottest(gs: Guess[]): Guess[] {
   });
 }
 
+/** The Keeper's verdict is an English tag on the wire; show it in the menu language. */
+function verdictLabel(v: string): string {
+  const key = "verdict." + v;
+  const s = t(key);
+  return s === key ? v : s;
+}
+
 function questionRowEl(r: SoloReply): HTMLElement {
   const kind = r.verdict.toLowerCase().replace(/[^a-z]/g, "");
   return el("li", { class: "qrow" }, [
     el("div", { class: "qtop" }, [
-      r.verdict ? el("span", { class: `kbadge ${kind}` }, [r.verdict]) : el("span", { class: "qmark" }, ["🔥"]),
+      r.verdict ? el("span", { class: `kbadge ${kind}` }, [verdictLabel(r.verdict)]) : el("span", { class: "qmark" }, ["🔥"]),
       el("span", { class: "qtext" }, [r.question]),
     ]),
     ...(r.reply ? [el("div", { class: "qreply" }, [r.reply])] : []),
@@ -1709,7 +1745,7 @@ function startLive(mode: MatchMode, friendCode?: string, create?: boolean, opts?
     // bot-fills it instead of waiting for the shared start.
     query: opts?.fillNow ? { fill: "now" } : undefined,
     handlers: {
-      onOpen: () => live.client?.queue(mode, friendCode, create),
+      onOpen: () => live.client?.queue(mode, friendCode, create, playLang()),
       onPaired: (f) => { live.opponentKind = f.opponentKind; screenMatch(); },
       // Use the duration, not the server's wall time, so a skewed clock can't
       // show a countdown that is already over or an hour long.
@@ -1732,7 +1768,7 @@ function startLive(mode: MatchMode, friendCode?: string, create?: boolean, opts?
         const r = live.replies.find((x) => x.question === f.question && x.pending);
         if (r) { r.verdict = f.verdict; r.reply = f.reply; r.pending = false; renderMatch(); }
       },
-      onResult: (f) => screenResult(f.result, f.word),
+      onResult: (f) => screenResult(f.result, f.word, f.words),
       onOpponentLeft: () => { live.opponentLeft = true; renderMatch(); },
       onError: (e) => handleLiveError(e, create),
       onClose: ({ clean }) => { if (!clean && !live.snapshot) showError("Lost connection to the server."); },
@@ -1895,7 +1931,7 @@ function renderMatch(): void {
   }
 }
 
-function screenResult(result: MatchResult, word?: string): void {
+function screenResult(result: MatchResult, word?: string, words?: Record<string, string>): void {
   clear("dark");
   const me = result.players.find((p) => p.id === live.kid);
   const youWon = result.winner === live.kid;
@@ -1924,6 +1960,9 @@ function screenResult(result: MatchResult, word?: string): void {
     const w = el("p", { class: "reveal-word" }, [word]);
     w.style.color = revealColor;
     reveal.append(w);
+    // A cross-language race: show what the other player was hunting.
+    const theirs = words ? Object.entries(words).find(([, v]) => v !== word) : undefined;
+    if (theirs) reveal.append(el("p", { class: "center muted reveal-label" }, [t("raceTheirWord", theirs[1], LANG_LABEL[theirs[0] as Lang] ?? theirs[0])]));
   }
 
   app.append(
@@ -1988,12 +2027,21 @@ function showError(message: string): void {
 }
 
 // ── shared ──
+/** The answer's meaning for the solved/revealed line: the menu-language word
+ *  when playing in English, the English word when playing in another language. */
+function soloAnswerMeaning(): string | null {
+  if (sp.lang === "en") return answerGloss(sp.secretWord, getLang());
+  return sp.secretWord ? sp.secretWord.en : null;
+}
+
 function guessRowEl(g: Guess): HTMLElement {
   const pending = g.warmth === null;
   const fill = el("i");
   fill.style.width = pending ? "0%" : `${Math.round(g.warmth! * 100)}%`;
   if (!pending) fill.style.background = scoreColor(g.warmth! * 100);
-  const meaning = guessGloss(g.word, getLang());
+  // Meanings help a learner playing in English. In a round played in the
+  // menu language the guesses already are that language, so nothing to add.
+  const meaning = sp.lang === "en" ? guessGloss(g.word, getLang()) : null;
   return el("li", { class: "guess-item" }, [
     el("span", { class: "gw" }, meaning ? [g.word, el("small", { class: "gm" }, [` · ${meaning}`])] : [g.word]),
     el("span", { class: "gb" }, [fill]),

@@ -14,6 +14,10 @@ import type { DareRole, DareSnapshot, DareResult } from "./dare.js";
 export interface QueueFrame {
   t: "queue";
   mode: MatchMode;
+  /** The language this player hunts the word in: "en" (default), "es", "fr",
+   *  "it" or "de". Two players with different languages still race the same
+   *  concept; each is scored in their own. */
+  lang?: string;
   /** Optional private friend code (FR-9). */
   friendCode?: string;
   /** Invite intent for a friend code (3.1 links). `true` = CREATE/host a fresh
@@ -103,8 +107,12 @@ export interface ResultFrame {
   t: "result";
   result: MatchResult;
   /** The secret, revealed ONLY here — the match is over, so it's safe to show
-   *  (leak-proofing applies during play; the end screen reveals the word). */
+   *  (leak-proofing applies during play; the end screen reveals the word).
+   *  This is the word as THIS player hunted it (their language). */
   word: string;
+  /** The same concept in every language the race was played in, keyed by
+   *  language, so the end screen can show what the opponent was hunting. */
+  words?: Record<string, string>;
 }
 
 export interface OpponentLeftFrame {

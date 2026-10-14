@@ -110,11 +110,11 @@ requests except the in-memory match rooms and the embedding cache.
 | Route | Body | Returns | What it is for |
 |---|---|---|---|
 | `POST /warmth` | `{ secret, guess, lang? }` | `{ score, rank, source, lang }` | Score one guess. `source` is `rank`, `embeddings`, `exact` or `fallback` (no key). `lang` is `en` (default), `es`, `fr`, `it` or `de`: it picks the reference vocabulary the guess is ranked against and the real-word gate. |
-| `POST /keeper` | `{ secret, question }` | `{ verdict, reply, source }` | Ask the Keeper. The reply is scrubbed of the secret before it leaves. |
+| `POST /keeper` | `{ secret, question, lang?, secretEn? }` | `{ verdict, reply, source }` | Ask the Keeper. The reply is scrubbed of the secret before it leaves. For a round in another language send `lang` and the English form as `secretEn`; the verdict stays an English tag, the reply comes back in that language. |
 | `POST /validate-word` | `{ word }` | `{ ok, verdict }` | May this word be a Race secret? Checks the dictionary and that it embeds cleanly. |
 | `POST /reveal` | `{ guesses: [{ word, score }] }` | `{ points }` | The reveal map: a 2D layout of your guesses around the answer. Only words you sent come back. |
 | `POST /event` | `{ name, ... }` | `{ ok }` | A short allowlist of product events. Ids are hashed on arrival. |
-| `WS /match?kid=` | frames in `protocol.ts` | frames | Live Race. Up: `queue`, `guess`, `question`, `heartbeat`. Down: `paired`, `state`, `scored`, `result`. |
+| `WS /match?kid=` | frames in `protocol.ts` | frames | Live Race. Up: `queue` (with an optional `lang`), `guess`, `question`, `heartbeat`. Down: `paired`, `state`, `scored`, `result`. Two players with different languages race the same concept, each hunting and scored in their own; `result` carries every language in play. |
 | `GET /p/:code`, `/r/:run`, `/d/:code` | | HTML | Share links. An installed app opens them via Universal Links; a browser gets a preview page that bounces into the web game. No link ever carries a word. |
 | `GET /healthz` | | JSON | Readiness, including whether the rank vocabulary has finished embedding. |
 
