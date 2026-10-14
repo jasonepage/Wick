@@ -373,6 +373,7 @@ function screenSettings(): void {
     el("p", { class: "hint" }, [t("setSoundHint")]),
     el("div", { class: "lbl" }, [t("langLabel")]),
     langPicker(),
+    el("p", { class: "hint" }, [t("setLangHint")]),
     el("div", { class: "lbl" }, [t("setReminder")]),
     el("div", { class: "set-row" }, [el("span", { class: "set-label" }, [t("setRemindMe")]), reminderToggle]),
   ];

@@ -126,6 +126,15 @@ def pick(word, table):
         return None
     return best.replace("_", " ")
 
+# Hand fixes for picks that come out wrong (a WordNet number sense, a missing
+# everyday word). Add to these as native speakers report them.
+OVERRIDES = {
+    "es": {"pie": "pastel", "dice": "dados", "once": "una vez"},
+    "fr": {"four": "quatre", "pie": "tarte"},
+    "it": {"cane": "canna", "pie": "torta"},
+    "de": {"pie": "Kuchen"},
+}
+
 def build(lang, table):
     out = {}
     for w in sorted(want):
@@ -135,6 +144,7 @@ def build(lang, table):
         g = pick(base, table)
         if g:
             out[w] = g
+    out.update(OVERRIDES.get(lang, {}))
     # Daily answers use the pool's own translation, so the row matches the solved screen.
     for e in pool:
         out[e["en"].lower()] = e[lang]
@@ -182,6 +192,7 @@ for w in sorted(want):
         for sid in en_senses[base]:
             known.update(l.lower() for l in odenet.get(en_ili.get(sid, ""), []))
     out[w] = max(c, key=lambda x: (c[x] + (5 if x.lower() in known else 0), " " not in x, -len(x)))
+out.update(OVERRIDES["de"])
 for e in pool:
     out[e["en"].lower()] = e["de"]
 dest = HERE / "../public/gloss/de.json"
