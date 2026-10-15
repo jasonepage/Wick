@@ -195,13 +195,20 @@ export class AlertHub {
     const { registry, push, now } = this.deps;
     if (!registry || !push) return;
     const t = now();
-    if (t - this.lastAt[kind] < this.cfg.cooldownMs[kind]) return;
+    if (t - this.lastAt[kind] < this.cfg.cooldownMs[kind]) {
+      console.log(`[wick-api] push ${kind}: in cooldown, ${Math.round((this.cfg.cooldownMs[kind] - (t - this.lastAt[kind])) / 1000)} s left`);
+      return;
+    }
     const subs = registry.wanting(kind, exceptKid);
-    if (subs.length === 0) return;
+    if (subs.length === 0) {
+      console.log(`[wick-api] push ${kind}: nobody wants it (${registry.size} phones registered)`);
+      return;
+    }
     this.lastAt[kind] = t;
     for (const s of subs) {
       const copy = pushCopy(kind, n, s.lang);
       void push(s.token, { ...copy, collapseId: `wick-${kind}`, ttlSeconds: 600, link: this.cfg.link }).then((r) => {
+        console.log(`[wick-api] push ${kind} to ${s.token.slice(0, 6)}…: ${r}`);
         if (r === "ok") this.stats.sent++;
         else if (r === "bad_token") { registry.remove(s.token); this.stats.dropped++; }
         else this.stats.failed++;

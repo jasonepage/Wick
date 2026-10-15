@@ -353,6 +353,7 @@ app.post("/push/register", async (c) => {
     { token?: unknown; kid?: unknown; lang?: unknown; kinds?: unknown } | null;
   const kinds = pushRegistry.upsert({ token: body?.token, kid: body?.kid, lang: body?.lang, kinds: body?.kinds ?? [] });
   if (!kinds) return c.json({ ok: false, reason: "bad_request" }, 400);
+  console.log(`[wick-api] push register: ${[...kinds].join(",") || "none"} (${pushRegistry.size} phones)`);
   return c.json({ ok: true, kinds: [...kinds] });
 });
 
