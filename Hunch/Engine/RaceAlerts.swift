@@ -84,8 +84,12 @@ final class RaceAlerts {
     }
 
     /// The app came to the foreground: make sure iOS still has a token for us
-    /// (they can change) and tell the server what this phone wants.
+    /// (they can change) and tell the server what this phone wants. Always
+    /// resends, because the server forgets every phone when it restarts and
+    /// the app has no way to know that happened. One tiny request per
+    /// foreground is the price.
     func refresh(lang: String = GameLanguage.storedUI.rawValue) {
+        lastSent = nil
         if !kinds.isEmpty { requestToken() }
         sync(lang: lang)
     }
