@@ -2,7 +2,17 @@
   "name": "wick-web",
   "version": "0.1.0",
   "private": true,
-  "description": "Wick web client (phase 3, milestone 1) — browser live-match client that talks to wick-api. Vite + TypeScript.",
+  "description": "Wick web game: the daily puzzle, practice and live races in the browser. Vite and TypeScript, no framework.",
+  "license": "MPL-2.0",
+  "homepage": "https://guesswick.com",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jasonepage/Wick.git",
+    "directory": "wick-web"
+  },
+  "bugs": {
+    "url": "https://github.com/jasonepage/Wick/issues"
+  },
   "type": "module",
   "scripts": {
     "dev": "vite",

@@ -7,6 +7,7 @@
 <p align="center"><b>A daily word game where you guess by meaning, not spelling.</b></p>
 
 <p align="center">
+  <a href="https://github.com/jasonepage/Wick/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/jasonepage/Wick/actions/workflows/ci.yml/badge.svg"></a>
   <a href="LICENSE"><img alt="MPL 2.0" src="https://img.shields.io/badge/license-MPL_2.0-8C6A2B"></a>
   <img alt="iOS 17" src="https://img.shields.io/badge/iOS-17%2B-1A1714">
   <img alt="SwiftUI" src="https://img.shields.io/badge/SwiftUI-NaturalLanguage-F05138">
@@ -20,7 +21,8 @@
   <a href="https://apps.apple.com/app/id6777743483">App Store</a> ·
   <a href="https://guesswick.com/marketing/">Website</a> ·
   <a href="https://guesswick.com/marketing/privacy.html">Privacy</a> ·
-  <a href="https://github.com/jasonepage/Wick/issues">Report a bug</a>
+  <a href="https://github.com/jasonepage/Wick/issues/new/choose">Report a bug</a> ·
+  <a href="CONTRIBUTING.md">Contribute</a>
 </p>
 
 ---
@@ -49,13 +51,14 @@ environment. This repository is all three parts.
 
 | | |
 |---|---|
-| Stage | Live. Version 3.3 on the [App Store](https://apps.apple.com/app/id6777743483) and at [guesswick.com](https://guesswick.com). |
+| Stage | Live. Version 3.3 on the [App Store](https://apps.apple.com/app/id6777743483) and at [guesswick.com](https://guesswick.com). Version 3.4 (Solve Replay, play in five languages) is on `main`; see the [changelog](CHANGELOG.md). |
 | Team | One developer. No company, no funding. |
 | Platforms | iPhone, iOS 17 and later. Any modern browser. No Android app; the web game is the Android answer. |
 | Server | One Node process on Render, in memory, no database. Self-hostable with your own Gemini key. |
 | Accounts | None. No logins, no tracking, no ads. Single-player stats live on your device. |
 | Price | Free. Optional coin packs on iOS for extra hints. |
-| Dependencies | Server: Hono, ws, word-list. Web: Vite, qrcode. iOS: Apple frameworks only. |
+| Dependencies | Server: Hono, ws, word-list. Web: qrcode, Mediabunny, built with Vite. iOS: Apple frameworks only. |
+| Tests | More than 200 server tests and 30 web tests, run by GitHub Actions on every push and pull request. iOS tests run in Xcode. |
 
 ## What it looks like
 
@@ -116,6 +119,8 @@ requests except the in-memory match rooms and the embedding cache.
 | `POST /event` | `{ name, ... }` | `{ ok }` | A short allowlist of product events. Ids are hashed on arrival. |
 | `WS /match?kid=` | frames in `protocol.ts` | frames | Live Race. Up: `queue` (with an optional `lang`), `guess`, `question`, `heartbeat`. Down: `paired`, `state`, `scored`, `result`. Two players with different languages race the same concept, each hunting and scored in their own; `result` carries every language in play. |
 | `GET /p/:code`, `/r/:run`, `/d/:code` | | HTML | Share links. An installed app opens them via Universal Links; a browser gets a preview page that bounces into the web game. No link ever carries a word. |
+| `GET /live` | | `{ racing, waiting }` | How many people are racing or waiting right now, for the Race screen. Bots are not counted. Cached for five seconds. |
+| `GET /metrics` | | JSON | In-memory counters for the share and invite funnel. Cleared on restart. |
 | `GET /healthz` | | JSON | Readiness, including whether the rank vocabulary has finished embedding. |
 
 The web client imports its wire types straight from `wick-api/src/protocol.ts`
@@ -156,6 +161,7 @@ touching anything that scores. If you want to help, that is the place.
 | `ODRResources/` | Core ML embedding models for Spanish, French, Italian and German, loaded on demand |
 | `wick-api/src/` | `server.ts` routes, `warmthservice.ts` scoring, `embeddings.ts` Gemini, `hub.ts` and `room.ts` matches, `bot.ts` the practice opponent |
 | `wick-web/src/` | `main.ts` the app, `game/daily.ts` the seeded daily, `net/` the client |
+| `.github/` | CI, issue forms, pull request template, Dependabot |
 | `debug/` | The embedding build pipeline (`embeddings/`), a load tester, a Python port of the Keeper's rule table |
 | `docs/` | The GitHub Pages site, diagrams, screenshots, and `wick/CROSS_PLATFORM.md` |
 
@@ -222,12 +228,23 @@ Google's documented pattern for this API.
 ## Contributing
 
 Pull requests are welcome for bugs, tests, languages and documentation.
-`npm test` in `wick-api` runs 196 tests and should stay green. Keep new
-Swift and TypeScript files under the MPL notice, and do not add a server
-dependency without a reason: there are four, and that is on purpose.
+Native speakers are especially welcome: the Race word pool's Spanish, French,
+Italian, German and Chinese translations are a first draft.
 
-A bug that lets someone learn the secret word without guessing it is worth
-an issue marked `security` before anything else.
+| | |
+|---|---|
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Setup, the checks to run, the rules that keep the game fair, and how pull requests work |
+| [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) | Contributor Covenant 2.1 |
+| [SUPPORT.md](SUPPORT.md) | Where players and developers can get help |
+| [CHANGELOG.md](CHANGELOG.md) | What changed in each version |
+| [PRIVACY.md](PRIVACY.md) | What leaves the device, and when |
+
+## Security
+
+A bug that lets someone learn the secret word without guessing it is the most
+important kind of bug in Wick. Please report it, and any other security
+problem, **privately** as described in [SECURITY.md](SECURITY.md), not in a
+public issue.
 
 ## License
 

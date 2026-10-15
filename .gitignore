@@ -41,6 +41,8 @@ dist/
 coverage/
 *.log
 wick-api/public/
+# Vite and Vitest temp files left by an interrupted run
+*.timestamp-*.mjs
 
 # Python helpers in debug/
 __pycache__/

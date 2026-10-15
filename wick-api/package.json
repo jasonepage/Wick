@@ -2,7 +2,17 @@
   "name": "wick-api",
   "version": "0.1.0",
   "private": true,
-  "description": "Wick 3.0 backend — free live multiplayer (match server, matchmaking, bots) + OG share preview. Phase 1.",
+  "description": "Wick server: scores guesses for the web game, answers the Keeper, runs live races, and serves guesswick.com.",
+  "license": "MPL-2.0",
+  "homepage": "https://guesswick.com",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jasonepage/Wick.git",
+    "directory": "wick-api"
+  },
+  "bugs": {
+    "url": "https://github.com/jasonepage/Wick/issues"
+  },
   "type": "module",
   "engines": {
     "node": ">=22.9"
