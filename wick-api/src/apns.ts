@@ -53,10 +53,20 @@ function b64url(data: Buffer | string): string {
   return Buffer.from(data).toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
-/** The .p8 key text as given, or with "\n" written out, turned into a key. */
+/**
+ * The .p8 key text, however it was pasted, turned into a key. A host's env
+ * box may fold the file onto one line, turn its newlines into spaces or the
+ * two characters "\n", or wrap it in quotes. So this keeps only the base64
+ * between the BEGIN and END lines (or the whole text when the lines are
+ * missing) and rebuilds a clean PEM from it.
+ */
 export function parseKey(pem: string): KeyObject {
-  const text = pem.includes("\\n") ? pem.replace(/\\n/g, "\n") : pem;
-  return createPrivateKey({ key: text.trim(), format: "pem" });
+  let text = pem.trim().replace(/^["']|["']$/g, "").replace(/\\n/g, "\n");
+  const m = /-----BEGIN[^-]*-----([\s\S]*?)-----END[^-]*-----/.exec(text);
+  const body = (m ? m[1]! : text).replace(/[^A-Za-z0-9+/=]/g, "");
+  const lines = body.match(/.{1,64}/g) ?? [];
+  text = `-----BEGIN PRIVATE KEY-----\n${lines.join("\n")}\n-----END PRIVATE KEY-----\n`;
+  return createPrivateKey({ key: text, format: "pem" });
 }
 
 /** The bearer token APNs wants: ES256 over {kid} and {iss, iat}. Pure. */

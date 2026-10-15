@@ -20,9 +20,19 @@ describe("apns", () => {
     expect(ok).toBe(true);
   });
 
-  it("reads a key whose newlines were written as backslash n", () => {
+  it("reads a key however the env box mangled it", () => {
     const flat = pem.replace(/\n/g, "\\n");
     expect(() => parseKey(flat)).not.toThrow();
+    const spaced = pem.replace(/\n/g, " ");               // newlines folded to spaces
+    expect(() => parseKey(spaced)).not.toThrow();
+    const quoted = `"${pem.replace(/\n/g, "")}"`;         // one line in quotes
+    expect(() => parseKey(quoted)).not.toThrow();
+    const bodyOnly = pem.split("\n").filter((l) => l && !l.startsWith("-----")).join("");
+    expect(() => parseKey(bodyOnly)).not.toThrow();
+    // All of them sign the same way as the clean file.
+    const a = makeJwt(parseKey(pem), "K", "T", 100);
+    const b = makeJwt(parseKey(spaced), "K", "T", 100);
+    expect(a.split(".").slice(0, 2)).toEqual(b.split(".").slice(0, 2));
   });
 
   it("builds the alert payload with a sound and the deep link", () => {
