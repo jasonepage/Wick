@@ -1,17 +1,18 @@
-# Dependabot: one grouped update a month per folder, so a one person project
-# is not flooded with pull requests. Security updates still arrive right away
-# when "Dependabot security updates" is turned on in the repository settings.
-
+# Dependabot: small updates only (no major versions), once a month,
+# one grouped pull request per folder.
 version: 2
 updates:
   - package-ecosystem: npm
     directory: /wick-api
     schedule:
       interval: monthly
-    open-pull-requests-limit: 2
+    open-pull-requests-limit: 1
     groups:
       server-dependencies:
         patterns: ["*"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
     commit-message:
       prefix: "Server"
 
@@ -19,10 +20,13 @@ updates:
     directory: /wick-web
     schedule:
       interval: monthly
-    open-pull-requests-limit: 2
+    open-pull-requests-limit: 1
     groups:
       web-dependencies:
         patterns: ["*"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
     commit-message:
       prefix: "Web"
 
@@ -33,5 +37,8 @@ updates:
     groups:
       actions:
         patterns: ["*"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
     commit-message:
       prefix: "CI"
