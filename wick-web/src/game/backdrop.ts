@@ -27,8 +27,9 @@
 //  brightens on the beat, the downbeat of each bar hits a little harder, and on
 //  kiai (the last minute) the embers rise faster, glow bigger and the warmth
 //  wash pulses. The beat comes from music.ts, read off the audio clock each
-//  frame, and the same numbers go out as CSS variables (--beat, --energy,
-//  --flash on <html>) so any element can pulse too.
+//  frame, and the same numbers go out as CSS variables (--beat, --down,
+//  --energy, --flash on <html>) so any element can pulse too. Light mode has
+//  no particle field, so its beat is a warm glow in CSS (.backdrop::after).
 //
 //  Cheap on purpose: particle count scales with viewport area but is hard-capped,
 //  the loop stops when the tab is hidden, and Reduce Motion gets a single static
@@ -98,6 +99,7 @@ function mountEmbers(canvas: HTMLCanvasElement): void {
     rootStyle.setProperty("--beat", off ? "0" : beat.toFixed(3));
     rootStyle.setProperty("--energy", off ? "0" : energy.toFixed(3));
     rootStyle.setProperty("--flash", off ? "0" : flash.toFixed(3));
+    rootStyle.setProperty("--down", off ? "0" : down.toFixed(3));
   }
 
   function newEmber(scatter: boolean): Particle {

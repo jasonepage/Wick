@@ -693,7 +693,7 @@ a.btn { display: block; box-sizing: border-box; text-align: center; text-decorat
 /* Dark screens carry it as a glow; light screens as a pastel tint, which is the
    same split iOS makes between systemBackground in each appearance. */
 .theme-dark  .backdrop .heat { mix-blend-mode: screen; opacity: calc(var(--heat-a, 0) * 0.34 + var(--beat, 0) * var(--energy, 0) * 0.12 + var(--flash, 0) * 0.3); }
-.theme-light .backdrop .heat { mix-blend-mode: multiply; opacity: calc(var(--heat-a, 0) * 0.78); }
+.theme-light .backdrop .heat { mix-blend-mode: multiply; opacity: calc(var(--heat-a, 0) * 0.78 + var(--beat, 0) * (0.06 + var(--energy, 0) * 0.14)); }
 @media (prefers-reduced-motion: reduce) { .backdrop .heat { transition: none; } }
 
 /* A soft vignette keeps text legible over the busiest blobs. */
@@ -858,7 +858,20 @@ a.btn { display: block; box-sizing: border-box; text-align: center; text-decorat
 }
 .hero { box-shadow: 0 0 calc(var(--beat, 0) * var(--energy, 0) * 28px) rgba(255, 140, 70, calc(var(--energy, 0) * 0.35)); }
 #clock { transform: scale(calc(1 + var(--beat, 0) * var(--energy, 0) * 0.08)); }
+/* Light mode has no stars or embers, so the beat lives in a warm glow instead:
+   it breathes on each beat once the riser builds, and flares when kiai drops.
+   Opacity only, so it costs nothing to animate. */
+.backdrop::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none; opacity: 0;
+  background:
+    radial-gradient(90vmax 60vmax at 50% -10%, rgba(var(--p-hot), 0.55), transparent 70%),
+    radial-gradient(80vmax 50vmax at 50% 115%, rgba(var(--p-boiling), 0.45), transparent 70%);
+}
+.theme-light .backdrop::after {
+  opacity: calc(var(--beat, 0) * var(--energy, 0) * 0.22 + var(--down, 0) * 0.05 + var(--flash, 0) * 0.5);
+}
 @media (prefers-reduced-motion: reduce) {
   .hero .mascot-wrap svg, #clock { transform: none; }
   .hero { box-shadow: none; }
+  .theme-light .backdrop::after { opacity: 0; }
 }
