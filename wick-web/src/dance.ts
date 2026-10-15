@@ -35,7 +35,13 @@ const GREEN = "#00ff00";
 const SCALE = 6;
 const FEET_Y = H * 0.62;
 
-type Section = "chill" | "drop" | "kiai";
+type Section = "chill" | "drop" | "kiai" | "race";
+
+/** A whole race: 5 minutes. The riser starts on the first bar line after 1:05
+ *  is left (3:56) and kiai lands at 4:00, like music.ts schedules it. */
+const RACE_BARS = 150;
+const RACE_RISER_AT = 236;
+const RACE_KIAI_AT = 240;
 
 interface Plan {
   mood: WickMood;
@@ -59,9 +65,10 @@ function readPlan(): Plan {
   let bars = Math.max(1, Math.min(64, Math.round(Number($<HTMLInputElement>("bars").value) || 8)));
   // The drop needs 2 bars of chill, the 2 bar riser, and at least 2 bars of kiai.
   if (section === "drop" && bars < 6) { bars = 6; $<HTMLInputElement>("bars").value = "6"; }
+  if (section === "race") { bars = RACE_BARS; $<HTMLInputElement>("bars").value = String(RACE_BARS); }
   const green = $<HTMLSelectElement>("background").value === "green";
-  const riserAt = section === "drop" ? 2 * BAR : section === "kiai" ? -10 : null;
-  const kiaiAt = section === "drop" ? 4 * BAR : section === "kiai" ? -10 : null;
+  const riserAt = section === "drop" ? 2 * BAR : section === "race" ? RACE_RISER_AT : section === "kiai" ? -10 : null;
+  const kiaiAt = section === "drop" ? 4 * BAR : section === "race" ? RACE_KIAI_AT : section === "kiai" ? -10 : null;
   return { mood, section, bars, seconds: bars * BAR, riserAt, kiaiAt, green };
 }
 
@@ -145,7 +152,7 @@ async function mixMusic(plan: Plan): Promise<AudioBuffer> {
     const chillGain = ac.createGain();
     chillGain.connect(out);
     loop(chill, chillGain, 0);
-    if (plan.section === "drop" && plan.riserAt !== null && plan.kiaiAt !== null) {
+    if ((plan.section === "drop" || plan.section === "race") && plan.riserAt !== null && plan.kiaiAt !== null) {
       const r = ac.createBufferSource();
       r.buffer = riser;
       r.connect(out);
