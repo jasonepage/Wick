@@ -6,7 +6,11 @@ numbers.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased] (iOS 3.4)
+## [Unreleased]
+
+Nothing yet.
+
+## [3.4] - 2026-10-14
 
 ### Added
 
@@ -34,9 +38,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - The web Wick now moves by mood, like the iOS app.
 - Marketing pages use the app icon and the Wick violet accent.
 
-## 2026-10-08: Public source release (iOS 3.3)
+## [3.3] - October 2026
 
-The code was published under the Mozilla Public License 2.0.
+The source code was published on GitHub under the Mozilla Public License 2.0
+on 2026-10-08, ahead of this release.
 
 ### Added
 
@@ -57,4 +62,6 @@ The code was published under the Mozilla Public License 2.0.
 - The Dare mode, so Race and the daily puzzle get the attention.
 - Ready-made starter questions on the web board.
 
-[Unreleased]: https://github.com/jasonepage/Wick/commits/main
+[Unreleased]: https://github.com/jasonepage/Wick/compare/v3.4...main
+[3.4]: https://github.com/jasonepage/Wick/releases/tag/v3.4
+[3.3]: https://apps.apple.com/app/id6777743483

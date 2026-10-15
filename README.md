@@ -51,7 +51,7 @@ environment. This repository is all three parts.
 
 | | |
 |---|---|
-| Stage | Live. Version 3.3 on the [App Store](https://apps.apple.com/app/id6777743483) and at [guesswick.com](https://guesswick.com). Version 3.4 (Solve Replay, play in five languages) is on `main`; see the [changelog](CHANGELOG.md). |
+| Stage | Live. Version 3.4 on the [App Store](https://apps.apple.com/app/id6777743483) and at [guesswick.com](https://guesswick.com). See the [changelog](CHANGELOG.md) for what changed. |
 | Team | One developer. No company, no funding. |
 | Platforms | iPhone, iOS 17 and later. Any modern browser. No Android app; the web game is the Android answer. |
 | Server | One Node process on Render, in memory, no database. Self-hostable with your own Gemini key. |
