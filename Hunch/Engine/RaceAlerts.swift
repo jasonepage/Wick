@@ -72,7 +72,7 @@ final class RaceAlerts {
             Task {
                 let ok = await HunchNotifications.requestPermission()
                 if ok {
-                    UIApplication.shared.registerForRemoteNotifications()
+                    requestToken()
                     sync()
                 } else {
                     store(kind, false)
@@ -83,13 +83,31 @@ final class RaceAlerts {
         }
     }
 
+    /// The app came to the foreground: make sure iOS still has a token for us
+    /// (they can change) and tell the server what this phone wants.
+    func refresh(lang: String = GameLanguage.storedUI.rawValue) {
+        if !kinds.isEmpty { requestToken() }
+        sync(lang: lang)
+    }
+
     // MARK: - Device token
 
-    /// iOS gave us a token (AppDelegate). Tokens can change, so always resend.
+    /// Ask iOS for a push token. The answer comes back through the app
+    /// delegate as `tokenReceived`. NEVER call this from `sync` or from
+    /// `tokenReceived`: on a release build iOS answers at once, and asking
+    /// again from the answer spins forever (that was a crash in 3.5's first
+    /// TestFlight build).
+    private func requestToken() {
+        UIApplication.shared.registerForRemoteNotifications()
+    }
+
+    /// iOS gave us a token (AppDelegate). A changed token is sent again.
     func tokenReceived(_ data: Data) {
         let hex = data.map { String(format: "%02x", $0) }.joined()
-        defaults.set(hex, forKey: tokenKey)
-        lastSent = nil
+        if hex != token {
+            defaults.set(hex, forKey: tokenKey)
+            lastSent = nil
+        }
         sync()
     }
 
@@ -98,14 +116,16 @@ final class RaceAlerts {
     // MARK: - Server
 
     /// Tell the server what this phone wants. Safe to call often: it skips a
-    /// repeat of what was last sent. The app calls it on every foreground.
+    /// repeat of what was last sent, and it never asks iOS for anything.
     func sync(lang: String = GameLanguage.storedUI.rawValue) {
         guard let token, let base = LiveConfig.httpBase else { return }
         let kinds = wantedKinds.map(\.rawValue)
         let body: [String: Any] = ["token": token, "kid": LiveConfig.kid, "lang": lang, "kinds": kinds]
         let signature = "\(token)|\(lang)|\(kinds.joined(separator: ","))"
         guard signature != lastSent else { return }
-        if !kinds.isEmpty { UIApplication.shared.registerForRemoteNotifications() }
+        // Marked as sent before the request goes out, so a slow or failing
+        // server can never cause a second request for the same thing.
+        lastSent = signature
         var req = URLRequest(url: base.appendingPathComponent("push/register"))
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -114,11 +134,11 @@ final class RaceAlerts {
         Task {
             do {
                 let (_, response) = try await URLSession.shared.data(for: req)
-                if let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) {
-                    lastSent = signature
+                if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
+                    lastSent = nil   // the next foreground tries again
                 }
             } catch {
-                // Offline or the server is asleep: the next foreground tries again.
+                lastSent = nil       // offline or the server is asleep: try again next time
             }
         }
     }

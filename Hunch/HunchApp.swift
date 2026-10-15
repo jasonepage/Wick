@@ -38,7 +38,7 @@ struct HunchApp: App {
                         game.refreshReminders()
                         // The server keeps race alert registrations in memory,
                         // so tell it again what this phone wants.
-                        RaceAlerts.shared.sync(lang: game.uiLanguage.rawValue)
+                        RaceAlerts.shared.refresh(lang: game.uiLanguage.rawValue)
                     @unknown default:
                         break
                     }
