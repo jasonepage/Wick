@@ -23,6 +23,7 @@ struct SettingsView: View {
     @AppStorage("hunch.music") private var musicOn = true
 
     @State private var showHowTo = false
+    @State private var alerts = RaceAlerts.shared
 
     private var appVersion: String {
         (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? "1.0"
@@ -261,7 +262,37 @@ struct SettingsView: View {
             }
             .padding(HunchTheme.Spacing.l)
             .hunchCard(radius: 18)
+
+            // Race alerts: pushes from the server when there is someone to race.
+            sectionHeader(game.loc.raceAlerts, system: "flag.checkered", color: HunchTheme.Palette.keeper)
+            VStack(alignment: .leading, spacing: HunchTheme.Spacing.s) {
+                Toggle(game.loc.alertWaiting, isOn: alertBinding(.waiting))
+                    .font(.body.weight(.medium))
+                    .tint(HunchTheme.Palette.keeper)
+                Divider()
+                Toggle(game.loc.alertBusy, isOn: alertBinding(.busy))
+                    .font(.body.weight(.medium))
+                    .tint(HunchTheme.Palette.keeper)
+                Divider()
+                Toggle(game.loc.alertSurge, isOn: alertBinding(.surge))
+                    .font(.body.weight(.medium))
+                    .tint(HunchTheme.Palette.keeper)
+                Text(game.loc.raceAlertsBlurb)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(HunchTheme.Spacing.l)
+            .hunchCard(radius: 18)
         }
+    }
+
+    /// One race alert kind. Reads the stored choice; writing asks the server
+    /// (and iOS, the first time) through RaceAlerts.
+    private func alertBinding(_ kind: RaceAlerts.Kind) -> Binding<Bool> {
+        Binding(
+            get: { alerts.wants(kind) },
+            set: { on in alerts.set(kind, on: on) }
+        )
     }
 
     // MARK: - About

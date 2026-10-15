@@ -302,6 +302,13 @@ struct Loc {
     var dailyReminder: String { s("dailyReminder") }
     var time: String { s("time") }
     var reminderBlurb: String { s("reminderBlurb") }
+    // Race alerts (push from the server). English only for now; other
+    // languages fall back to it.
+    var raceAlerts: String { s("raceAlerts") }
+    var alertWaiting: String { s("alertWaiting") }
+    var alertBusy: String { s("alertBusy") }
+    var alertSurge: String { s("alertSurge") }
+    var raceAlertsBlurb: String { s("raceAlertsBlurb") }
     /// Notification copy. Written in the player's IN-APP language (see
     /// `HunchNotifications`), never the device language.
     var notifDailyTitle: String { s("notifDailyTitle") }
@@ -715,6 +722,11 @@ struct Loc {
         "dailyReminder": "Daily reminder",
         "time": "Time",
         "reminderBlurb": "A gentle nudge when each day's word is ready.",
+        "raceAlerts": "Race alerts",
+        "alertWaiting": "Someone is waiting for a race",
+        "alertBusy": "The race queue is busy",
+        "alertSurge": "Unusually many people playing",
+        "raceAlertsBlurb": "A push from Wick when there is someone to race. At most one of each an hour or so, and never about your own wait.",
         "notifDailyTitle": "Today's word is ready",
         "notifDailyBody": "Wick is guarding a new one. Think you can get it?",
         "notifStreakTitle": "Your flame is about to go out",

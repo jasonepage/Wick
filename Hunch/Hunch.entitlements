@@ -22,5 +22,11 @@
 	     list. Until then every call there fails silently and nothing breaks. -->
 	<key>com.apple.developer.game-center</key>
 	<true/>
+	<!-- Apple push, for RaceAlerts.swift (race alerts from the server). Needs
+	     the Push Notifications capability on the App ID (Signing & Capabilities
+	     → + Capability → Push Notifications). Xcode switches this to
+	     "production" when archiving. -->
+	<key>aps-environment</key>
+	<string>development</string>
 </dict>
 </plist>

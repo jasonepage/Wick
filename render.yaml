@@ -46,4 +46,14 @@ services:
       # wick-api/.env.example). Works like a password; set it in the dashboard.
       - key: WICK_NTFY_TOPIC
         sync: false
+      # Optional: Apple push for players' race alerts (see wick-api/.env.example).
+      # The key is a secret; paste the .p8 text with newlines written as \n.
+      - key: WICK_APNS_KEY
+        sync: false
+      - key: WICK_APNS_KEY_ID
+        sync: false
+      - key: WICK_APNS_TEAM_ID
+        sync: false
+      - key: WICK_APNS_BUNDLE_ID
+        sync: false
       # PORT is provided by Render automatically; the server reads process.env.PORT.

@@ -664,7 +664,7 @@ describe("invite funnel telemetry (3.1)", () => {
 
 describe("queue alert hook (3.5)", () => {
   function hubWithHook() {
-    const calls: { lang: string; waiting: number }[] = [];
+    const calls: { lang: string; waiting: number; playerId: string }[] = [];
     const hub = new MatchHub({
       now: () => clock.t,
       matchmaker: {
@@ -687,7 +687,7 @@ describe("queue alert hook (3.5)", () => {
     const a = new Fake("A");
     hub.connect(a);
     hub.receive(a, { t: "queue", mode: "casual", lang: "es" });
-    expect(calls).toEqual([{ lang: "es", waiting: 1 }]);
+    expect(calls).toEqual([{ lang: "es", waiting: 1, playerId: "A" }]);
   });
 
   it("does not fire for a friend code room", () => {

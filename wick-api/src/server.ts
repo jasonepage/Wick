@@ -31,7 +31,10 @@ import { RateLimiter } from "./ratelimit.js";
 import { isAllowedOrigin, parseOrigins } from "./abuse.js";
 import { Metrics } from "./metrics.js";
 import { track, isTrackedEvent, anonId } from "./events.js";
-import { queueAlerterFromEnv } from "./alerts.js";
+import { queueAlerterFromEnv, AlertHub } from "./alerts.js";
+import { apnsFromEnv } from "./apns.js";
+import { PushRegistry } from "./pushsubs.js";
+import { TrafficMonitor } from "./traffic.js";
 
 // Render injects PORT at runtime — never set it by hand. `|| 8080` is a safety
 // net: an empty PORT ("") would otherwise parse to 0 (a random port Render can't
@@ -137,6 +140,9 @@ app.get("/healthz", (c) => {
     rankVocabByLang: rankVocabStatus(), // es/fr/it/de appear once a round has asked for them
     dictionary: dictionarySize(), // ~274k when the word list loaded; 0 = unavailable (fails open)
     invites: metrics.snapshot(), // 3.1 invite funnel — created/joined/expired/...
+    // Race alerts: phones registered for push, pushes sent and dropped, and
+    // the traffic monitor's reading (active players now and the surge bar).
+    alerts: { phones: pushRegistry?.size ?? 0, ...alertHub.stats, active: traffic.activeNow(), surgeAt: traffic.threshold() },
   }, status);
 });
 
@@ -326,6 +332,7 @@ app.post("/event", async (c) => {
     { e?: unknown; id?: unknown; n?: unknown; g?: unknown; p?: unknown } | null;
   if (!isTrackedEvent(body?.e)) return c.json({ ok: false });
   metrics.event(body.e, typeof body.g === "number" ? body.g : undefined);
+  if (typeof body.id === "string" && body.id) traffic.seen(anonId(body.id));
   track(body.e, {
     id: anonId(body.id),
     n: typeof body.n === "number" && Number.isFinite(body.n) ? body.n : undefined,
@@ -333,6 +340,20 @@ app.post("/event", async (c) => {
     p: body.p === "ios" || body.p === "web" ? body.p : undefined,
   });
   return c.json({ ok: true });
+});
+
+// Race alerts for players (3.6): the app registers its Apple push token and the
+// kinds of alert it wants. An empty `kinds` list unregisters. See pushsubs.ts.
+app.post("/push/register", async (c) => {
+  if (!httpLimiter.take(`${ipFromXff(c.req.header("x-forwarded-for"))}:push`)) {
+    return c.json({ ok: false }, 429);
+  }
+  if (!pushRegistry) return c.json({ ok: false, reason: "push_off" }, 503);
+  const body = (await c.req.json().catch(() => null)) as
+    { token?: unknown; kid?: unknown; lang?: unknown; kinds?: unknown } | null;
+  const kinds = pushRegistry.upsert({ token: body?.token, kid: body?.kid, lang: body?.lang, kinds: body?.kinds ?? [] });
+  if (!kinds) return c.json({ ok: false, reason: "bad_request" }, 400);
+  return c.json({ ok: true, kinds: [...kinds] });
 });
 
 app.post("/validate-word", async (c) => {
@@ -460,14 +481,26 @@ app.get("/*", serveStatic({ path: "./public/index.html", onFound: noStore })); /
 // per-identity attestation (Apple App Attest / web signed session token), which
 // needs device fixtures to verify and lands separately (see hub.ts FLAG, NOTE_3.1).
 
-// 3.5: push the maintainer's phone when a real person waits in the Quick Match
-// queue. Off unless WICK_NTFY_TOPIC is set (see alerts.ts and .env.example).
+// Race alerts. 3.5: the maintainer's phone through ntfy when a real person
+// waits in the Quick Match queue (off unless WICK_NTFY_TOPIC is set). 3.6:
+// players who opted in, through Apple push (off unless WICK_APNS_* are set).
+// See alerts.ts, apns.ts, pushsubs.ts, traffic.ts and .env.example.
 const queueAlerter = queueAlerterFromEnv(process.env, Date.now);
 if (queueAlerter) console.log("[wick-api] queue alerts on (ntfy)");
+const apns = apnsFromEnv(process.env, Date.now);
+const pushRegistry = apns ? new PushRegistry(Date.now) : null;
+if (apns) console.log("[wick-api] player push alerts on (apns)");
+const traffic = new TrafficMonitor(Date.now);
+const alertHub = new AlertHub({
+  maintainer: queueAlerter,
+  registry: pushRegistry,
+  push: apns ? (token, m) => apns.send(token, m) : null,
+  now: Date.now,
+});
 
 const hub = new MatchHub({
   now: () => Date.now(),
-  onQueued: queueAlerter ? (info) => queueAlerter.onQueued(info) : undefined,
+  onQueued: (info) => { traffic.seen(info.playerId); alertHub.onQueued(info); },
   metrics, // 3.1 invite-funnel counters, shared with the matchmaker
   // attest: (client, frame) => verifyAppAttest(...)  // future identity layer (FR-16)
   // Server-authoritative warmth for live matches (Gemini embeddings, C8).
@@ -576,8 +609,10 @@ wss.on("connection", (socket: WebSocket, req) => {
   };
 
   hub.connect(client);
+  traffic.seen(id);
 
   socket.on("message", (data) => {
+    traffic.seen(id);
     const frame = parseClientFrame(data.toString());
     if (!frame) {
       client.send({ t: "error", code: "bad_frame", message: "Unparseable frame." });
@@ -611,17 +646,27 @@ wss.on("connection", (socket: WebSocket, req) => {
 // The authoritative tick: advances cap, grace, bot-fill, and bot play.
 const ticker = setInterval(() => hub.tick(), TICK_MS);
 
-// Bound rate-limiter memory: drop idle buckets every 10 min.
+// Once a minute: file the hour's player peak and check for unusual traffic.
+const trafficTicker = setInterval(() => {
+  traffic.tick();
+  alertHub.onTraffic({ active: traffic.activeNow(), threshold: traffic.threshold(), unusual: traffic.isUnusual() });
+}, 60_000);
+
+// Bound rate-limiter memory: drop idle buckets every 10 min. Phones that have
+// not re-registered for a month are forgotten too.
 const sweeper = setInterval(() => {
   httpLimiter.sweep();
   wsLimiter.sweep();
   createLimiter.sweep();
   connLimiter.sweep();
+  pushRegistry?.sweep(30 * 24 * 3_600_000);
 }, 600_000);
 
 function shutdown() {
   clearInterval(ticker);
+  clearInterval(trafficTicker);
   clearInterval(sweeper);
+  apns?.close();
   wss.close();
   server.close();
   console.log("[wick-api] shut down");

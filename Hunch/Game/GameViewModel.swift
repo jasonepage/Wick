@@ -64,6 +64,8 @@ final class GameViewModel {
     /// straight into the match. Set by `HunchApp.onOpenURL`; cleared when dismissed.
     /// Single-player state above is untouched (C1 moat).
     var pendingLiveInvite: LiveInvite?
+    /// A race alert was tapped: open the live race screen (no invite code).
+    var pendingQuickRace = false
 
     /// A ghost run opened from a race link, waiting to be started — drives the
     /// same kind of app-wide presentation as `pendingLiveInvite`. Set by

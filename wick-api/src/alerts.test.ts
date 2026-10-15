@@ -89,3 +89,77 @@ describe("queueAlerterFromEnv", () => {
     expect(queueAlerterFromEnv({ WICK_NTFY_TOPIC: "abc" }, () => 0)).toBeInstanceOf(QueueAlerter);
   });
 });
+
+import { AlertHub } from "./alerts.js";
+import { PushRegistry } from "./pushsubs.js";
+
+describe("AlertHub", () => {
+  function setupHub() {
+    const clock = { t: 1_000_000 };
+    const registry = new PushRegistry(() => clock.t);
+    const pushed: { token: string; title: string; collapseId?: string }[] = [];
+    const results = new Map<string, "ok" | "bad_token" | "error">();
+    const maintainerSent: Alert[] = [];
+    const hub = new AlertHub({
+      maintainer: new QueueAlerter((a) => maintainerSent.push(a), () => clock.t),
+      registry,
+      push: async (token, m) => { pushed.push({ token, title: m.title, collapseId: m.collapseId }); return results.get(token) ?? "ok"; },
+      now: () => clock.t,
+    });
+    registry.upsert({ token: "a".repeat(64), kid: "A", lang: "en", kinds: ["waiting", "busy", "surge"] });
+    registry.upsert({ token: "b".repeat(64), kid: "B", lang: "es", kinds: ["busy"] });
+    return { clock, registry, pushed, results, maintainerSent, hub };
+  }
+  const flush = () => new Promise((r) => setTimeout(r, 0));
+
+  it("tells the maintainer and the phones that asked, never the waiting player", async () => {
+    const { pushed, maintainerSent, hub } = setupHub();
+    hub.onQueued({ lang: "en", waiting: 1, playerId: "B" });
+    await flush();
+    expect(maintainerSent).toHaveLength(1);
+    expect(pushed.map((p) => p.token[0])).toEqual(["a"]);
+    expect(pushed[0]?.collapseId).toBe("wick-waiting");
+    hub.onQueued({ lang: "en", waiting: 1, playerId: "A" });
+    await flush();
+    expect(pushed).toHaveLength(1);   // A is the one waiting now, and nobody else wants "waiting"
+  });
+
+  it("sends busy instead of waiting when enough people queue, with its own cooldown", async () => {
+    const { clock, pushed, hub } = setupHub();
+    hub.onQueued({ lang: "en", waiting: 3, playerId: "C" });
+    await flush();
+    expect(pushed.map((p) => p.token[0]).sort()).toEqual(["a", "b"]);
+    expect(pushed[0]?.title).toContain("3 people");
+    clock.t += 29 * 60_000;
+    hub.onQueued({ lang: "en", waiting: 4, playerId: "C" });
+    await flush();
+    expect(pushed).toHaveLength(2);
+    clock.t += 2 * 60_000;
+    hub.onQueued({ lang: "en", waiting: 4, playerId: "C" });
+    await flush();
+    expect(pushed).toHaveLength(4);
+  });
+
+  it("pushes a surge once an hour and only when traffic is unusual", async () => {
+    const { clock, pushed, maintainerSent, hub } = setupHub();
+    hub.onTraffic({ active: 3, threshold: 4, unusual: false });
+    hub.onTraffic({ active: 9, threshold: 4, unusual: true });
+    await flush();
+    expect(pushed).toHaveLength(1);
+    expect(pushed[0]?.title).toBe("9 people are playing Wick right now");
+    expect(maintainerSent).toHaveLength(1);
+    clock.t += 30 * 60_000;
+    hub.onTraffic({ active: 12, threshold: 4, unusual: true });
+    await flush();
+    expect(pushed).toHaveLength(1);
+  });
+
+  it("forgets a phone Apple says is gone", async () => {
+    const { registry, results, hub } = setupHub();
+    results.set("a".repeat(64), "bad_token");
+    hub.onQueued({ lang: "en", waiting: 1, playerId: "Z" });
+    await flush();
+    expect(registry.size).toBe(1);
+    expect(hub.stats.dropped).toBe(1);
+  });
+});

@@ -64,7 +64,7 @@ export interface HubDeps {
   metrics?: Metrics;
   /** 3.5: a real person started waiting in the Quick Match queue (not a friend
    *  code room). The server wires the maintainer's queue alert here. */
-  onQueued?: (info: { lang: Lang; waiting: number }) => void;
+  onQueued?: (info: { lang: Lang; waiting: number; playerId: string }) => void;
 }
 
 interface ActiveRoom {
@@ -96,7 +96,7 @@ export class MatchHub {
   /** The language each connected client last queued with. */
   private readonly clientLang = new Map<string, Lang>();
   private readonly botConfig?: Partial<BotConfig>;
-  private readonly onQueued: (info: { lang: Lang; waiting: number }) => void;
+  private readonly onQueued: (info: { lang: Lang; waiting: number; playerId: string }) => void;
   private readonly metrics: Metrics;
 
   private readonly clients = new Map<string, Client>();
@@ -378,6 +378,7 @@ export class MatchHub {
       this.onQueued({
         lang: this.clientLang.get(client.id) ?? "en",
         waiting: this.mm.waitingCount(mode),
+        playerId: client.id,
       });
     }
   }

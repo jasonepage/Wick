@@ -9,6 +9,8 @@ import SwiftUI
 struct HunchApp: App {
     @State private var game: GameViewModel
     @Environment(\.scenePhase) private var scenePhase
+    // Race alerts: the device token and notification taps arrive here.
+    @UIApplicationDelegateAdaptor(RaceAlertsAppDelegate.self) private var alertsDelegate
 
     init() {
         // ORDER MATTERS. `GameViewModel.init` reads the streak, coins, stats and
@@ -34,6 +36,9 @@ struct HunchApp: App {
                         // streak warning applies and when it should fire, and
                         // the two-week queue of daily reminders needs topping up.
                         game.refreshReminders()
+                        // The server keeps race alert registrations in memory,
+                        // so tell it again what this phone wants.
+                        RaceAlerts.shared.sync(lang: game.uiLanguage.rawValue)
                     @unknown default:
                         break
                     }
@@ -46,7 +51,16 @@ struct HunchApp: App {
                 //    https://jasonepage.github.io/wick/d/?c=<code>  → offline duel.
                 // Both need the Associated Domains entitlement + the AASA on the host;
                 // pasting a code in-app works without either.
+                .task {
+                    // A tapped race alert opens the live race screen.
+                    RaceAlerts.shared.openRace = { game.pendingQuickRace = true }
+                }
                 .onOpenURL { url in
+                    // A race alert's link (wick://race, no code): straight to Quick Match.
+                    if RaceAlerts.isRaceLink(url) {
+                        game.pendingQuickRace = true
+                        return
+                    }
                     // Ghost race:  https://guesswick.com/r/<run>  (AASA claims "/r/*"),
                     // the legacy query form  https://guesswick.com/?r=<run>, and the
                     // custom-scheme fallback  wick://r/<run>. The scheme matters: a

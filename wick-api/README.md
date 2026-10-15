@@ -74,7 +74,10 @@ request.
 | `src/preview.ts` | Share link preview pages. A preview never contains a word |
 | `src/revealmap.ts` | Lays out the reveal map shown after a round |
 | `src/ratelimit.ts`, `src/abuse.ts` | Per-IP rate limits and the browser origin check |
-| `src/alerts.ts` | Pushes the maintainer's phone through ntfy when someone waits for a live race. Off unless `WICK_NTFY_TOPIC` is set |
+| `src/alerts.ts` | Race alerts: the maintainer's phone through ntfy (off unless `WICK_NTFY_TOPIC` is set) and opted-in players through Apple push |
+| `src/apns.ts` | Apple push client on Node's HTTP/2 and crypto, no library. Off unless the `WICK_APNS_*` keys are set |
+| `src/pushsubs.ts` | The phones that asked for race alerts and which kinds, in memory; the app re-registers on every foreground |
+| `src/traffic.ts` | Active player count against the same hour of the week over the past seven days, for the "unusual number playing" alert |
 | `src/events.ts`, `src/metrics.ts` | Anonymous play counts and in-memory counters |
 | `scripts/` | Builders for the race pool and the Chinese vocabulary, and `growth.mjs`, which reads play counts from a log export |
 

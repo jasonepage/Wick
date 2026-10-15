@@ -33,6 +33,10 @@ struct ContentView: View {
                 case .race: LiveDuelView(joinCode: invite.code)
                 }
             }
+            // A tapped race alert (push) opens the live race screen.
+            .fullScreenCover(isPresented: $game.pendingQuickRace) {
+                LiveDuelView()
+            }
             // Ghost Race — a tapped race link shows the challenge, counts in, and
             // drops straight onto the board with the ghost already running.
             .fullScreenCover(item: $game.pendingGhostRace) { run in
