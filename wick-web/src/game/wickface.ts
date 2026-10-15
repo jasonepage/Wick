@@ -1,35 +1,21 @@
+// SPDX-License-Identifier: MPL-2.0
 //
-//  wickface.ts — the Wick mascot + warmth visuals for the web client.
+//  wickface.ts: Wick's colours and face, shared by the web client.
 //
-//  The colour/label ramp is a FAITHFUL PORT of Hunch/Theme/HunchTheme.swift
-//  (Palette + color(for:)/label(for:)). Same RGB values, same score thresholds
+//  The colour and label ramp is a faithful port of Hunch/Theme/HunchTheme.swift
+//  (Palette, color(for:), label(for:)). Same RGB values, same score thresholds
 //  (score = closeness 0..100). Wick's resting colour is the keeper violet
-//  (purple) — he "starts purple" before any warmth.
+//  (purple): he starts purple before any warmth.
 //
-//  The mascot itself is ALSO a port of the iOS Wick (Hunch/Theme/KeeperView.swift):
-//  the same teardrop flame silhouette, white mood-driven eyes/mouth (idle · freezing
-//  · cold · warm · hot · boiling · celebrating · unamused), layered depth, and a
-//  subtle idle life — drift · lean · waver · blink · sparkle, all Reduce-Motion aware
-//  via the `.wick-mascot.alive` rules in style.css. KEEP IN LOCKSTEP with
-//  KeeperView.swift — when Wick's look changes on one platform, mirror it on the other.
-//
-//  STRUCTURE THE STYLESHEET DEPENDS ON. Do not flatten these groups:
-//    .wick-float  → vertical drift
-//      .wick-sway → the lean; pivots on the flame's base at (60,122)
-//        .flame-core
-//          .flame-glow  → blurred halo, runs the waver one beat behind the body
-//          .flame-body  → the silhouette that morphs; see @keyframes wick-waver
-//          .flame-sheen → inner highlight, slides against the morph
-//        .eyes → blinks (omitted for the celebrating mood, whose eyes are stars)
-//  The four waver silhouettes in style.css are derived from FLAME below and share
-//  its exact command structure (M · C · C · C · C · Z) — that is what lets the
-//  browser interpolate `d`. Change FLAME and those four must be re-derived.
+//  The mascot himself lives in wick.ts, which builds him once and moves him
+//  from the clock, like KeeperView.swift on iOS. This file keeps the parts
+//  both need: the palette, the mood for a score, and the star shape.
 //
 
-type RGB = [number, number, number];
+export type RGB = [number, number, number];
 
-// Palette — exact RGB from HunchTheme.Palette (0..1 floats × 255).
-const PALETTE = {
+// Palette: exact RGB from HunchTheme.Palette (0..1 floats × 255).
+export const PALETTE = {
   solved: [77, 158, 71] as RGB, // verdant green
   boiling: [232, 66, 54] as RGB, // ember red
   hot: [237, 107, 46] as RGB, // coral
@@ -37,7 +23,7 @@ const PALETTE = {
   cool: [33, 161, 140] as RGB, // teal
   cold: [89, 189, 181] as RGB, // mint-teal
   freezing: [69, 133, 230] as RGB, // glacier blue
-  keeper: [125, 92, 235] as RGB, // keeper violet — Wick's resting colour
+  keeper: [125, 92, 235] as RGB, // keeper violet, Wick's resting colour
   neutral: [120, 122, 134] as RGB, // deadpan grey ("Won't say" / unknown word)
 };
 
@@ -45,19 +31,19 @@ function clamp01(w: number): number {
   return Math.max(0, Math.min(1, w));
 }
 
-function rgb([r, g, b]: RGB): string {
+export function rgb([r, g, b]: RGB): string {
   return `rgb(${r}, ${g}, ${b})`;
 }
 function rgba([r, g, b]: RGB, a: number): string {
   return `rgba(${r}, ${g}, ${b}, ${a})`;
 }
-/** Blend a colour toward white by fraction `f` (0..1) — for the body's top highlight. */
-function lighten([r, g, b]: RGB, f: number): string {
+/** Blend a colour toward white by fraction `f` (0..1), for the body's top highlight. */
+export function lighten([r, g, b]: RGB, f: number): string {
   const m = (v: number) => Math.round(v + (255 - v) * f);
   return `rgb(${m(r)}, ${m(g)}, ${m(b)})`;
 }
 
-/** Temperature band for a closeness score (0..100) — mirrors HunchTheme.color(for:). */
+/** Temperature band for a closeness score (0..100); mirrors HunchTheme.color(for:). */
 function band(score: number): RGB {
   if (score >= 100) return PALETTE.solved;
   if (score >= 60) return PALETTE.boiling;
@@ -68,7 +54,7 @@ function band(score: number): RGB {
   return PALETTE.freezing;
 }
 
-/** Heat word — mirrors HunchTheme.label(for:). */
+/** Heat word; mirrors HunchTheme.label(for:). */
 export function scoreLabel(score: number): { label: string; hint: string } {
   if (score >= 100) return { label: "Solved!", hint: "you got it" };
   if (score >= 60) return { label: "Boiling", hint: "so hot!" };
@@ -89,10 +75,10 @@ export function scoreColorA(score: number | null, a: number): string {
 
 export const RESTING_COLOR = rgb(PALETTE.keeper);
 
-// ── the mascot ──────────────────────────────────────────────────────────────
+// ── moods ───────────────────────────────────────────────────────────────────
 
-/** Wick's expression, mapped from the warmth band — mirrors KeeperMood.forScore. */
-type Mood =
+/** Wick's expression, mapped from the warmth band; mirrors KeeperMood.forScore. */
+export type Mood =
   | "idle"
   | "freezing"
   | "cold"
@@ -102,7 +88,7 @@ type Mood =
   | "celebrating"
   | "unamused";
 
-function moodFor(opts: { score: number | null; neutral?: boolean }): Mood {
+export function moodFor(opts: { score: number | null; neutral?: boolean }): Mood {
   if (opts.neutral) return "unamused";
   if (opts.score === null) return "idle";
   const s = opts.score;
@@ -114,22 +100,22 @@ function moodFor(opts: { score: number | null; neutral?: boolean }): Mood {
   return "freezing";
 }
 
-function bodyRGB(opts: { score: number | null; neutral?: boolean }): RGB {
-  if (opts.neutral) return PALETTE.neutral;
-  if (opts.score === null) return PALETTE.keeper;
-  return band(opts.score);
+/** Wick's body colour for a mood. Mirrors KeeperMood.bodyColor (unamused is the grey "Won't say" Wick on the web). */
+export function moodRGB(mood: Mood): RGB {
+  switch (mood) {
+    case "freezing": return PALETTE.freezing;
+    case "cold": return PALETTE.cold;
+    case "warm": return PALETTE.warm;
+    case "hot": return PALETTE.hot;
+    case "boiling": return PALETTE.boiling;
+    case "celebrating": return PALETTE.solved;
+    case "unamused": return PALETTE.neutral;
+    default: return PALETTE.keeper;
+  }
 }
 
-// iOS KeeperFlameShape ported point for point into a 120×128 viewBox. The iOS
-// frame is size × 1.18 size, so the flame is TALLER than it is wide (102 × 120
-// here, base at y 124, tip at y 4): belly at 0.52 h, x from 0.07 w to 0.93 w,
-// tip pulled narrow by control points at (0.32 w, 0.10 h) and (0.68 w, 0.10 h).
-// Keep in lockstep with KeeperFlameShape.path(in:) in KeeperView.swift.
-const FLAME =
-  "M60 124 C25.3 121.6 16.1 97.6 16.1 66.4 C16.1 30.4 41.6 16 60 4 C78.4 16 103.9 30.4 103.9 66.4 C103.9 97.6 94.7 121.6 60 124 Z";
-
 /** A small n-pointed star path (celebrating eyes + solve sparkles). */
-function starPath(cx: number, cy: number, r: number): string {
+export function starPath(cx: number, cy: number, r: number): string {
   let d = "";
   for (let i = 0; i < 10; i++) {
     const rad = i % 2 ? r * 0.45 : r;
@@ -137,119 +123,6 @@ function starPath(cx: number, cy: number, r: number): string {
     d += `${i ? "L" : "M"}${(cx + Math.cos(a) * rad).toFixed(1)} ${(cy + Math.sin(a) * rad).toFixed(1)} `;
   }
   return `${d}Z`;
-}
-
-/**
- * The Wick mascot as an SVG string. `score` (0..100) sets colour + expression; pass
- * null for the resting purple Wick, or `neutral: true` for the deadpan grey Wick
- * (rejected/invalid input — "Won't say" / unknown word). `size` in px. Mascots at or
- * above 72px come alive (bob · flicker · blink); smaller inline ones stay calm.
- */
-export function mascotSVG(opts: {
-  score: number | null;
-  size?: number;
-  id?: string;
-  neutral?: boolean;
-}): string {
-  const size = opts.size ?? 132;
-  const id = opts.id ?? "wick";
-  const mood = moodFor(opts);
-  const c = bodyRGB(opts);
-  const top = lighten(c, 0.12);
-  const bot = rgb(c);
-  const W = "#ffffff";
-  // Face geometry mirrors KeeperView: eye width 0.115 size, 0.16 size apart,
-  // mouth stroke 0.028 size, all in a 120-wide viewBox.
-  const eyeY = 72;
-  const lx = 43.6;
-  const rx = 76.4;
-  const my = 92;
-  const EYE_R = 6.9;
-  const STROKE = 3.4;
-
-  // Eyes — white, mood-driven (mirrors KeeperView.moodEye).
-  let eyes: string;
-  if (mood === "celebrating") {
-    eyes = `<path d="${starPath(lx, eyeY, 10)}" fill="${W}"/><path d="${starPath(rx, eyeY, 10)}" fill="${W}"/>`;
-  } else if (mood === "unamused") {
-    // Flat "-_-" dashes.
-    eyes = `<rect x="${lx - 7}" y="${eyeY - 1.5}" width="14" height="3" rx="1.5" fill="${W}" opacity="0.85"/>
-    <rect x="${rx - 7}" y="${eyeY - 1.5}" width="14" height="3" rx="1.5" fill="${W}" opacity="0.85"/>`;
-  } else if (mood === "freezing") {
-    // Squint.
-    eyes = `<rect x="${lx - 6.9}" y="${eyeY - 3.1}" width="13.8" height="6.2" rx="3.1" fill="${W}" opacity="0.9"/>
-    <rect x="${rx - 6.9}" y="${eyeY - 3.1}" width="13.8" height="6.2" rx="3.1" fill="${W}" opacity="0.9"/>`;
-  } else {
-    // Plain white discs, like iOS. No pupils: a pupil on a flame reads as a hole.
-    const r = mood === "boiling" ? EYE_R * 1.18 : EYE_R; // wide-eyed when boiling
-    eyes = `<circle cx="${lx}" cy="${eyeY}" r="${r}" fill="${W}" opacity="0.9"/><circle cx="${rx}" cy="${eyeY}" r="${r}" fill="${W}" opacity="0.9"/>`;
-  }
-
-  // Mouth — white, mood-driven (mirrors KeeperView.mouth).
-  let mouth: string;
-  if (mood === "celebrating" || mood === "boiling") {
-    mouth = `<path d="M51 ${my} A9 9 0 0 0 69 ${my} Z" fill="${W}" opacity="0.9"/>`; // open, delighted
-  } else if (mood === "hot" || mood === "warm" || mood === "idle") {
-    mouth = `<path d="M51 ${my} Q60 ${my + 7} 69 ${my}" stroke="${W}" stroke-width="${STROKE}" fill="none" stroke-linecap="round" opacity="0.9"/>`; // smile
-  } else if (mood === "unamused") {
-    mouth = `<path d="M53 ${my + 1} L67 ${my + 1}" stroke="${W}" stroke-width="${STROKE}" fill="none" stroke-linecap="round" opacity="0.8"/>`; // flat
-  } else {
-    mouth = `<path d="M51 ${my + 4} Q60 ${my - 3} 69 ${my + 4}" stroke="${W}" stroke-width="${STROKE}" fill="none" stroke-linecap="round" opacity="0.9"/>`; // frown (cold)
-  }
-
-  // Star eyes shouldn't blink (they twinkle instead); everything else can.
-  const eyesCls = mood === "celebrating" ? "" : ' class="eyes"';
-  const sparkles =
-    mood === "celebrating"
-      ? `<g fill="${rgb(PALETTE.warm)}">
-      <path class="spark" style="animation-delay:0s" d="${starPath(22, 40, 4)}"/>
-      <path class="spark" style="animation-delay:.4s" d="${starPath(100, 34, 3.4)}"/>
-      <path class="spark" style="animation-delay:.8s" d="${starPath(104, 88, 3)}"/>
-      <path class="spark" style="animation-delay:.2s" d="${starPath(16, 84, 3)}"/>
-    </g>`
-      : "";
-  // Big mascots breathe; tiny inline ones (opponent strip, Keeper badge) stay still.
-  const alive = size >= 72 ? " alive" : "";
-  // Pace and amplitude follow the mood, mirroring KeeperMood.bobPeriod on iOS
-  // (seconds per bob: boiling 0.55, hot 0.8, warm 1.2, idle 1.8, cold 2.4,
-  // freezing 2.8, unamused 2.2). style.css multiplies --wick-period into every
-  // animation, so a boiling Wick shivers fast and a freezing one barely sways.
-  const period = mood === "boiling" ? 0.55
-    : mood === "hot" || mood === "celebrating" ? 0.8
-    : mood === "warm" ? 1.2
-    : mood === "cold" ? 2.4
-    : mood === "freezing" ? 2.8
-    : mood === "unamused" ? 2.2
-    : 1.8;
-  const amp = mood === "boiling" ? 1.6 : mood === "hot" ? 1.3 : mood === "warm" ? 1.1
-    : mood === "cold" ? 0.7 : mood === "freezing" ? 0.5 : 1;
-  const moodStyle = ` style="--wick-period:${period}s;--wick-amp:${amp}"`;
-
-  return `
-  <svg class="wick-mascot${alive} mood-${mood}"${moodStyle} width="${size}" height="${size}" viewBox="0 0 120 128" role="img" aria-label="Wick">
-    <defs>
-      <linearGradient id="body-${id}" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%" stop-color="${top}"/>
-        <stop offset="55%" stop-color="${bot}"/>
-        <stop offset="100%" stop-color="${bot}"/>
-      </linearGradient>
-      <filter id="soft-${id}" x="-40%" y="-40%" width="180%" height="180%">
-        <feGaussianBlur stdDeviation="6"/>
-      </filter>
-    </defs>
-    <g class="wick-float"><g class="wick-sway">
-      <g class="flame-core">
-        <path class="flame-glow" d="${FLAME}" fill="${bot}" opacity="0.30" filter="url(#soft-${id})"
-          transform="translate(60 124) scale(1.12) translate(-60 -124)"/>
-        <path class="flame-body" d="${FLAME}" fill="url(#body-${id})"/>
-        <g class="flame-sheen" opacity="0.22"><path d="${FLAME}" fill="#ffffff"
-          transform="translate(60 119) scale(0.55) translate(-60 -124)"/></g>
-      </g>
-      ${sparkles}
-      <g${eyesCls}>${eyes}</g>
-      ${mouth}
-    </g></g>
-  </svg>`;
 }
 
 /** Ring gauge: track + progress arc in `color`, filled to `fill` (0..1). */

@@ -14,7 +14,8 @@
 
 import { WickMatchClient } from "./net/client.ts";
 import type { MatchMode, OpponentKind, StateSnapshot, MatchResult } from "./net/protocol.ts";
-import { mascotSVG, ringSVG, scoreLabel, scoreColor, scoreColorA } from "./game/wickface.ts";
+import { ringSVG, scoreLabel, scoreColor, scoreColorA } from "./game/wickface.ts";
+import { ensureWick, type WickOptions } from "./game/wick.ts";
 import { todaysDaily, randomPracticeAt, practiceAt, wordText, pastPuzzles } from "./game/daily.ts";
 import type { DailyWord, PastPuzzle } from "./game/daily.ts";
 import { fetchWarmth, httpBaseFrom, askKeeper, fetchReveal, fetchLiveCounts } from "./net/api.ts";
@@ -240,6 +241,13 @@ function raw(className: string, markup: string): HTMLDivElement {
   const d = document.createElement("div");
   d.className = className;
   d.innerHTML = markup;
+  return d;
+}
+/** A box with a living Wick in it. He is built once and then moves on his own. */
+function wickBox(className: string, opts: WickOptions): HTMLDivElement {
+  const d = document.createElement("div");
+  d.className = className;
+  ensureWick(d, opts);
   return d;
 }
 // ── theme (light / dark / auto) ──
@@ -581,7 +589,7 @@ function screenHome(): void {
 
       // Today's puzzle hero card
       el("button", { class: "today-card", onclick: () => { void playSound("tap"); startDaily(); } }, [
-        raw("today-mascot", mascotSVG({ score: null, size: 92, id: "today" })),
+        wickBox("today-mascot", { score: null, size: 92, id: "today" }),
         el("div", { class: "today-text" }, [
           el("div", { class: "today-num" }, [`#${today.puzzleNumber}`]),
           el("div", { class: "today-h" }, [t("todaysPuzzle")]),
@@ -731,7 +739,9 @@ function showKeeper(verdict: string, reply: string): void {
   // A rejected / invalid input ("Won't say") gets the unimpressed grey "-_-" Wick;
   // anything else gets the normal resting Wick.
   const neutral = kind === "wontsay";
-  const wick = raw("kwick", mascotSVG({ score: null, neutral, size: 40, id: "kw" }));
+  // Reuse the Wick already in the box, so he doesn't snap when the screen re-renders.
+  const wick = box.querySelector<HTMLDivElement>(".kwick") ?? el("div", { class: "kwick" });
+  ensureWick(wick, { score: null, neutral, size: 40, id: "kw" });
   box.replaceChildren(wick, el("span", { class: "kbody" }, children));
   box.classList.add("show");
 }
@@ -1128,7 +1138,7 @@ function screenChallenge(run: GhostRun): void {
   clear("dark");
   track("race_link_opened", run.mode === "daily" ? { n: run.ref } : {});
   const kids: (Node | string)[] = [
-    raw("mascot-wrap", mascotSVG({ score: null, size: 108, id: "chal" })),
+    wickBox("mascot-wrap", { score: null, size: 108, id: "chal" }),
     el("h2", {}, [t("raceChallengeTitle")]),
     el("p", { class: "center muted" }, [
       run.mode === "practice"
@@ -1611,22 +1621,33 @@ function questionRowEl(r: SoloReply): HTMLElement {
 }
 
 /** Shared hero (ring + mascot). Handles a pending (null-warmth) guess with a
- *  neutral "Scoring…" state so there's no misleading placeholder flash. */
-function renderHero(sel: string, id: string, latest: Guess | undefined, revealed = false): void {
+ *  neutral "Scoring…" state so there's no misleading placeholder flash.
+ *  Wick is built once per screen and only told his new mood here, so a
+ *  re-render every second (live races) never restarts his motion. `dance` is
+ *  on for the live race, where he moves to the race music. */
+function renderHero(sel: string, id: string, latest: Guess | undefined, revealed = false, dance = false): void {
   const hero = document.querySelector<HTMLDivElement>(sel);
   if (!hero) return;
-  if (revealed) {
-    // Gave up: a defeated, unimpressed grey Wick — no warmth ring reading.
-    hero.replaceChildren(
-      el("div", { class: "gauge" }, [
-        raw("", ringSVG(0, scoreColor(null))),
-        el("div", { class: "gauge-label" }, [
-          el("span", { class: "big" }, ["Revealed"]),
-          el("span", { class: "small" }, ["the word is below"]),
-        ]),
+  let gauge = hero.querySelector<HTMLDivElement>(".gauge");
+  let wrap = hero.querySelector<HTMLDivElement>(".mascot-wrap");
+  if (!gauge || !wrap) {
+    gauge = el("div", { class: "gauge" });
+    wrap = el("div", { class: "mascot-wrap" });
+    hero.replaceChildren(gauge, wrap);
+  }
+  const setGauge = (fill: number, color: string, big: string, small: string): void => {
+    gauge!.replaceChildren(
+      raw("", ringSVG(fill, color)),
+      el("div", { class: "gauge-label" }, [
+        el("span", { class: "big" }, [big]),
+        el("span", { class: "small" }, [small]),
       ]),
-      raw("mascot-wrap", mascotSVG({ score: null, neutral: true, size: 116, id })),
     );
+  };
+  if (revealed) {
+    // Gave up: a defeated, unimpressed grey Wick, and no warmth ring reading.
+    setGauge(0, scoreColor(null), "Revealed", "the word is below");
+    ensureWick(wrap, { score: null, neutral: true, size: 116, id, dance });
     return;
   }
   const pending = !!latest && latest.warmth === null;
@@ -1635,16 +1656,8 @@ function renderHero(sel: string, id: string, latest: Guess | undefined, revealed
   const rankBig = latest && latest.rank != null && latest.rank <= 100 ? `#${latest.rank}` : null;
   const big = !latest ? t("ready") : pending ? t("scoringBig") : latest.correct ? t("heat.Solved!") : rankBig ?? t("heat." + scoreLabel(score!).label);
   const small = !latest ? t("makeGuess") : pending ? t("oneSec") : t("heatHint." + scoreLabel(score!).label);
-  hero.replaceChildren(
-    el("div", { class: "gauge" }, [
-      raw("", ringSVG(w ?? 0, scoreColor(score))),
-      el("div", { class: "gauge-label" }, [
-        el("span", { class: "big" }, [big]),
-        el("span", { class: "small" }, [small]),
-      ]),
-    ]),
-    raw("mascot-wrap", mascotSVG({ score, size: 116, id })),
-  );
+  setGauge(w ?? 0, scoreColor(score), big, small);
+  ensureWick(wrap, { score, size: 116, id, dance });
 }
 
 function renderLatestChip(latestEl: HTMLDivElement, latest: Guess | undefined): void {
@@ -1731,7 +1744,7 @@ function screenLobby(): void {
         el("span", { class: "solo-title dark" }, ["Race"]),
         el("span", {}, [""]),
       ]),
-      raw("mascot-wrap", mascotSVG({ score: null, size: 96, id: "lobby" })),
+      wickBox("mascot-wrap", { score: null, size: 96, id: "lobby" }),
       el("p", { class: "center muted" }, ["Race someone to warm up to the same hidden word."]),
       el("button", { class: "btn primary", onclick: () => startLive("casual") }, ["⚡ Quick Match"]),
       el("button", { class: "btn secondary", onclick: hostRace }, ["👋 Invite a friend"]),
@@ -1823,7 +1836,7 @@ function screenSearching(): void {
   clear("dark");
   const code = live.friendCode;
   const kids: (Node | string)[] = [
-    raw("mascot-wrap", mascotSVG({ score: null, size: 128, id: "search" })),
+    wickBox("mascot-wrap", { score: null, size: 128, id: "search" }),
     el("h2", {}, [live.hosting ? "Waiting for your friend…" : code ? "Joining…" : "Finding an opponent…"]),
   ];
   if (code && live.hosting) {
@@ -1929,8 +1942,10 @@ function renderMatch(): void {
     const bar = el("i");
     bar.style.width = `${Math.round(oppW * 100)}%`;
     bar.style.background = scoreColor(oppScore);
+    const mini = strip.querySelector<HTMLDivElement>(".mini") ?? el("div", { class: "mini" });
+    ensureWick(mini, { score: oppScore, size: 46, id: "opp" });
     strip.replaceChildren(
-      raw("mini", mascotSVG({ score: oppScore, size: 46, id: "opp" })),
+      mini,
       el("div", { class: "opp-info" }, [
         el("div", { class: "opp-top" }, [
           el("span", { class: `tag ${kind}` }, [label]),
@@ -1942,7 +1957,7 @@ function renderMatch(): void {
   }
   const latest = live.guesses[0];
   setBackdropHeat(bestScore(live.guesses));
-  renderHero("#hero", "you", latest);
+  renderHero("#hero", "you", latest, false, true);
   const latestEl = document.querySelector<HTMLDivElement>("#latest");
   if (latestEl) renderLatestChip(latestEl, latest);
   // Wick's most recent in-match answer (if any).
@@ -1972,10 +1987,10 @@ function screenResult(result: MatchResult, word?: string, words?: Record<string,
   // Winner → green happy Wick; loser → grey "-_-" deadpan Wick (never the blue
   // sad face); draw → resting purple.
   const mascot = result.draw
-    ? mascotSVG({ score: null, size: 128, id: "result" })
+    ? wickBox("mascot-wrap", { score: null, size: 128, id: "result" })
     : youWon
-      ? mascotSVG({ score: 100, size: 128, id: "result" })
-      : mascotSVG({ score: null, neutral: true, size: 128, id: "result" });
+      ? wickBox("mascot-wrap", { score: 100, size: 128, id: "result" })
+      : wickBox("mascot-wrap", { score: null, neutral: true, size: 128, id: "result" });
 
   // The word is revealed to BOTH players — winner in green, loser in red.
   const revealColor = result.draw ? "rgb(125,92,235)" : youWon ? "rgb(77,158,71)" : "rgb(232,66,54)";
@@ -1993,7 +2008,7 @@ function screenResult(result: MatchResult, word?: string, words?: Record<string,
 
   app.append(
     el("main", { class: "card" }, [
-      raw("mascot-wrap", mascot),
+      mascot,
       el("h2", {}, [headline]),
       el("p", { class: "center muted" }, [reason[result.reason]]),
       me
@@ -2046,7 +2061,7 @@ function showError(message: string): void {
   clear("dark");
   app.append(
     el("main", { class: "card" }, [
-      raw("mascot-wrap", mascotSVG({ score: 5, size: 120, id: "err" })),
+      wickBox("mascot-wrap", { score: 5, size: 120, id: "err" }),
       el("h2", {}, ["Something went sideways"]),
       el("p", { class: "center muted" }, [message]),
       el("button", { class: "btn primary", onclick: goHome }, [t("back")]),

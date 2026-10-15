@@ -57,6 +57,8 @@ final class RaceMusic {
         var down: Double
         var energy: Double
         var flash: Double
+        /// Seconds into the music. Wick's dance uses it to count beats.
+        var time: Double = 0
         static let none = Pulse(beat: 0, down: 0, energy: 0, flash: 0)
     }
 
@@ -74,7 +76,7 @@ final class RaceMusic {
             energy = t >= kiaiAt ? 1 : pow((t - riserAt) / max(0.001, kiaiAt - riserAt), 2)
             if t >= kiaiAt { flash = exp(-(t - kiaiAt) * 3) }
         }
-        return Pulse(beat: beat, down: down, energy: energy, flash: flash)
+        return Pulse(beat: beat, down: down, energy: energy, flash: flash, time: t)
     }
 
     private static let loopSeconds: Double = 32

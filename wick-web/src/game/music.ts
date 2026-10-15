@@ -180,26 +180,35 @@ export function updateRaceMusic(remainingMs: number): void {
   p.sources.push(kiai);
 }
 
+/** One reading of the music's clock, for visuals that move with it. */
+export interface Pulse {
+  /** 1 on each beat, falling to 0 before the next (a quick decay). */
+  beat: number;
+  /** The same, but only on the first beat of each bar. */
+  down: number;
+  /** 0 on chill, rising through the riser, 1 on kiai. */
+  energy: number;
+  /** 1 at the moment kiai drops, fading over about a second. */
+  flash: number;
+  /** Seconds into the music. Wick's dance uses it to count beats. */
+  time: number;
+}
+
 /** Where the music is right now, for visuals that move with it. Null when no
- *  race music is playing.
- *    beat    1 on each beat, falling to 0 before the next (a quick decay)
- *    down    the same, but only on the first beat of each bar
- *    energy  0 on chill, rising through the riser, 1 on kiai
- *    flash   1 at the moment kiai drops, fading over about a second */
-export function musicPulse(): { beat: number; down: number; energy: number; flash: number } | null {
+ *  race music is playing. */
+export function musicPulse(): Pulse | null {
   const p = playing;
   if (!p) return null;
   // What the listener hears now, not what the audio thread is rendering.
   const lag = (p.ctx as AudioContext & { outputLatency?: number }).outputLatency ?? p.ctx.baseLatency ?? 0;
   const t = p.ctx.currentTime - lag - p.startedAt;
-  if (t < 0) return { beat: 0, down: 0, energy: 0, flash: 0 };
+  if (t < 0) return { beat: 0, down: 0, energy: 0, flash: 0, time: 0 };
   return pulseAt(t, p.riserAt === null ? null : p.riserAt - p.startedAt,
     p.kiaiAt === null ? null : p.kiaiAt - p.startedAt);
 }
 
 /** The pulse at `t` seconds into the music. Pure, so it can be tested. */
-export function pulseAt(t: number, riserAt: number | null, kiaiAt: number | null):
-  { beat: number; down: number; energy: number; flash: number } {
+export function pulseAt(t: number, riserAt: number | null, kiaiAt: number | null): Pulse {
   const BEAT = BAR / 4;
   const inBeat = (t % BEAT) / BEAT;
   const beat = Math.exp(-inBeat * 5);
@@ -210,7 +219,7 @@ export function pulseAt(t: number, riserAt: number | null, kiaiAt: number | null
     energy = t >= kiaiAt ? 1 : ((t - riserAt) / Math.max(0.001, kiaiAt - riserAt)) ** 2;
     if (t >= kiaiAt) flash = Math.exp(-(t - kiaiAt) * 3);
   }
-  return { beat, down, energy, flash };
+  return { beat, down, energy, flash, time: t };
 }
 
 /** Fade the music out and stop it. Safe to call when nothing is playing. */

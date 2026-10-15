@@ -36,23 +36,3 @@ struct MusicPulseOverlay: View {
         }
     }
 }
-
-/// Makes a view bounce slightly on the race music's beat (more on kiai).
-struct BeatBounce: ViewModifier {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    func body(content: Content) -> some View {
-        if reduceMotion {
-            content
-        } else {
-            TimelineView(.animation) { _ in
-                let p = RaceMusic.shared.pulse()
-                content.scaleEffect(1 + p.beat * (0.025 + 0.04 * p.energy), anchor: .bottom)
-            }
-        }
-    }
-}
-
-extension View {
-    func beatBounce() -> some View { modifier(BeatBounce()) }
-}

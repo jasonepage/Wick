@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Wick dance clips (developer page)</title>
+  <!--
+    Developer-only page: makes dance clips of Wick for TikTok (CapCut templates).
+    It is not part of the normal build; open it with `npm run dev` at /dance.html.
+    The code is in src/dance.ts.
+  -->
+  <style>
+    :root { color-scheme: dark; }
+    body { margin: 0; font: 15px/1.4 -apple-system, "SF Pro Rounded", system-ui, sans-serif; background: #0f121a; color: #eef0f6; }
+    main { max-width: 980px; margin: 0 auto; padding: 20px; display: grid; grid-template-columns: 300px 1fr; gap: 24px; }
+    h1 { font-size: 1.3rem; margin: 0 0 12px; }
+    label { display: block; margin: 12px 0 4px; opacity: 0.8; font-size: 0.85rem; }
+    select, input { width: 100%; padding: 8px 10px; border-radius: 10px; border: 1px solid #333a4d; background: #171b26; color: inherit; font: inherit; }
+    button { margin: 12px 8px 0 0; padding: 10px 14px; border-radius: 12px; border: 0; font: inherit; font-weight: 700; cursor: pointer; background: #7d5ceb; color: white; }
+    button.secondary { background: #262c3c; }
+    button:disabled { opacity: 0.5; cursor: default; }
+    #status { margin-top: 14px; min-height: 1.4em; opacity: 0.85; white-space: pre-line; }
+    #stage { display: flex; justify-content: center; align-items: flex-start; }
+    canvas { width: 405px; height: 720px; border-radius: 14px; background: #00ff00; }
+    canvas.clear { background: repeating-conic-gradient(#2a2f3d 0 25%, #1a1e29 0 50%) 0 0 / 24px 24px; }
+    .hint { font-size: 0.8rem; opacity: 0.6; margin-top: 16px; }
+    @media (max-width: 760px) { main { grid-template-columns: 1fr; } canvas { width: 270px; height: 480px; } }
+  </style>
+</head>
+<body>
+  <main>
+    <section>
+      <h1>Wick dance clips</h1>
+      <label for="mood">Mood (colour)</label>
+      <select id="mood">
+        <option value="idle">Idle (purple)</option>
+        <option value="freezing">Freezing (blue)</option>
+        <option value="cold">Cold (teal)</option>
+        <option value="warm">Warm (amber)</option>
+        <option value="hot">Hot (coral)</option>
+        <option value="boiling">Boiling (red, shakes)</option>
+        <option value="celebrating">Celebrating (green, star eyes)</option>
+        <option value="unamused">Unamused (grey)</option>
+      </select>
+      <label for="section">Music section</label>
+      <select id="section">
+        <option value="chill">Chill (groove)</option>
+        <option value="drop">Riser into the kiai drop</option>
+        <option value="kiai">Kiai (last minute)</option>
+      </select>
+      <label for="bars">Length in bars (one bar is 2 seconds)</label>
+      <input id="bars" type="number" min="1" max="64" value="8">
+      <label for="background">Background</label>
+      <select id="background">
+        <option value="green">Chroma green #00FF00 (for CapCut Chroma Key)</option>
+        <option value="clear">Transparent (PNG sequence)</option>
+      </select>
+      <div>
+        <button id="preview">Preview with music</button>
+        <button id="stop" class="secondary" disabled>Stop</button>
+      </div>
+      <div>
+        <button id="export-video">Export video with audio</button>
+        <button id="export-png" class="secondary">Export PNG sequence (zip)</button>
+      </div>
+      <div id="status"></div>
+      <p class="hint">1080 x 1920, 30 frames per second, rendered frame by frame from the beat math so every move lands exactly on the beat. The video is MP4 where this browser can encode H.264 (Safari and Chrome on a Mac), otherwise WebM. Drop the MP4 on a CapCut track and use Chroma Key on the green.</p>
+    </section>
+    <section id="stage">
+      <canvas id="canvas" width="1080" height="1920"></canvas>
+    </section>
+  </main>
+  <script type="module" src="./src/dance.ts"></script>
+</body>
+</html>

@@ -20,7 +20,7 @@ enum KeeperMood: Equatable {
     case cold          // slow bob, droopy
     case warm          // perked up
     case hot           // excited, fast flicker
-    case boiling       // wide-eyed, vibrating
+    case boiling       // wide-eyed, shaking hard
     case thinking      // eyes drift up, slow sway
     case celebrating   // star eyes, bouncing
     case defeated      // dimmed, eyes closed
@@ -118,6 +118,9 @@ struct KeeperView: View {
     /// Whether Wick wears the player's equipped accessories. Pass `false` for a
     /// bare Wick (e.g. onboarding, or the wardrobe's own preview handles its own).
     var showsAccessories: Bool = true
+    /// Dance to the race music when it plays (see WickDance). Only the live
+    /// race screen sets this; everywhere else Wick just bobs.
+    var dances: Bool = false
 
     /// Equipped cosmetics, read reactively from the shared wardrobe.
     @State private var wardrobe = WardrobeStore.shared
@@ -137,7 +140,10 @@ struct KeeperView: View {
             // recommended substitute for motion (a cross-fade, not movement).
             let bob = reduceMotion ? 0 : sin(t * 2 * .pi / mood.bobPeriod) * bobAmplitude
             let shiver = (mood == .freezing && !reduceMotion) ? sin(t * 30) * 1.2 : 0
-            let vibrate = (mood == .boiling && !reduceMotion) ? sin(t * 26) * 0.8 : 0
+            // Boiling is a hard shake (jitter plus a little rotation), shared with the web.
+            let shake = (mood == .boiling && !reduceMotion) ? WickDance.boilingShake(t: t, size: size) : .still
+            // In a live race Wick dances to the music, locked to the beat the player hears.
+            let dance = (dances && !reduceMotion) ? WickDance.move(for: RaceMusic.shared.pulse(), size: size) : .still
             // Hold the flame tip centered when Reduce Motion is on (no side-to-side sway).
             let flick = reduceMotion ? 0.5 : 0.5 + sin(t * 2 * .pi / (mood.bobPeriod * 0.8)) / 2
             // Subtle breathing scale only when motion is allowed.
@@ -151,9 +157,10 @@ struct KeeperView: View {
             let pokeWiggle = reduceMotion ? 0 : poke * 6 * sin((pokeStart.map { ctx.date.timeIntervalSince($0) } ?? 0) * 34)
 
             keeperBody(flicker: flick)
-                .scaleEffect(breathe * pokeScale, anchor: .bottom)
-                .rotationEffect(.degrees(pokeWiggle), anchor: .bottom)
-                .offset(x: shiver + vibrate, y: bob)
+                .scaleEffect(x: breathe * pokeScale * dance.scaleX,
+                             y: breathe * pokeScale * dance.scaleY, anchor: .bottom)
+                .rotationEffect(.degrees(pokeWiggle + shake.rotation + dance.rotation), anchor: .bottom)
+                .offset(x: shiver + shake.x + dance.x, y: bob + shake.y + dance.y)
                 .opacity(glow)
                 .shadow(color: mood.bodyColor.opacity(mood == .defeated ? 0 : 0.35),
                         radius: size * 0.12, y: size * 0.05)
