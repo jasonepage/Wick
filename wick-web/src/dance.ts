@@ -52,6 +52,8 @@ interface Plan {
   riserAt: number | null;
   kiaiAt: number | null;
   green: boolean;
+  /** Put the race music in the video. Off for edits with their own track. */
+  audio: boolean;
 }
 
 const $ = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
@@ -67,9 +69,10 @@ function readPlan(): Plan {
   if (section === "drop" && bars < 6) { bars = 6; $<HTMLInputElement>("bars").value = "6"; }
   if (section === "race") { bars = RACE_BARS; $<HTMLInputElement>("bars").value = String(RACE_BARS); }
   const green = $<HTMLSelectElement>("background").value === "green";
+  const audio = $<HTMLSelectElement>("audio").value !== "none";
   const riserAt = section === "drop" ? 2 * BAR : section === "race" ? RACE_RISER_AT : section === "kiai" ? -10 : null;
   const kiaiAt = section === "drop" ? 4 * BAR : section === "race" ? RACE_KIAI_AT : section === "kiai" ? -10 : null;
-  return { mood, section, bars, seconds: bars * BAR, riserAt, kiaiAt, green };
+  return { mood, section, bars, seconds: bars * BAR, riserAt, kiaiAt, green, audio };
 }
 
 /** The music pulse `t` seconds into the clip. */
@@ -220,7 +223,7 @@ function download(blob: Blob, name: string): void {
 }
 
 function clipName(plan: Plan): string {
-  return `wick-${plan.mood}-${plan.section}-${plan.bars}bars`;
+  return `wick-${plan.mood}-${plan.section}-${plan.bars}bars${plan.audio ? "" : "-silent"}`;
 }
 
 async function exportVideo(): Promise<void> {
@@ -231,6 +234,8 @@ async function exportVideo(): Promise<void> {
   const { Output, BufferTarget, Mp4OutputFormat, WebMOutputFormat, CanvasSource, AudioBufferSource,
     getFirstEncodableVideoCodec, getFirstEncodableAudioCodec, QUALITY_HIGH } = mb;
 
+  // The mix is needed even for a silent clip: the beat math and the music
+  // share one clock, so sample rate and timing come from the real audio.
   say("Mixing music…");
   const music = await mixMusic(plan);
 
@@ -253,6 +258,7 @@ async function exportVideo(): Promise<void> {
   const video = new CanvasSource(canvas, { codec: videoCodec, bitrate: 12_000_000, keyFrameInterval: 2 });
   output.addVideoTrack(video, { frameRate: FPS });
   let audio: InstanceType<typeof AudioBufferSource> | null = null;
+  if (!plan.audio) audioCodec = null;
   if (audioCodec) {
     audio = new AudioBufferSource({ codec: audioCodec, quality: QUALITY_HIGH });
     output.addAudioTrack(audio);
@@ -275,7 +281,7 @@ async function exportVideo(): Promise<void> {
   if (!target.buffer) { say("The encoder produced no file."); return; }
   const blob = new Blob([target.buffer], { type: ext === "mp4" ? "video/mp4" : "video/webm" });
   download(blob, `${clipName(plan)}.${ext}`);
-  say(`Done: ${clipName(plan)}.${ext} (${(blob.size / 1e6).toFixed(1)} MB${audioCodec ? ", with audio" : ", no audio"}).`);
+  say(`Done: ${clipName(plan)}.${ext} (${(blob.size / 1e6).toFixed(1)} MB${audioCodec ? ", with audio" : ", silent"}).`);
 }
 
 async function exportPngs(): Promise<void> {
@@ -309,7 +315,7 @@ $("preview").addEventListener("click", () => { startPreview().catch((e) => say(S
 $("stop").addEventListener("click", stopPreview);
 $("export-video").addEventListener("click", () => { exportVideo().catch((e) => say(String(e))); });
 $("export-png").addEventListener("click", () => { exportPngs().catch((e) => say(String(e))); });
-for (const id of ["mood", "section", "bars", "background"]) {
+for (const id of ["mood", "section", "bars", "background", "audio"]) {
   $(id).addEventListener("change", () => { const p = readPlan(); canvas.classList.toggle("clear", !p.green); drawFrame(p, [], 0); });
 }
 // Hooks for scripted runs (Playwright): draw a frame at a time, or build a plan.
