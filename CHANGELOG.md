@@ -27,6 +27,20 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **Install on Android.** The web game can be installed as an app from Chrome.
   An Install button replaces the App Store link when Chrome offers it, and a
   small offline page shows when there is no connection.
+- **Wick dances.** In live races Wick dances to the race music, locked to the
+  beat: a hop on each beat, a step to alternating sides, a bigger move on beat
+  1 of each bar, and a jump and spin when kiai drops. On iOS and on the web.
+- **Web Wick comes alive.** The web mascot is now built once and moved from
+  the clock like the iOS one: he bobs, leans, breathes, blinks at random,
+  eases between moods, and squashes when poked. He no longer snaps back every
+  time a live race updates. Boiling is a hard shake on both platforms.
+- **Race alerts.** Players can turn on pushes in Settings for when someone is
+  waiting for a live race, when the queue is busy, or when unusually many
+  people are playing for that time of week. Delivered through Apple push; off
+  on the server unless the `WICK_APNS_*` settings are set.
+- A developer page (`wick-web/dance.html`) renders Wick dancing to the real
+  race music and exports green screen video or a transparent PNG sequence for
+  TikTok templates.
 
 ### Changed
 
