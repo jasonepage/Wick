@@ -20,8 +20,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **Challenge line.** A solved daily replay's end card now reads "Can you beat
   14? Play free at guesswick.com", on iOS and on the web.
 - **Race music.** Live races have their own soundtrack, made in GarageBand: a
-  chill loop, then a two bar riser into an intense "kiai" loop, on the beat,
-  once either player reaches Hot or a minute is left. It has its own Race music switch in
+  chill loop, then a two bar riser into an intense "kiai" loop that drops
+  right around the last minute, on the beat. The screen moves with it: the
+  background and Wick pulse on every beat, and heat up when kiai drops. It has its own Race music switch in
   Settings, on by default, on iOS and on the web.
 - **Install on Android.** The web game can be installed as an app from Chrome.
   An Install button replaces the App Store link when Chrome offers it, and a

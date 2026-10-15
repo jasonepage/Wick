@@ -208,9 +208,7 @@ final class LiveDuelViewModel: ObservableObject, MatchClientDelegate {
             // Resuming: if the server hands us live state while we're still
             // "searching" (e.g. we quit and relaunched), adopt the match.
             if phase == .searching { phase = .playing }
-            RaceMusic.shared.update(youBest: s.you.bestWarmth,
-                                    oppBest: s.opponent.bestWarmth,
-                                    remainingMs: s.clock.remainingMs)
+            RaceMusic.shared.update(remainingMs: s.clock.remainingMs)
 
         case .scored(let guess, let score, let rank, let notAWord):
             if let i = guesses.firstIndex(where: { $0.word == guess && $0.warmth == nil }) {

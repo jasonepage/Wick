@@ -1775,11 +1775,7 @@ function startLive(mode: MatchMode, friendCode?: string, create?: boolean, opts?
         live.snapshot = f.state;
         if (document.querySelector("#hero")) renderMatch();
         // A resumed match skips `paired`, so make sure the music is going.
-        void startRaceMusic().then(() => updateRaceMusic({
-          youBest: f.state.you.bestWarmth,
-          oppBest: f.state.opponent.bestWarmth,
-          remainingMs: f.state.clock.remainingMs,
-        }));
+        void startRaceMusic().then(() => updateRaceMusic(f.state.clock.remainingMs));
       },
       onScored: (f) => {
         if (f.notAWord) {

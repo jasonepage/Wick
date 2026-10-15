@@ -40,6 +40,9 @@ struct LiveDuelView: View {
                 HunchTheme.background(for: myBestScore)
                     .ignoresSafeArea()
                     .animation(.easeInOut(duration: 0.6), value: myBestScore)
+                // 3.5: breathes with the race music; draws nothing without it.
+                MusicPulseOverlay()
+                    .ignoresSafeArea()
                 content
             }
             .navigationTitle(navTitle)
@@ -282,6 +285,7 @@ struct LiveDuelView: View {
     private var welcomeCard: some View {
         VStack(spacing: HunchTheme.Spacing.s) {
             KeeperView(mood: .idle, size: 96)
+                .beatBounce()   // 3.5: bounces with the race music
             KeeperSpeech(
                 text: loc.liveWelcome(KeeperView.name)
             )
@@ -328,6 +332,7 @@ struct LiveDuelView: View {
                 .animation(.spring(response: 0.5, dampingFraction: 0.8), value: g.id)
 
                 KeeperView(mood: mood, size: 72)
+                    .beatBounce()   // 3.5: bounces with the race music
             }
             Text(g.word).font(HunchTheme.Fonts.cardTitle)
             if let t = model.latestTrajectory { trajectoryPill(t) }

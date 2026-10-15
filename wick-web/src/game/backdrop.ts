@@ -23,10 +23,19 @@
 //  of this file wrongly described as "a flat static gradient, nothing to port".
 //  It is not static: on iOS the whole screen is tinted by the player's best band.
 //
+//  During a live race the field moves with the race music (3.5): every particle
+//  brightens on the beat, the downbeat of each bar hits a little harder, and on
+//  kiai (the last minute) the embers rise faster, glow bigger and the warmth
+//  wash pulses. The beat comes from music.ts, read off the audio clock each
+//  frame, and the same numbers go out as CSS variables (--beat, --energy,
+//  --flash on <html>) so any element can pulse too.
+//
 //  Cheap on purpose: particle count scales with viewport area but is hard-capped,
 //  the loop stops when the tab is hidden, and Reduce Motion gets a single static
 //  frame instead of an animation.
 //
+
+import { musicPulse } from "./music.ts";
 
 interface Particle {
   kind: "star" | "ember";
@@ -72,6 +81,24 @@ function mountEmbers(canvas: HTMLCanvasElement): void {
 
   let w = 0, h = 0, raf = 0, t = 0;
   let parts: Particle[] = [];
+  // Smoothed music values, so the field eases in and out with the music.
+  let beat = 0, down = 0, energy = 0, flash = 0;
+  const rootStyle = document.documentElement.style;
+
+  /** Reads the race music's pulse once per frame and shares it with CSS. */
+  function followMusic(): void {
+    const m = musicPulse();
+    if (m) {
+      beat = m.beat; down = m.down; flash = m.flash;
+      energy += (m.energy - energy) * 0.08;
+    } else {
+      beat *= 0.85; down *= 0.85; flash *= 0.85; energy *= 0.97;
+    }
+    const off = !m && beat < 0.01 && energy < 0.01;
+    rootStyle.setProperty("--beat", off ? "0" : beat.toFixed(3));
+    rootStyle.setProperty("--energy", off ? "0" : energy.toFixed(3));
+    rootStyle.setProperty("--flash", off ? "0" : flash.toFixed(3));
+  }
 
   function newEmber(scatter: boolean): Particle {
     return {
@@ -129,9 +156,12 @@ function mountEmbers(canvas: HTMLCanvasElement): void {
 
   function draw(animate: boolean): void {
     ctx!.clearRect(0, 0, w, h);
+    // How hard this frame hits: a soft beat on chill, a strong one on kiai.
+    const hit = beat * (0.25 + 0.45 * energy) + down * 0.2 + flash * 0.6;
+    const speed = 1 + energy * 1.6 + flash * 2;
     for (const p of parts) {
       if (p.kind === "star") {
-        const tw = 0.35 + 0.65 * (0.5 + 0.5 * Math.sin(t * 0.02 * p.sp + p.ph));
+        const tw = Math.min(1, 0.35 + 0.65 * (0.5 + 0.5 * Math.sin(t * 0.02 * p.sp + p.ph)) + hit * 0.6);
         ctx!.beginPath();
         ctx!.arc(p.x, p.y, p.r, 0, Math.PI * 2);
         ctx!.fillStyle = p.hue === "warm"
@@ -143,26 +173,28 @@ function mountEmbers(canvas: HTMLCanvasElement): void {
         const age = (p.life ?? 0) / (p.max ?? 1);
         // Quick fade in, long fade out — an ember flares then dies.
         const fade = age < 0.14 ? age / 0.14 : 1 - (age - 0.14) / 0.86;
-        const a = Math.max(0, fade) * (0.5 + 0.5 * Math.sin(t * 0.05 * p.sp + p.ph));
-        const g = ctx!.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.r * 5);
+        const a = Math.min(1, Math.max(0, fade) * (0.5 + 0.5 * Math.sin(t * 0.05 * p.sp + p.ph)) * (1 + hit));
+        const size = p.r * (5 + hit * 3 + energy * 2);
+        const g = ctx!.createRadialGradient(p.x, p.y, 0, p.x, p.y, size);
         g.addColorStop(0, `rgba(255, 186, 120, ${0.85 * a})`);
         g.addColorStop(0.35, `rgba(237, 107, 46, ${0.35 * a})`);
         g.addColorStop(1, "rgba(237, 107, 46, 0)");
         ctx!.beginPath();
-        ctx!.arc(p.x, p.y, p.r * 5, 0, Math.PI * 2);
+        ctx!.arc(p.x, p.y, size, 0, Math.PI * 2);
         ctx!.fillStyle = g;
         ctx!.fill();
         if (animate) {
           p.life = (p.life ?? 0) + 1;
           p.x += p.vx + Math.sin(t * 0.01 + p.ph) * 0.14;
-          p.y += p.vy;
+          p.y += p.vy * speed;
+          p.life += speed - 1;
           if (p.life > (p.max ?? 0) || p.y < -20) Object.assign(p, newEmber(false));
         }
       }
     }
   }
 
-  function loop(): void { t++; draw(true); raf = requestAnimationFrame(loop); }
+  function loop(): void { t++; followMusic(); draw(true); raf = requestAnimationFrame(loop); }
   function stop(): void { if (raf) cancelAnimationFrame(raf); raf = 0; }
   function start(): void {
     stop();

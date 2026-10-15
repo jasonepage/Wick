@@ -692,7 +692,7 @@ a.btn { display: block; box-sizing: border-box; text-align: center; text-decorat
 }
 /* Dark screens carry it as a glow; light screens as a pastel tint, which is the
    same split iOS makes between systemBackground in each appearance. */
-.theme-dark  .backdrop .heat { mix-blend-mode: screen; opacity: calc(var(--heat-a, 0) * 0.34); }
+.theme-dark  .backdrop .heat { mix-blend-mode: screen; opacity: calc(var(--heat-a, 0) * 0.34 + var(--beat, 0) * var(--energy, 0) * 0.12 + var(--flash, 0) * 0.3); }
 .theme-light .backdrop .heat { mix-blend-mode: multiply; opacity: calc(var(--heat-a, 0) * 0.78); }
 @media (prefers-reduced-motion: reduce) { .backdrop .heat { transition: none; } }
 
@@ -848,3 +848,17 @@ a.btn { display: block; box-sizing: border-box; text-align: center; text-decorat
 }
 .replay-bar { height: 6px; border-radius: 3px; background: rgba(125, 92, 235, 0.18); overflow: hidden; width: 100%; max-width: 340px; margin: 0 auto 8px; }
 .replay-fill { height: 100%; width: 0; background: #7d5ceb; transition: width 0.2s linear; }
+
+/* ── 3.5: the race moves with the music ──
+   --beat, --energy and --flash are set on <html> by backdrop.ts from the race
+   music's clock. All are 0 when no music plays, so these rules do nothing. */
+.hero .mascot-wrap svg {
+  transform: scale(calc(1 + var(--beat, 0) * (0.025 + var(--energy, 0) * 0.04)));
+  transform-origin: 50% 90%;
+}
+.hero { box-shadow: 0 0 calc(var(--beat, 0) * var(--energy, 0) * 28px) rgba(255, 140, 70, calc(var(--energy, 0) * 0.35)); }
+#clock { transform: scale(calc(1 + var(--beat, 0) * var(--energy, 0) * 0.08)); }
+@media (prefers-reduced-motion: reduce) {
+  .hero .mascot-wrap svg, #clock { transform: none; }
+  .hero { box-shadow: none; }
+}

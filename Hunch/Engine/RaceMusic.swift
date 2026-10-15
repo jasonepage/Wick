@@ -7,9 +7,14 @@
 //
 //    race_chill  a 16 bar (32 s) loop that plays from the start of a race.
 //    race_riser  a 2 bar (4 s) build that plays into the switch.
-//    race_kiai   a 16 bar loop that takes over when the race heats up: either
-//                player reaches Hot, or a minute is left on the clock. It never
+//    race_kiai   a 16 bar loop for the last minute of the race. It never
 //                switches back.
+//
+//  The riser starts on the first bar line after 1:05 is left, so kiai drops
+//  right around the 1:00 mark. A race that ends sooner stays on chill.
+//
+//  The screen moves with it: `pulse()` reads the same audio clock and tells
+//  `MusicPulseOverlay` where the beat is and how intense the track is.
 //
 //  The switch: the riser starts on the next bar line while chill ducks under
 //  it, and kiai comes in from its own bar 1 as the riser ends. The riser and
@@ -33,13 +38,43 @@ import AVFoundation
 final class RaceMusic {
     static let shared = RaceMusic()
 
-    /// Same cutoff as the Hot band (score 45 and up).
-    nonisolated static let kiaiWarmth = 0.45
-    nonisolated static let kiaiRemainingMs = 60_000
+    /// Kiai is the last minute. The riser needs 2 bars (4 s) plus up to a bar
+    /// of waiting for a bar line, so it starts at 1:05 to land kiai near 1:00.
+    nonisolated static let kiaiAtMs = 65_000
 
-    /// Should the race be on the kiai track? Pure, so it can be tested.
-    nonisolated static func wantsKiai(youBest: Double, oppBest: Double, remainingMs: Int) -> Bool {
-        max(youBest, oppBest) >= kiaiWarmth || remainingMs <= kiaiRemainingMs
+    /// Should the race start its riser into kiai? Pure, so it can be tested.
+    nonisolated static func wantsKiai(remainingMs: Int) -> Bool {
+        remainingMs <= kiaiAtMs
+    }
+
+    /// Where the music is, for visuals that move with it.
+    ///   beat    1 on each beat, falling to 0 before the next
+    ///   down    the same, but only on the first beat of each bar
+    ///   energy  0 on chill, rising through the riser, 1 on kiai
+    ///   flash   1 the moment kiai drops, fading over about a second
+    struct Pulse: Equatable, Sendable {
+        var beat: Double
+        var down: Double
+        var energy: Double
+        var flash: Double
+        static let none = Pulse(beat: 0, down: 0, energy: 0, flash: 0)
+    }
+
+    /// The pulse `t` seconds into the music. Pure, so it can be tested; the web
+    /// has the same function (`pulseAt` in music.ts).
+    nonisolated static func pulse(at t: Double, riserAt: Double?, kiaiAt: Double?) -> Pulse {
+        guard t >= 0 else { return .none }
+        let beatLength = 0.5
+        let inBeat = t.truncatingRemainder(dividingBy: beatLength) / beatLength
+        let beat = exp(-inBeat * 5)
+        let down = Int(t / beatLength) % 4 == 0 ? beat : 0
+        var energy = 0.0
+        var flash = 0.0
+        if let riserAt, let kiaiAt, t >= riserAt {
+            energy = t >= kiaiAt ? 1 : pow((t - riserAt) / max(0.001, kiaiAt - riserAt), 2)
+            if t >= kiaiAt { flash = exp(-(t - kiaiAt) * 3) }
+        }
+        return Pulse(beat: beat, down: down, energy: energy, flash: flash)
     }
 
     private static let loopSeconds: Double = 32
@@ -59,6 +94,9 @@ final class RaceMusic {
     private var wired = false
     private(set) var isPlaying = false
     private var kiaiOn = false
+    /// Seconds into the music (chill's own clock) where the riser and kiai start.
+    private var riserAt: Double?
+    private var kiaiAt: Double?
     private var fades: [Task<Void, Never>] = []
 
     private init() {}
@@ -104,14 +142,16 @@ final class RaceMusic {
 
         isPlaying = true
         kiaiOn = false
+        riserAt = nil
+        kiaiAt = nil
         fade(from: 0, to: Self.volume, over: Self.fadeIn) { [engine] v in engine.mainMixerNode.outputVolume = v }
     }
 
     /// Feed every race state in. Switches to kiai once: the riser starts on the
     /// next bar line and kiai lands on the downbeat after it.
-    func update(youBest: Double, oppBest: Double, remainingMs: Int) {
+    func update(remainingMs: Int) {
         guard isPlaying, !kiaiOn, let kiaiBuffer = buffers?.kiai,
-              Self.wantsKiai(youBest: youBest, oppBest: oppBest, remainingMs: remainingMs),
+              Self.wantsKiai(remainingMs: remainingMs),
               let nodeTime = chill.lastRenderTime, nodeTime.isSampleTimeValid,
               let t = chill.playerTime(forNodeTime: nodeTime), t.sampleRate > 0 else { return }
         kiaiOn = true
@@ -122,6 +162,8 @@ final class RaceMusic {
         let wait = nextBar - played
         let riserBuffer = buffers?.riser
         let toKiai = wait + (riserBuffer == nil ? 0 : Self.riserSeconds)
+        riserAt = played + wait
+        kiaiAt = played + toKiai
         let rate = nodeTime.sampleRate
         func at(_ seconds: Double) -> AVAudioTime {
             AVAudioTime(sampleTime: nodeTime.sampleTime + AVAudioFramePosition(seconds * rate), atRate: rate)
@@ -135,6 +177,16 @@ final class RaceMusic {
         kiai.scheduleBuffer(kiaiBuffer, at: nil, options: .loops)
         kiai.play(at: at(toKiai))
         fade(from: riserBuffer == nil ? 1 : Self.duck, to: 0, over: 0.06, after: toKiai) { [chill] v in chill.volume = v }
+    }
+
+    /// The pulse right now, as heard (output latency taken off). `.none` when
+    /// no race music is playing.
+    func pulse() -> Pulse {
+        guard isPlaying, let nodeTime = chill.lastRenderTime, nodeTime.isSampleTimeValid,
+              let t = chill.playerTime(forNodeTime: nodeTime), t.sampleRate > 0 else { return .none }
+        let session = AVAudioSession.sharedInstance()
+        let heard = Double(t.sampleTime) / t.sampleRate - session.outputLatency - session.ioBufferDuration
+        return Self.pulse(at: heard, riserAt: riserAt, kiaiAt: kiaiAt)
     }
 
     /// Fade the music out and stop it. Safe to call when nothing is playing.
