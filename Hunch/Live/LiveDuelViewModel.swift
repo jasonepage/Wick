@@ -43,7 +43,14 @@ final class LiveDuelViewModel: ObservableObject, MatchClientDelegate {
     }
 
     // MARK: Published state
-    @Published private(set) var phase: Phase = .idle
+    @Published private(set) var phase: Phase = .idle {
+        // 3.5 race music: plays while a match is live, on every path in or out
+        // (paired, resumed, finished, left, dropped).
+        didSet {
+            guard phase != oldValue else { return }
+            if phase == .playing { RaceMusic.shared.start() } else { RaceMusic.shared.stop() }
+        }
+    }
     @Published private(set) var guesses: [Guess] = []
     @Published private(set) var replies: [Reply] = []
     @Published private(set) var snapshot: StateSnapshot?
@@ -201,6 +208,9 @@ final class LiveDuelViewModel: ObservableObject, MatchClientDelegate {
             // Resuming: if the server hands us live state while we're still
             // "searching" (e.g. we quit and relaunched), adopt the match.
             if phase == .searching { phase = .playing }
+            RaceMusic.shared.update(youBest: s.you.bestWarmth,
+                                    oppBest: s.opponent.bestWarmth,
+                                    remainingMs: s.clock.remainingMs)
 
         case .scored(let guess, let score, let rank, let notAWord):
             if let i = guesses.firstIndex(where: { $0.word == guess && $0.warmth == nil }) {

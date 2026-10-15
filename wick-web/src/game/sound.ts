@@ -50,9 +50,11 @@ export function setSoundEnabled(on: boolean): void {
   if (on) { primeAudio(); void play("tap"); }   // confirm the switch audibly
 }
 
-/** Called from the first real user gesture. Safe to call repeatedly. */
-export function primeAudio(): void {
-  if (!soundEnabled() || ctx) return;
+/** Called from the first real user gesture. Safe to call repeatedly.
+ *  `force` builds the audio context even with Sound off, for the race music,
+ *  which has its own switch (music.ts). */
+export function primeAudio(force = false): void {
+  if (ctx || !(force || soundEnabled())) return;
   try {
     const Ctor = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
     if (!Ctor) return;
@@ -120,9 +122,20 @@ export function playGuessTone(warmth: number): void {
   void play(`guess_${String(step).padStart(2, "0")}` as SoundKey);
 }
 
+/** The shared audio graph, for the race music (music.ts), which checks its own
+ *  switch first. Null if the browser refused audio. */
+export async function audioOut(): Promise<{ ctx: AudioContext; master: GainNode } | null> {
+  primeAudio(true);
+  if (!ctx || !master) return null;
+  if (ctx.state === "suspended") { try { await ctx.resume(); } catch { return null; } }
+  return { ctx, master };
+}
+
 /** Wire the one-time unlock to the first genuine gesture on the page. */
-export function armAudioUnlock(): void {
-  const once = () => { primeAudio(); };
+export function armAudioUnlock(alsoFor: () => boolean = () => false): void {
+  // Safari only unlocks audio inside a gesture, so build the context here when
+  // either Sound or race music (`alsoFor`) will want it.
+  const once = () => { primeAudio(alsoFor()); };
   window.addEventListener("pointerdown", once, { once: true, passive: true });
   window.addEventListener("keydown", once, { once: true });
 }

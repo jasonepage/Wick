@@ -60,6 +60,7 @@ request.
 | `src/game/ghost.ts` | "Race me" share links |
 | `src/game/starters.ts` | Suggested questions for asking Wick |
 | `src/game/wickface.ts`, `src/game/backdrop.ts`, `src/game/sound.ts` | The Wick character, the moving background, and sound effects |
+| `src/game/music.ts` | Race music: a chill loop, a riser, and a kiai loop, scheduled on the beat. The files are built by `debug/music/make_race_loops.py` |
 | `src/i18n.ts` | Every menu string, in six languages |
 | `src/pwa.ts`, `public/sw.js`, `public/offline.html` | Installing the game as an app on Android, and the page shown when there is no connection. The service worker never caches the game itself |
 | `src/net/` | The server connection: `api.ts` for scoring and the Keeper, `client.ts` for live races, `events.ts` for anonymous play counts |

@@ -32,6 +32,7 @@ import { mountBackdrop, setBackdropHeat } from "./game/backdrop.ts";
 import { dailyStarters, starterText, type StarterItem } from "./game/starters.ts";
 import { play as playSound, playGuessTone, soundEnabled, setSoundEnabled, armAudioUnlock } from "./game/sound.ts";
 import { t, getLang, setLang, LANGS, LANG_LABEL } from "./i18n.ts";
+import { startRaceMusic, updateRaceMusic, stopRaceMusic, musicEnabled, setMusicEnabled } from "./game/music.ts";
 import { loadGloss, guessGloss, answerGloss, withGloss } from "./game/gloss.ts";
 import { playLang, playNative, setPlayNative, canPlayNative, type PlayLang } from "./game/playlang.ts";
 import type { Lang } from "./i18n.ts";
@@ -344,6 +345,11 @@ function screenSettings(): void {
       onclick: () => { setThemePref(p); rerender(screenSettings); },
     }, [label]);
 
+  const musicToggle = el("button", {
+    class: `toggle ${musicEnabled() ? "on" : ""}`,
+    onclick: () => { setMusicEnabled(!musicEnabled()); rerender(screenSettings); },
+  }, [musicEnabled() ? t("setOn") : t("setOff")]);
+
   const soundToggle = el("button", {
     class: `toggle ${soundEnabled() ? "on" : ""}`,
     onclick: () => { setSoundEnabled(!soundEnabled()); rerender(screenSettings); },
@@ -385,6 +391,8 @@ function screenSettings(): void {
     el("div", { class: "lbl" }, [t("setSound")]),
     el("div", { class: "set-row" }, [el("span", { class: "set-label" }, [t("setSoundFx")]), soundToggle]),
     el("p", { class: "hint" }, [t("setSoundHint")]),
+    el("div", { class: "set-row" }, [el("span", { class: "set-label" }, [t("setMusic")]), musicToggle]),
+    el("p", { class: "hint" }, [t("setMusicHint")]),
     el("div", { class: "lbl" }, [t("langLabel")]),
     langPicker(),
     ...(canPlayNative() ? [
@@ -1749,6 +1757,7 @@ function startLive(mode: MatchMode, friendCode?: string, create?: boolean, opts?
   live.friendCode = friendCode;
   live.hosting = create === true;
   live.startsAt = null;
+  stopRaceMusic();
   live.client?.close();
   live.client = new WickMatchClient({
     serverBase,
@@ -1758,11 +1767,20 @@ function startLive(mode: MatchMode, friendCode?: string, create?: boolean, opts?
     query: opts?.fillNow ? { fill: "now" } : undefined,
     handlers: {
       onOpen: () => live.client?.queue(mode, friendCode, create, playLang()),
-      onPaired: (f) => { live.opponentKind = f.opponentKind; screenMatch(); },
+      onPaired: (f) => { live.opponentKind = f.opponentKind; screenMatch(); void startRaceMusic(); },
       // Use the duration, not the server's wall time, so a skewed clock can't
       // show a countdown that is already over or an hour long.
       onQueued: (f) => { live.startsAt = Date.now() + f.waitMs; if (!live.snapshot) screenSearching(); },
-      onState: (f) => { live.snapshot = f.state; if (document.querySelector("#hero")) renderMatch(); },
+      onState: (f) => {
+        live.snapshot = f.state;
+        if (document.querySelector("#hero")) renderMatch();
+        // A resumed match skips `paired`, so make sure the music is going.
+        void startRaceMusic().then(() => updateRaceMusic({
+          youBest: f.state.you.bestWarmth,
+          oppBest: f.state.opponent.bestWarmth,
+          remainingMs: f.state.clock.remainingMs,
+        }));
+      },
       onScored: (f) => {
         if (f.notAWord) {
           const i = live.guesses.findIndex((x) => normalize(x.word) === normalize(f.guess) && x.warmth === null);
@@ -1780,7 +1798,7 @@ function startLive(mode: MatchMode, friendCode?: string, create?: boolean, opts?
         const r = live.replies.find((x) => x.question === f.question && x.pending);
         if (r) { r.verdict = f.verdict; r.reply = f.reply; r.pending = false; renderMatch(); }
       },
-      onResult: (f) => screenResult(f.result, f.word, f.words),
+      onResult: (f) => { stopRaceMusic(); screenResult(f.result, f.word, f.words); },
       onOpponentLeft: () => { live.opponentLeft = true; renderMatch(); },
       onError: (e) => handleLiveError(e, create),
       onClose: ({ clean }) => { if (!clean && !live.snapshot) showError("Lost connection to the server."); },
@@ -2021,12 +2039,14 @@ function launchConfetti(count = 160): void {
 }
 
 function leaveLive(): void {
+  stopRaceMusic();
   live.client?.close();
   live.client = null;
   screenHome();
 }
 
 function showError(message: string): void {
+  stopRaceMusic();
   clear("dark");
   app.append(
     el("main", { class: "card" }, [
@@ -2092,7 +2112,7 @@ function boot(): void {
   initEvents(httpBase, live.kid);
   // Browsers refuse to start audio outside a user gesture, so the AudioContext
   // is only built on the first real tap or keypress.
-  armAudioUnlock();
+  armAudioUnlock(musicEnabled);
   scheduleReminder();
   const params = new URLSearchParams(location.search);
 

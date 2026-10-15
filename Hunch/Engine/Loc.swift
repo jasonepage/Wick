@@ -55,6 +55,8 @@ struct Loc {
     var soundHapticsTitle: String { s("soundHapticsTitle") }
     var hapticsToggle: String { s("hapticsToggle") }
     var soundToggle: String { s("soundToggle") }
+    /// 3.5: the race music switch, separate from sound effects.
+    var musicToggle: String { s("musicToggle") }
     var duelSolvedToast: String { s("duelSolvedToast") }
     var duelCreate: String { s("duelCreate") }
     var duelRace: String { s("duelRace") }
@@ -618,6 +620,7 @@ struct Loc {
         "soundHapticsTitle": "Sound & Haptics",
         "hapticsToggle": "Haptics",
         "soundToggle": "Sound",
+        "musicToggle": "Race music",
         "duelSolvedToast": "Duel solved! Share your result to compare.",
         "home": "Home",
         "pastPuzzles": "Past puzzles",
@@ -961,6 +964,7 @@ struct Loc {
         "soundHapticsTitle": "Sonido y vibración",
         "hapticsToggle": "Vibración",
         "soundToggle": "Sonido",
+        "musicToggle": "Música de carrera",
         "duelSolvedToast": "¡Duelo resuelto! Comparte tu resultado.",
         "home": "Inicio",
         "pastPuzzles": "Anteriores",
@@ -1306,6 +1310,7 @@ struct Loc {
         "soundHapticsTitle": "Son et vibrations",
         "hapticsToggle": "Vibrations",
         "soundToggle": "Son",
+        "musicToggle": "Musique de course",
         "duelSolvedToast": "Duel résolu ! Partage ton résultat.",
         "home": "Accueil",
         "pastPuzzles": "Anciennes",
@@ -1651,6 +1656,7 @@ struct Loc {
         "soundHapticsTitle": "Suono e vibrazione",
         "hapticsToggle": "Vibrazione",
         "soundToggle": "Suono",
+        "musicToggle": "Musica di gara",
         "duelSolvedToast": "Duello risolto! Condividi il tuo risultato.",
         "home": "Home",
         "pastPuzzles": "Precedenti",
@@ -1995,6 +2001,7 @@ struct Loc {
         "soundHapticsTitle": "Ton & Vibration",
         "hapticsToggle": "Vibration",
         "soundToggle": "Ton",
+        "musicToggle": "Rennmusik",
         "duelSolvedToast": "Duell gelöst! Teile dein Ergebnis.",
         "home": "Start",
         "pastPuzzles": "Frühere",

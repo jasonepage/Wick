@@ -20,6 +20,7 @@ struct SettingsView: View {
     @AppStorage("hunch.reminderMinute") private var reminderMinute = 0
     @AppStorage("hunch.haptics") private var hapticsOn = true
     @AppStorage("hunch.sound") private var soundOn = true
+    @AppStorage("hunch.music") private var musicOn = true
 
     @State private var showHowTo = false
 
@@ -230,6 +231,11 @@ struct SettingsView: View {
                 Toggle(game.loc.soundToggle, isOn: $soundOn)
                     .font(.body.weight(.medium))
                     .tint(HunchTheme.Palette.keeper)
+                Divider()
+                Toggle(game.loc.musicToggle, isOn: $musicOn)
+                    .font(.body.weight(.medium))
+                    .tint(HunchTheme.Palette.keeper)
+                    .disabled(!soundOn)
             }
             .padding(HunchTheme.Spacing.l)
             .hunchCard(radius: 18)
