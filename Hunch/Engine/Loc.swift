@@ -307,6 +307,11 @@ struct Loc {
     var notifStreakTitle: String { s("notifStreakTitle") }
     /// "6 days and counting…" — %d is the streak about to be lost.
     func notifStreakBody(_ days: Int) -> String { f("notifStreakBody", days) }
+    /// 3.5: the one-time offer after the first daily solve.
+    var reminderOfferTitle: String { s("reminderOfferTitle") }
+    var reminderOfferBody: String { s("reminderOfferBody") }
+    var reminderOfferYes: String { s("reminderOfferYes") }
+    var notNow: String { s("notNow") }
 
     // MARK: - Toasts
     func dailyBonus(_ n: Int) -> String { f("dailyBonus", n) }
@@ -435,6 +440,9 @@ struct Loc {
     var replayBest: String { s("replayBest") }
     var replayTagline: String { s("replayTagline") }
     var replayPlayFree: String { s("replayPlayFree") }
+    /// 3.5: "Can you beat %d? Play free at", the end card line on a solved
+    /// daily, so the video dares the viewer to beat the poster's guess count.
+    var replayChallengeFormat: String { s("replayChallenge") }
     var replayRevealed: String { s("replayRevealed") }
     func replayRevealedAfter(_ n: Int) -> String { f("replayRevealedAfter", n) }
     /// Raw format strings ("Guess %d of %d", "+%d guesses"): the video is drawn
@@ -708,6 +716,10 @@ struct Loc {
         "notifDailyBody": "Wick is guarding a new one. Think you can get it?",
         "notifStreakTitle": "Your flame is about to go out",
         "notifStreakBody": "%d days and counting — today's word is still unsolved.",
+        "reminderOfferTitle": "Want a nudge tomorrow?",
+        "reminderOfferBody": "Wick can tell you when the next word is ready. You can change the time in Settings.",
+        "reminderOfferYes": "Remind me",
+        "notNow": "Not now",
         // Toasts
         "dailyBonus": "Daily bonus · +%d coins",
         "countsAsAlready": "“%@” counts as “%@” — already guessed.",
@@ -789,6 +801,7 @@ struct Loc {
         "replayBest": "Best",
         "replayTagline": "Guess the word by meaning",
         "replayPlayFree": "Play free at",
+        "replayChallenge": "Can you beat %d? Play free at",
         "replayRevealed": "Revealed",
         "replayAnswerWas": "The word was %@",
         "replayRevealedAfter": "revealed after %d guesses",
@@ -1046,6 +1059,10 @@ struct Loc {
         "notifDailyBody": "Wick guarda una nueva. ¿Crees que la adivinas?",
         "notifStreakTitle": "Tu llama está a punto de apagarse",
         "notifStreakBody": "%d días seguidos — la palabra de hoy sigue sin resolver.",
+        "reminderOfferTitle": "¿Te aviso mañana?",
+        "reminderOfferBody": "Wick puede avisarte cuando la próxima palabra esté lista. Puedes cambiar la hora en Ajustes.",
+        "reminderOfferYes": "Avísame",
+        "notNow": "Ahora no",
         // Toasts
         "dailyBonus": "Bono diario · +%d monedas",
         "countsAsAlready": "«%@» cuenta como «%@» — ya la intentaste.",
@@ -1127,6 +1144,7 @@ struct Loc {
         "replayBest": "Mejor",
         "replayTagline": "Adivina la palabra por su significado",
         "replayPlayFree": "Juega gratis en",
+        "replayChallenge": "¿Puedes superar %d? Juega gratis en",
         "replayRevealed": "Revelada",
         "replayAnswerWas": "La palabra era %@",
         "replayRevealedAfter": "revelada tras %d intentos",
@@ -1386,6 +1404,10 @@ struct Loc {
         "notifDailyBody": "Wick en garde un nouveau. Tu penses le trouver ?",
         "notifStreakTitle": "Ta flamme va s'éteindre",
         "notifStreakBody": "%d jours d'affilée — le mot du jour n'est toujours pas trouvé.",
+        "reminderOfferTitle": "Un rappel demain ?",
+        "reminderOfferBody": "Wick peut te prévenir quand le prochain mot est prêt. Tu peux changer l'heure dans les Réglages.",
+        "reminderOfferYes": "Me le rappeler",
+        "notNow": "Pas maintenant",
         // Toasts
         "dailyBonus": "Bonus quotidien · +%d pièces",
         "countsAsAlready": "« %@ » compte comme « %@ » — déjà essayé.",
@@ -1467,6 +1489,7 @@ struct Loc {
         "replayBest": "Meilleur",
         "replayTagline": "Devine le mot par son sens",
         "replayPlayFree": "Joue gratuitement sur",
+        "replayChallenge": "Tu peux battre %d ? Joue gratuitement sur",
         "replayRevealed": "Révélé",
         "replayAnswerWas": "Le mot était %@",
         "replayRevealedAfter": "révélé après %d essais",
@@ -1726,6 +1749,10 @@ struct Loc {
         "notifDailyBody": "Wick ne custodisce una nuova. Pensi di indovinarla?",
         "notifStreakTitle": "La tua fiamma sta per spegnersi",
         "notifStreakBody": "%d giorni di fila — la parola di oggi è ancora irrisolta.",
+        "reminderOfferTitle": "Un promemoria domani?",
+        "reminderOfferBody": "Wick può avvisarti quando la prossima parola è pronta. Puoi cambiare l'orario nelle Impostazioni.",
+        "reminderOfferYes": "Avvisami",
+        "notNow": "Non ora",
         // Toasts
         "dailyBonus": "Bonus giornaliero · +%d monete",
         "countsAsAlready": "«%@» conta come «%@» — già provata.",
@@ -1807,6 +1834,7 @@ struct Loc {
         "replayBest": "Migliore",
         "replayTagline": "Indovina la parola dal significato",
         "replayPlayFree": "Gioca gratis su",
+        "replayChallenge": "Riesci a battere %d? Gioca gratis su",
         "replayRevealed": "Rivelata",
         "replayAnswerWas": "La parola era %@",
         "replayRevealedAfter": "rivelata dopo %d tentativi",
@@ -2065,6 +2093,10 @@ struct Loc {
         "notifDailyBody": "Wick hütet ein neues. Traust du dir das zu?",
         "notifStreakTitle": "Deine Flamme geht gleich aus",
         "notifStreakBody": "%d Tage in Folge — das heutige Wort ist noch ungelöst.",
+        "reminderOfferTitle": "Morgen erinnern?",
+        "reminderOfferBody": "Wick kann dir sagen, wenn das nächste Wort bereit ist. Die Uhrzeit kannst du in den Einstellungen ändern.",
+        "reminderOfferYes": "Erinnere mich",
+        "notNow": "Jetzt nicht",
         // Toasts
         "dailyBonus": "Tagesbonus · +%d Münzen",
         "countsAsAlready": "„%@“ zählt als „%@“ – schon versucht.",
@@ -2146,6 +2178,7 @@ struct Loc {
         "replayBest": "Bester",
         "replayTagline": "Errate das Wort über seine Bedeutung",
         "replayPlayFree": "Spiel gratis auf",
+        "replayChallenge": "Schlägst du %d? Spiel gratis auf",
         "replayRevealed": "Aufgedeckt",
         "replayAnswerWas": "Das Wort war %@",
         "replayRevealedAfter": "aufgedeckt nach %d Versuchen",

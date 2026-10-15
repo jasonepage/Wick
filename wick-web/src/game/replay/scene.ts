@@ -71,6 +71,9 @@ export interface ReplayCopy {
   fastForward: (n: number) => string;
   revealed: string;
   playFree: string;     // "Play free at"
+  /** 3.5: "Can you beat 14? Play free at", only on a solved daily, where a
+   *  viewer can play the same puzzle. Absent falls back to `playFree`. */
+  challenge?: string;
   domain: string;       // "guesswick.com"
   bandName: (b: Band) => string;
   /** "The word was %@", for the practice end card. */
@@ -836,7 +839,7 @@ export class ReplayScene {
     ctx.fillRect(0, 0, W, H);
     const rise = (1 - easeOut(clamp((local - 0.25) / 0.5))) * 60;
     this.drawWick(ctx, 540, 880 + rise, 230, this.tl.outcome === "solved" ? "celebrating" : "idle", t, 1, 0, true);
-    this.text(ctx, this.copy.playFree, 540, 1010, 62, 600, C.onInk, "center", 900);
+    this.text(ctx, this.copy.challenge ?? this.copy.playFree, 540, 1010, 62, 600, C.onInk, "center", 900);
     this.text(ctx, this.copy.domain, 540, 1120, 108, 800, C.violetLight, "center", 940);
     this.text(ctx, `${this.copy.title}  ·  ${this.copy.stats}`, 540, 1232, 40, 500, C.onInkDim, "center", 900);
     // Practice only: the answer. Both the flag and the word must be set.

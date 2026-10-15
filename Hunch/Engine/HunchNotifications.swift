@@ -7,8 +7,10 @@
 //
 //  Two reminders:
 //
-//  1. The DAILY nudge — a repeating "today's word is ready" at a time the
-//     player picks in Settings.
+//  1. The DAILY nudge: "today's word is ready" at a time the player picks in
+//     Settings. Since 3.5 it is a run of one-shot reminders, one per day for
+//     the next two weeks, so a day whose puzzle is already solved can be
+//     skipped. A repeating trigger cannot skip a day.
 //  2. The STREAK-AT-RISK nudge — a one-shot, fired a few hours before the day
 //     rolls over, and ONLY when there is actually a streak to lose and today's
 //     word is still unsolved. This is the one that moves retention: "a new word
@@ -57,15 +59,13 @@ enum HunchNotifications {
 
     // MARK: - Permission
 
-    /// Requests permission (if needed) and schedules the daily reminder.
-    /// Returns whether notifications are authorized.
-    @discardableResult
-    static func enable(hour: Int, minute: Int, loc: Loc) async -> Bool {
-        let center = UNUserNotificationCenter.current()
+    /// Asks iOS for permission to show notifications. Returns whether they are
+    /// allowed. Scheduling is the caller's job (`GameViewModel.refreshReminders`),
+    /// because only the view model knows which puzzle was last solved.
+    static func requestPermission() async -> Bool {
         do {
-            let granted = try await center.requestAuthorization(options: [.alert, .sound, .badge])
-            if granted { schedule(hour: hour, minute: minute, loc: loc) }
-            return granted
+            return try await UNUserNotificationCenter.current()
+                .requestAuthorization(options: [.alert, .sound, .badge])
         } catch {
             return false
         }
@@ -73,25 +73,65 @@ enum HunchNotifications {
 
     // MARK: - The daily reminder
 
-    /// (Re)schedules the repeating daily reminder at the given local time.
+    /// How many days of daily reminders to keep queued. iOS allows 64 pending
+    /// requests per app; two weeks leaves room and still reaches a player who
+    /// skips a few days. Opening the app tops the queue back up.
+    static let daysAhead = 14
+
+    /// Every identifier a daily reminder could be using around `now`, including
+    /// the single repeating request that versions before 3.5 scheduled.
+    private static func dailyIDs(around now: Date) -> [String] {
+        let today = WordBank.dayIndex(for: now)
+        return [dailyID] + ((today - 2)...(today + daysAhead + 2)).map { "\(dailyID).\($0)" }
+    }
+
+    /// The local fire times for the next `daysAhead` days, each paired with the
+    /// puzzle day it points at. A day whose puzzle is `lastSolvedDay` is left
+    /// out, so a player who already solved never hears "today's word is ready".
+    ///
+    /// Pure, so it can be tested without the notification center.
+    static func dailyFireTimes(hour: Int, minute: Int, lastSolvedDay: Int,
+                               now: Date = Date(),
+                               calendar: Calendar = .current) -> [(fireAt: Date, puzzleDay: Int)] {
+        let startOfToday = calendar.startOfDay(for: now)
+        var out: [(fireAt: Date, puzzleDay: Int)] = []
+        for offset in 0..<daysAhead {
+            guard let day = calendar.date(byAdding: .day, value: offset, to: startOfToday),
+                  let fireAt = calendar.date(bySettingHour: hour, minute: minute, second: 0, of: day),
+                  fireAt > now else { continue }
+            // The puzzle changes at UTC midnight (see `dayRollover`), so the
+            // puzzle a reminder points at is the one live at its fire time.
+            let puzzleDay = WordBank.dayIndex(for: fireAt)
+            if puzzleDay == lastSolvedDay { continue }
+            out.append((fireAt, puzzleDay))
+        }
+        return out
+    }
+
+    /// (Re)schedules the daily reminders at the given local time.
     ///
     /// This one *is* local-time-anchored on purpose: it's a "come play" nudge
     /// tied to the player's morning, not to the puzzle deadline. The deadline
     /// is what `refreshStreakReminder` handles.
-    static func schedule(hour: Int, minute: Int, loc: Loc) {
+    static func schedule(hour: Int, minute: Int, lastSolvedDay: Int, loc: Loc, now: Date = Date()) {
         let center = UNUserNotificationCenter.current()
-        center.removePendingNotificationRequests(withIdentifiers: [dailyID])
+        center.removePendingNotificationRequests(withIdentifiers: dailyIDs(around: now))
 
-        let content = UNMutableNotificationContent()
-        content.title = loc.notifDailyTitle
-        content.body  = loc.notifDailyBody
-        content.sound = .default
+        let calendar = Calendar.current
+        for (fireAt, puzzleDay) in dailyFireTimes(hour: hour, minute: minute,
+                                                  lastSolvedDay: lastSolvedDay,
+                                                  now: now, calendar: calendar) {
+            let content = UNMutableNotificationContent()
+            content.title = loc.notifDailyTitle
+            content.subtitle = "Wick #\(WordBank.dailyNumber(forDayIndex: puzzleDay))"
+            content.body  = loc.notifDailyBody
+            content.sound = .default
 
-        var comps = DateComponents()
-        comps.hour = hour
-        comps.minute = minute
-        let trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: true)
-        center.add(UNNotificationRequest(identifier: dailyID, content: content, trigger: trigger))
+            let comps = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: fireAt)
+            let trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: false)
+            center.add(UNNotificationRequest(identifier: "\(dailyID).\(puzzleDay)",
+                                             content: content, trigger: trigger))
+        }
     }
 
     // MARK: - The streak-at-risk reminder
@@ -134,9 +174,9 @@ enum HunchNotifications {
 
     // MARK: - Teardown
 
-    /// Cancels both reminders — the Settings toggle going off.
+    /// Cancels every reminder, when the Settings toggle goes off.
     static func cancel() {
         UNUserNotificationCenter.current()
-            .removePendingNotificationRequests(withIdentifiers: [dailyID, streakID])
+            .removePendingNotificationRequests(withIdentifiers: dailyIDs(around: Date()) + [streakID])
     }
 }

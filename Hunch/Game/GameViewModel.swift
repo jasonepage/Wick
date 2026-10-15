@@ -450,7 +450,7 @@ final class GameViewModel {
         // from `HunchApp.init`) merges it into UserDefaults and posts this; we
         // re-read so the streak on screen isn't a stale zero.
         CloudSync.onMerge = { [weak self] in self?.adoptCloudState() }
-        refreshStreakReminder()
+        refreshReminders()
     }
 
     // MARK: - Vocabulary auto-retry
@@ -1139,7 +1139,7 @@ final class GameViewModel {
         // anything can happen to this device, and stand the streak warning down
         // now that today is safe.
         CloudSync.push()
-        refreshStreakReminder()
+        refreshReminders()
         // Leaderboards, if the player ever opted in. Dailies only — practice and
         // archive aren't a shared contest, and both are unbounded, so ranking
         // them would be farmable. No-ops entirely when Game Center is untouched.
@@ -1149,7 +1149,11 @@ final class GameViewModel {
                                         bestStreak: bestStreak)
         }
         GameCenter.report(unlocked: unlocked)
+        // One ask per solve: if the rating prompt is coming, the reminder offer
+        // waits for a later solve (it stays unoffered until it is shown).
+        let reviewBefore = reviewRequestID
         maybeRequestReview()
+        if reviewRequestID == reviewBefore { maybeOfferReminder() }
     }
 
     // MARK: - iCloud progression
@@ -1169,35 +1173,65 @@ final class GameViewModel {
         bestGuessCount    = d.integer(forKey: "hunch.bestGuessCount")
         unlocked          = Set(d.stringArray(forKey: "hunch.achievements") ?? [])
         wardrobe.reloadFromDefaults()
-        refreshStreakReminder()
+        refreshReminders()
     }
 
     // MARK: - Reminders
 
-    /// Arms or stands down the "your flame is about to go out" notification for
-    /// today. Cheap and idempotent — call it whenever the streak, the solved
-    /// state, the language or the reminder toggle could have changed.
-    func refreshStreakReminder() {
+    /// Re-writes the daily reminders and arms or stands down the "your flame is
+    /// about to go out" warning. Cheap and idempotent: call it whenever the
+    /// streak, the solved state, the language, the reminder time or the toggle
+    /// could have changed, and on every launch and foreground (that also tops
+    /// the two-week queue of daily reminders back up).
+    func refreshReminders() {
+        let d = UserDefaults.standard
+        let on = d.bool(forKey: "hunch.reminderOn")
+        if on {
+            HunchNotifications.schedule(
+                hour: d.object(forKey: "hunch.reminderHour") as? Int ?? 9,
+                minute: d.object(forKey: "hunch.reminderMinute") as? Int ?? 0,
+                lastSolvedDay: lastSolvedDay,
+                loc: loc
+            )
+        }
         HunchNotifications.refreshStreakReminder(
             streak: streak,
             lastSolvedDay: lastSolvedDay,
-            enabled: UserDefaults.standard.bool(forKey: "hunch.reminderOn"),
+            enabled: on,
             loc: loc
         )
     }
 
-    /// Re-writes both reminders in the current language. Notification copy is
+    /// Re-writes every reminder in the current language. Notification copy is
     /// baked in when it's scheduled, so a pending reminder keeps speaking the
     /// old language until something re-schedules it — this is that something.
     func rescheduleReminders() {
+        guard UserDefaults.standard.bool(forKey: "hunch.reminderOn") else { return }
+        refreshReminders()
+    }
+
+    /// Bumped once, after the first daily solve, to offer the daily reminder.
+    /// A view watches it and asks. 3.5: most players never open Settings, so
+    /// the reminder has to be offered at a happy moment to be found at all.
+    private(set) var reminderOfferID = 0
+
+    /// Offers the reminder after a daily solve, once ever, and only to a player
+    /// who doesn't have it on.
+    private func maybeOfferReminder() {
+        guard case .daily = mode else { return }
         let d = UserDefaults.standard
-        guard d.bool(forKey: "hunch.reminderOn") else { return }
-        HunchNotifications.schedule(
-            hour: d.object(forKey: "hunch.reminderHour") as? Int ?? 9,
-            minute: d.object(forKey: "hunch.reminderMinute") as? Int ?? 0,
-            loc: loc
-        )
-        refreshStreakReminder()
+        guard !d.bool(forKey: "hunch.reminderOn"),
+              !d.bool(forKey: "hunch.reminderOffered") else { return }
+        d.set(true, forKey: "hunch.reminderOffered")
+        reminderOfferID += 1
+    }
+
+    /// The player said yes to the reminder offer: ask iOS, then schedule at the
+    /// time saved in Settings (9 AM unless they changed it).
+    func acceptReminderOffer() async {
+        let ok = await HunchNotifications.requestPermission()
+        UserDefaults.standard.set(ok, forKey: "hunch.reminderOn")
+        refreshReminders()
     }
 
     // MARK: - Ratings

@@ -62,6 +62,9 @@ export interface HubDeps {
   /** Invite-funnel counters (3.1). Shared with the Matchmaker; defaults to a
    *  throwaway instance so tests need not pass one. */
   metrics?: Metrics;
+  /** 3.5: a real person started waiting in the Quick Match queue (not a friend
+   *  code room). The server wires the maintainer's queue alert here. */
+  onQueued?: (info: { lang: Lang; waiting: number }) => void;
 }
 
 interface ActiveRoom {
@@ -93,6 +96,7 @@ export class MatchHub {
   /** The language each connected client last queued with. */
   private readonly clientLang = new Map<string, Lang>();
   private readonly botConfig?: Partial<BotConfig>;
+  private readonly onQueued: (info: { lang: Lang; waiting: number }) => void;
   private readonly metrics: Metrics;
 
   private readonly clients = new Map<string, Client>();
@@ -124,6 +128,7 @@ export class MatchHub {
     this.answerKeeper =
       deps.answerKeeper ?? (async () => ({ verdict: "Won't say", reply: "Wick is quiet right now." }));
     this.botConfig = deps.botConfig;
+    this.onQueued = deps.onQueued ?? (() => {});
   }
 
   // ── connection lifecycle ────────────────────────────────────────────────────
@@ -370,6 +375,10 @@ export class MatchHub {
       if (startsAt !== null) {
         client.send({ t: "queued", startsAt, waitMs: Math.max(0, startsAt - now) });
       }
+      this.onQueued({
+        lang: this.clientLang.get(client.id) ?? "en",
+        waiting: this.mm.waitingCount(mode),
+      });
     }
   }
 

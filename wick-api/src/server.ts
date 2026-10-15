@@ -31,6 +31,7 @@ import { RateLimiter } from "./ratelimit.js";
 import { isAllowedOrigin, parseOrigins } from "./abuse.js";
 import { Metrics } from "./metrics.js";
 import { track, isTrackedEvent, anonId } from "./events.js";
+import { queueAlerterFromEnv } from "./alerts.js";
 
 // Render injects PORT at runtime — never set it by hand. `|| 8080` is a safety
 // net: an empty PORT ("") would otherwise parse to 0 (a random port Render can't
@@ -459,8 +460,14 @@ app.get("/*", serveStatic({ path: "./public/index.html", onFound: noStore })); /
 // per-identity attestation (Apple App Attest / web signed session token), which
 // needs device fixtures to verify and lands separately (see hub.ts FLAG, NOTE_3.1).
 
+// 3.5: push the maintainer's phone when a real person waits in the Quick Match
+// queue. Off unless WICK_NTFY_TOPIC is set (see alerts.ts and .env.example).
+const queueAlerter = queueAlerterFromEnv(process.env, Date.now);
+if (queueAlerter) console.log("[wick-api] queue alerts on (ntfy)");
+
 const hub = new MatchHub({
   now: () => Date.now(),
+  onQueued: queueAlerter ? (info) => queueAlerter.onQueued(info) : undefined,
   metrics, // 3.1 invite-funnel counters, shared with the matchmaker
   // attest: (client, frame) => verifyAppAttest(...)  // future identity layer (FR-16)
   // Server-authoritative warmth for live matches (Gemini embeddings, C8).

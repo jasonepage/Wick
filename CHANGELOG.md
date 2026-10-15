@@ -6,9 +6,28 @@ numbers.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [Unreleased] (3.5)
 
-Nothing yet.
+### Added
+
+- **Reminder offer.** After the first daily solve, iOS asks once whether the
+  player wants a reminder when the next word is ready. It uses the time set in
+  Settings (9 AM unless changed).
+- **Queue alert.** The server can push the maintainer's phone through ntfy when
+  a real person starts waiting for a live race, with a louder alert when the
+  queue is busy, so a first race can be against a human instead of the bot. Off
+  unless `WICK_NTFY_TOPIC` is set.
+- **Challenge line.** A solved daily replay's end card now reads "Can you beat
+  14? Play free at guesswick.com", on iOS and on the web.
+- **Install on Android.** The web game can be installed as an app from Chrome.
+  An Install button replaces the App Store link when Chrome offers it, and a
+  small offline page shows when there is no connection.
+
+### Changed
+
+- iOS daily reminders are now queued one day at a time for the next two weeks,
+  so a day whose puzzle is already solved is skipped, and each one names the
+  puzzle number.
 
 ## [3.4] - 2026-10-14
 

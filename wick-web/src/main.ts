@@ -25,6 +25,7 @@ import { buildTimeline, bandToken, toneFor, HIDE_ANSWER, STANDARD_PACING, type R
 import { ReplayScene, W as REPLAY_W, H as REPLAY_H, type ReplayCopy } from "./game/replay/scene.ts";
 import { canRecord, canShareFile, downloadVideo, recordReplay, shareVideo, type Recording } from "./game/replay/record.ts";
 import { initEvents, track } from "./net/events.ts";
+import { initPwa, promptInstall } from "./pwa.ts";
 import { buildRun, encodeRun, decodeRun, runDuration, fmtDuration } from "./game/ghost.ts";
 import type { GhostRun } from "./game/ghost.ts";
 import { mountBackdrop, setBackdropHeat } from "./game/backdrop.ts";
@@ -592,7 +593,9 @@ function screenHome(): void {
       el("div", { class: "home-foot" }, [
         el("button", { class: "foot-btn", onclick: () => rerender(() => { cycleTheme(); screenHome(); }) }, [themeLabel()]),
         el("button", { class: "foot-btn", onclick: () => toast("How to play: guess words to warm up to the hidden word. Blue = cold, red = boiling, green = solved!") }, [t("howToPlay")]),
-        el("a", { class: "foot-btn", href: APP_STORE_URL, target: "_blank", rel: "noopener" }, [t("getApp")]),
+        // 3.5: on Android, Install replaces the App Store link (see pwa.ts).
+        el("a", { class: "foot-btn get-app-btn", href: APP_STORE_URL, target: "_blank", rel: "noopener" }, [t("getApp")]),
+        el("button", { class: "foot-btn install-btn", onclick: () => void promptInstall() }, [t("installApp")]),
         el("button", { class: "foot-btn", onclick: screenSettings }, [t("settings")]),
         el("a", { class: "foot-btn", href: "https://github.com/jasonepage/Wick", target: "_blank", rel: "noopener" }, [t("sourceCode")]),
       ]),
@@ -1029,6 +1032,7 @@ function screenReplay(): void {
     fastForward: (k) => t("replayFastForward", k),
     revealed: t("replayRevealed"),
     playFree: t("replayPlayFree"),
+    challenge: daily && sp.solved ? t("replayChallenge", sp.guesses.length) : undefined,
     domain: "guesswick.com",
     bandName: (b) => t("heat." + bandToken(b)),
     answerWas: (w) => t("replayAnswerWas", w),
@@ -2125,4 +2129,5 @@ function boot(): void {
   }
   screenHome();
 }
+initPwa();
 boot();

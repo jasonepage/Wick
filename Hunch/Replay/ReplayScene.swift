@@ -121,6 +121,10 @@ nonisolated struct ReplayCopy: Equatable, Sendable {
     var revealed: String
     /// "Play free at"
     var playFree: String
+    /// 3.5: "Can you beat 14? Play free at". Set only on a solved daily or
+    /// archive round, where a viewer can play the same puzzle; nil falls back
+    /// to `playFree`.
+    var challenge: String? = nil
     var domain: String = "guesswick.com"
     /// Localized heat words, keyed by band.
     var bandNames: [ReplayBand: String]
@@ -1082,8 +1086,8 @@ nonisolated final class ReplayScene {
         drawWick(in: ctx, feet: CGPoint(x: 540, y: 880 + rise), size: 230, look: look, t: t,
                  squash: 1, lookDirection: 0, standing: true)
 
-        drawText(copy.playFree, .endSmall, style.onInk, at: CGPoint(x: 540, y: 1010), align: .center,
-                 in: ctx, maxWidth: 900)
+        drawText(copy.challenge ?? copy.playFree, .endSmall, style.onInk, at: CGPoint(x: 540, y: 1010),
+                 align: .center, in: ctx, maxWidth: 900)
         drawText(copy.domain, .endBig, style.violet.mixed(.white, 0.45), at: CGPoint(x: 540, y: 1120),
                  align: .center, in: ctx, maxWidth: 940)
         drawText("\(copy.title)  ·  \(copy.stats)", .endStats, style.onInkDim,

@@ -29,10 +29,11 @@ struct HunchApp: App {
                         // Last safe moment to mirror progression off this device.
                         CloudSync.push()
                     case .active:
-                        // Re-arm the streak warning: the day may have rolled over
-                        // while the app was closed, which changes both whether the
-                        // warning applies and when it should fire.
-                        game.refreshStreakReminder()
+                        // Re-arm the reminders: the day may have rolled over
+                        // while the app was closed, which changes whether the
+                        // streak warning applies and when it should fire, and
+                        // the two-week queue of daily reminders needs topping up.
+                        game.refreshReminders()
                     @unknown default:
                         break
                     }

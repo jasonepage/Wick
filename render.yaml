@@ -42,4 +42,8 @@ services:
       # Leave unset in production (debug routes reveal the secret word).
       - key: WICK_DEBUG_TOKEN
         sync: false
+      # Optional: ntfy topic for queue alerts to the maintainer's phone (see
+      # wick-api/.env.example). Works like a password; set it in the dashboard.
+      - key: WICK_NTFY_TOPIC
+        sync: false
       # PORT is provided by Render automatically; the server reads process.env.PORT.

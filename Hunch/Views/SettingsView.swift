@@ -315,17 +315,14 @@ struct SettingsView: View {
             set: { on in
                 reminderOn = on
                 if on {
-                    let loc = game.loc   // read before the hop, not inside it
                     Task {
-                        let ok = await HunchNotifications.enable(hour: reminderHour,
-                                                                 minute: reminderMinute,
-                                                                 loc: loc)
+                        let ok = await HunchNotifications.requestPermission()
                         if !ok {
                             reminderOn = false
                         } else {
-                            // The toggle also gates the streak warning, and the
-                            // @AppStorage write above has landed by now.
-                            game.refreshStreakReminder()
+                            // Schedules the daily reminders and the streak
+                            // warning; the @AppStorage write above has landed.
+                            game.refreshReminders()
                         }
                     }
                 } else {
@@ -345,7 +342,7 @@ struct SettingsView: View {
                 reminderHour = c.hour ?? 9
                 reminderMinute = c.minute ?? 0
                 if reminderOn {
-                    HunchNotifications.schedule(hour: reminderHour, minute: reminderMinute, loc: game.loc)
+                    game.refreshReminders()
                 }
             }
         )

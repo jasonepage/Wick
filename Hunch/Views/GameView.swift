@@ -12,6 +12,7 @@ struct GameView: View {
     @Environment(\.requestReview) private var requestReview
     @State private var guessText = ""
     @State private var showReveal = false
+    @State private var showReminderOffer = false
     @State private var showGiveUpConfirm = false
     @State private var showShop = false
     @State private var showSettings = false
@@ -157,6 +158,16 @@ struct GameView: View {
             .onChange(of: game.reviewRequestID) { _, _ in
                 // Let the solve celebration land first, then ask.
                 Task { try? await Task.sleep(for: .seconds(1.2)); requestReview() }
+            }
+            .onChange(of: game.reminderOfferID) { _, _ in
+                // Same beat as the rating prompt: after the confetti.
+                Task { try? await Task.sleep(for: .seconds(1.2)); showReminderOffer = true }
+            }
+            .alert(game.loc.reminderOfferTitle, isPresented: $showReminderOffer) {
+                Button(game.loc.reminderOfferYes) { Task { await game.acceptReminderOffer() } }
+                Button(game.loc.notNow, role: .cancel) {}
+            } message: {
+                Text(game.loc.reminderOfferBody)
             }
         }
     }

@@ -42,6 +42,9 @@ play a live Race, on iOS or on the web:
   tracking or advertising**.
 - The server keeps only what a live match needs while it is in progress; it does
   not build a profile of you.
+- When you wait in the Quick Match queue, the server may send the developer a
+  phone notification that says someone is waiting and in which language, so he
+  can come race you. It contains nothing else about you.
 
 On iOS, if you never play a live mode, nothing you type ever leaves your
 device. Only the anonymous play counts below do.

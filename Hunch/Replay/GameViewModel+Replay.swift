@@ -49,7 +49,15 @@ extension GameViewModel {
             ? shareStats
             : loc.replayRevealedAfter(guesses.filter(\.known).count)
 
-        let copy = ReplayCopy(title: shareTitle,
+        // 3.5: dare the viewer, but only when they can play the same puzzle.
+        // A practice word is random, so there is nothing to beat.
+        var sharedPuzzle = mode == .daily
+        if case .archive = mode { sharedPuzzle = true }
+        let challenge: String? = solved && sharedPuzzle
+            ? String(format: loc.replayChallengeFormat, guessCount)
+            : nil
+
+        var copy = ReplayCopy(title: shareTitle,
                               tagline: loc.replayTagline,
                               stats: stats,
                               best: loc.replayBest,
@@ -59,6 +67,7 @@ extension GameViewModel {
                               playFree: loc.replayPlayFree,
                               bandNames: bandNames,
                               answerWasFormat: loc.replayAnswerWasFormat)
+        copy.challenge = challenge
         let fileName = mode == .daily ? "Wick-Replay-\(puzzleNumber)" : "Wick-Replay"
         return ReplayRequest(timeline: timeline, copy: copy, style: .current(),
                              maxRank: maxRank, fileName: fileName)

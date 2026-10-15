@@ -661,3 +661,41 @@ describe("invite funnel telemetry (3.1)", () => {
     expect(m.get("invite.joined.dare")).toBe(1);
   });
 });
+
+describe("queue alert hook (3.5)", () => {
+  function hubWithHook() {
+    const calls: { lang: string; waiting: number }[] = [];
+    const hub = new MatchHub({
+      now: () => clock.t,
+      matchmaker: {
+        wordProvider: () => "ember",
+        roomIdProvider: (() => {
+          let n = 0;
+          return () => `room-${++n}`;
+        })(),
+        botSeedProvider: () => solvingSeed(),
+        config: { startSlotMs: 120_000, minWaitMs: 15_000 },
+      },
+      onQueued: (info) => calls.push(info),
+    });
+    return { hub, calls };
+  }
+
+  it("fires when a real person starts waiting in Quick Match, with their language", () => {
+    clock = { t: T0 };
+    const { hub, calls } = hubWithHook();
+    const a = new Fake("A");
+    hub.connect(a);
+    hub.receive(a, { t: "queue", mode: "casual", lang: "es" });
+    expect(calls).toEqual([{ lang: "es", waiting: 1 }]);
+  });
+
+  it("does not fire for a friend code room", () => {
+    clock = { t: T0 };
+    const { hub, calls } = hubWithHook();
+    const a = new Fake("A");
+    hub.connect(a);
+    hub.receive(a, { t: "queue", mode: "casual", friendCode: "PLAY-1" });
+    expect(calls).toEqual([]);
+  });
+});

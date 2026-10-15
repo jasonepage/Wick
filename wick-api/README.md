@@ -74,6 +74,7 @@ request.
 | `src/preview.ts` | Share link preview pages. A preview never contains a word |
 | `src/revealmap.ts` | Lays out the reveal map shown after a round |
 | `src/ratelimit.ts`, `src/abuse.ts` | Per-IP rate limits and the browser origin check |
+| `src/alerts.ts` | Pushes the maintainer's phone through ntfy when someone waits for a live race. Off unless `WICK_NTFY_TOPIC` is set |
 | `src/events.ts`, `src/metrics.ts` | Anonymous play counts and in-memory counters |
 | `scripts/` | Builders for the race pool and the Chinese vocabulary, and `growth.mjs`, which reads play counts from a log export |
 
@@ -86,6 +87,8 @@ real clock. Tests sit next to the code as `*.test.ts`.
 - **The Gemini key lives only here.** Neither client ever holds it.
 - **Keep `WICK_DEBUG_TOKEN` unset in production.** The `/debug/*` routes it
   turns on reveal the secret word.
+- **Treat `WICK_NTFY_TOPIC` like a password.** Anyone who knows the topic can
+  read the queue alerts. Set it in your host's dashboard, never in a file.
 - **Set `WICK_ALLOWED_ORIGINS`** to your own domain, or browsers will not be
   allowed to open a live race socket.
 - **Live race identity is not yet cryptographically verified.** Players are

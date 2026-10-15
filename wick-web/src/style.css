@@ -478,6 +478,10 @@ a.btn { display: block; box-sizing: border-box; text-align: center; text-decorat
 .theme-dark .foot-btn:hover  { background: rgba(255,255,255,0.12); }
 .theme-light .foot-btn:hover { background: rgba(255,255,255,0.9); box-shadow: 0 8px 20px rgba(120,90,150,0.16); }
 .foot-btn:active { transform: translateY(0) scale(0.98); }
+/* 3.5: Chrome on Android offered an install, so swap the App Store link for it. */
+.install-btn { display: none; }
+.can-install .install-btn { display: block; }
+.can-install .get-app-btn { display: none; }
 
 /* solo header */
 .solo-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 2px; }
