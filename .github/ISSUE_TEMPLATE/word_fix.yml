@@ -1,0 +1,51 @@
+name: Word or translation fix
+description: A word scored strangely, a translation is wrong, or a word should not be in the game.
+labels: ["words and languages", "needs triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The Race word pool and its translations are a first draft that still needs native speaker review, so these reports are very useful.
+
+        **Please do not post today's daily answer.** Give the puzzle number instead.
+  - type: dropdown
+    id: language
+    attributes:
+      label: Language
+      options:
+        - English
+        - Spanish
+        - French
+        - Italian
+        - German
+        - Simplified Chinese
+    validations:
+      required: true
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What kind of problem?
+      options:
+        - A translation is wrong or unnatural
+        - A guess scored much too hot or too cold
+        - A real word was rejected as not a word
+        - Wick answered a yes or no question wrongly
+        - A word is offensive or should not be in the game
+        - A short meaning shown next to a guess is wrong
+    validations:
+      required: true
+  - type: textarea
+    id: details
+    attributes:
+      label: The word, what is wrong, and what it should be
+      placeholder: |
+        Race word "turkey", German: the list says "truthahn". I think it should be ... because ...
+    validations:
+      required: true
+  - type: dropdown
+    id: native
+    attributes:
+      label: Are you a native or fluent speaker of this language?
+      options:
+        - "Yes"
+        - "No"

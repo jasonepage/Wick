@@ -1,0 +1,46 @@
+name: Idea or feature request
+description: Suggest something new for Wick, or a change to how it works.
+labels: ["enhancement", "needs triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Ideas are welcome. Wick is kept small on purpose, so the most helpful requests explain the problem first and the solution second.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+      description: Describe what you were trying to do and what got in the way.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What would you like to happen?
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Which part of Wick?
+      multiple: true
+      options:
+        - iOS app
+        - Web game
+        - Server
+        - Live Race
+        - Languages and word lists
+        - Packs (themes, sounds, the Keeper's character)
+        - Developer experience and docs
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Other ways you have thought about
+  - type: checkboxes
+    id: help
+    attributes:
+      label: Can you help build it?
+      options:
+        - label: I would like to work on this myself.

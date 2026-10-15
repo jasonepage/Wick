@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security problem
+    url: https://github.com/jasonepage/Wick/security/policy
+    about: Please report security problems privately, including any way to learn the answer without guessing it.
+  - name: Player help (coins, the App Store, your account)
+    url: https://guesswick.com/marketing/support.html
+    about: Questions about playing Wick go to support@guesswick.com.
+  - name: Play Wick in your browser
+    url: https://guesswick.com
+    about: Today's puzzle, no download needed.

@@ -1,0 +1,81 @@
+name: Bug report
+description: Something in Wick is broken or behaves wrong.
+labels: ["bug", "needs triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report this.
+
+        **Please do not post today's answer.** Give the puzzle number instead, so other players are not spoiled.
+        If the bug lets someone learn the answer without guessing it, stop here and follow the [security policy](https://github.com/jasonepage/Wick/security/policy) instead.
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Where did it happen?
+      options:
+        - iOS app
+        - Web game (guesswick.com)
+        - My own copy of the server
+        - Not sure
+    validations:
+      required: true
+  - type: dropdown
+    id: mode
+    attributes:
+      label: Which part of the game?
+      options:
+        - Daily puzzle
+        - Practice
+        - Live Race
+        - Asking Wick a question (the Keeper)
+        - Solve Replay
+        - Share links or the reveal map
+        - Settings, stats or coins
+        - Building or running the code
+        - Something else
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version and device
+      description: For iOS, the app version (Settings in the app) and your iPhone model and iOS version. For the web, your browser and operating system.
+      placeholder: "Wick 3.3, iPhone 15, iOS 26.1"
+    validations:
+      required: true
+  - type: input
+    id: puzzle
+    attributes:
+      label: Puzzle number or language
+      description: If it happened on a daily puzzle, the number shown on the home screen. Add the language if you were not playing in English.
+      placeholder: "#132, Spanish"
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open the daily puzzle
+        2. Guess "ocean"
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect to happen?
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: What happened instead?
+      description: Screenshots or a short screen recording help a lot. Hide the answer if it is visible.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or console output
+      description: Only if you have them, for example from the browser console or the server.
+      render: text
