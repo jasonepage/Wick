@@ -29,6 +29,14 @@ services:
     # until the pre-warm sweep finishes. Deploy from the dashboard when you
     # are watching.
     autoDeploy: false
+    # A small disk so the race alert registrations (push.json) and the rank
+    # vocabulary cache survive deploys. Render charges per GB per month; 1 GB
+    # is the smallest. A service with a disk restarts on deploy instead of
+    # swapping in, so expect a few seconds of downtime per deploy.
+    disk:
+      name: wick-data
+      mountPath: /var/data
+      sizeGB: 1
     envVars:
       - key: NODE_VERSION
         value: "22"
@@ -56,4 +64,10 @@ services:
         sync: false
       - key: WICK_APNS_BUNDLE_ID
         sync: false
+      # Where the disk below is mounted. Race alert registrations (push.json)
+      # and the rank vocabulary cache live there and survive deploys.
+      - key: WICK_DATA_DIR
+        value: /var/data
+      - key: WICK_VOCAB_CACHE
+        value: /var/data/rankvec
       # PORT is provided by Render automatically; the server reads process.env.PORT.

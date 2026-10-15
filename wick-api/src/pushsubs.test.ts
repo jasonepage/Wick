@@ -43,3 +43,30 @@ describe("PushRegistry", () => {
     expect(r.wanting("busy").map((s) => s.kid)).toEqual(["p2"]);
   });
 });
+
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
+describe("PushRegistry on disk", () => {
+  it("writes the list to a file and reads it back on the next boot", () => {
+    const dir = mkdtempSync(join(tmpdir(), "wick-push-"));
+    const file = join(dir, "push.json");
+    try {
+      const a = new PushRegistry(() => 1000);
+      expect(a.persistTo(file)).toBe(0);
+      a.upsert({ token: TOKEN, kid: "p1", lang: "de", kinds: ["waiting", "surge"] });
+      a.saveNow();
+      const rows = JSON.parse(readFileSync(file, "utf8"));
+      expect(rows).toHaveLength(1);
+      expect(rows[0].kid).toBe("p1");
+
+      const b = new PushRegistry(() => 2000);
+      expect(b.persistTo(file)).toBe(1);
+      expect(b.wanting("surge")[0]?.lang).toBe("de");
+      expect(b.wanting("busy")).toHaveLength(0);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});

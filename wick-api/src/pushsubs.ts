@@ -10,12 +10,16 @@
 //    busy     several people are waiting at once
 //    surge    far more people are playing than usual for this time of week
 //
-//  Everything lives in memory. The app re-registers every time it comes to the
-//  foreground, so a server restart only means a quiet spell until players open
-//  the app again. Nothing here is written to disk and no entry carries a name,
-//  an IP address or anything a player typed.
+//  The list lives in memory and, when the server has a data folder
+//  (WICK_DATA_DIR, a Render disk), in one small JSON file there, so a deploy
+//  does not forget everyone. The app also re-registers every time it comes to
+//  the foreground. No entry carries a name, an IP address or anything a player
+//  typed: just the push token, the player's random id, a language and the
+//  kinds.
 //
 
+import { readFileSync, writeFileSync, mkdirSync, renameSync } from "node:fs";
+import { dirname } from "node:path";
 import { type Lang, langOf } from "./lang.js";
 
 export const ALERT_KINDS = ["waiting", "busy", "surge"] as const;
@@ -41,8 +45,51 @@ export function isDeviceToken(x: unknown): x is string {
 
 export class PushRegistry {
   private readonly byToken = new Map<string, Subscription>();
+  private file: string | null = null;
+  private saveTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(private readonly now: () => number, private readonly maxEntries = 50_000) {}
+
+  /** Keep the list in `file`, loading what is there now. Returns how many phones were loaded. */
+  persistTo(file: string): number {
+    this.file = file;
+    try {
+      const raw = JSON.parse(readFileSync(file, "utf8")) as unknown;
+      if (!Array.isArray(raw)) return 0;
+      for (const r of raw as { token?: unknown; kid?: unknown; lang?: unknown; kinds?: unknown; updatedAt?: unknown }[]) {
+        if (!isDeviceToken(r.token) || typeof r.kid !== "string" || !Array.isArray(r.kinds)) continue;
+        const kinds = new Set<AlertKind>();
+        for (const k of r.kinds) if (isAlertKind(k)) kinds.add(k);
+        if (kinds.size === 0) continue;
+        const updatedAt = typeof r.updatedAt === "number" ? r.updatedAt : this.now();
+        this.byToken.set(r.token.toLowerCase(), { token: r.token.toLowerCase(), kid: r.kid, lang: langOf(r.lang), kinds, updatedAt });
+      }
+    } catch {
+      // No file yet, or unreadable: start empty.
+    }
+    return this.byToken.size;
+  }
+
+  /** Write the list soon (changes come in bursts; one write per second is plenty). */
+  private scheduleSave(): void {
+    if (!this.file || this.saveTimer) return;
+    this.saveTimer = setTimeout(() => { this.saveTimer = null; this.saveNow(); }, 1000);
+  }
+
+  /** Write the list now. Safe to call at shutdown. */
+  saveNow(): void {
+    if (!this.file) return;
+    if (this.saveTimer) { clearTimeout(this.saveTimer); this.saveTimer = null; }
+    try {
+      const rows = [...this.byToken.values()].map((s) => ({ token: s.token, kid: s.kid, lang: s.lang, kinds: [...s.kinds], updatedAt: s.updatedAt }));
+      mkdirSync(dirname(this.file), { recursive: true });
+      const tmp = `${this.file}.tmp`;
+      writeFileSync(tmp, JSON.stringify(rows));
+      renameSync(tmp, this.file);   // whole file or nothing, never a half-written one
+    } catch (e) {
+      console.warn(`[wick-api] could not save push registrations: ${String(e)}`);
+    }
+  }
 
   /** Add or update a phone. Returns the stored kinds, or null when the request is bad. */
   upsert(input: { token: unknown; kid: unknown; lang?: unknown; kinds: unknown }): Set<AlertKind> | null {
@@ -52,14 +99,16 @@ export class PushRegistry {
     const kinds = new Set<AlertKind>();
     for (const k of input.kinds) if (isAlertKind(k)) kinds.add(k);
     const token = input.token.toLowerCase();
-    if (kinds.size === 0) { this.byToken.delete(token); return kinds; }
+    if (kinds.size === 0) { this.byToken.delete(token); this.scheduleSave(); return kinds; }
     if (!this.byToken.has(token) && this.byToken.size >= this.maxEntries) return null;
     this.byToken.set(token, { token, kid: input.kid, lang: langOf(input.lang), kinds, updatedAt: this.now() });
+    this.scheduleSave();
     return kinds;
   }
 
   remove(token: string): void {
     this.byToken.delete(token.toLowerCase());
+    this.scheduleSave();
   }
 
   /** Everyone who wants `kind`, leaving out the player with id `exceptKid`. */
@@ -83,6 +132,7 @@ export class PushRegistry {
     for (const [token, s] of this.byToken) {
       if (s.updatedAt < cutoff) { this.byToken.delete(token); dropped++; }
     }
+    if (dropped > 0) this.scheduleSave();
     return dropped;
   }
 }

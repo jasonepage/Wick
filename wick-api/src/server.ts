@@ -491,6 +491,12 @@ if (queueAlerter) console.log("[wick-api] queue alerts on (ntfy)");
 const apns = apnsFromEnv(process.env, Date.now);
 const pushRegistry = apns ? new PushRegistry(Date.now) : null;
 if (apns) console.log("[wick-api] player push alerts on (apns)");
+// With a data folder (a Render disk at WICK_DATA_DIR), the phone list survives deploys.
+const DATA_DIR = process.env.WICK_DATA_DIR?.trim();
+if (pushRegistry && DATA_DIR) {
+  const n = pushRegistry.persistTo(`${DATA_DIR}/push.json`);
+  console.log(`[wick-api] push registrations kept in ${DATA_DIR} (${n} phones loaded)`);
+}
 const traffic = new TrafficMonitor(Date.now);
 const alertHub = new AlertHub({
   maintainer: queueAlerter,
@@ -667,6 +673,7 @@ function shutdown() {
   clearInterval(ticker);
   clearInterval(trafficTicker);
   clearInterval(sweeper);
+  pushRegistry?.saveNow();
   apns?.close();
   wss.close();
   server.close();
