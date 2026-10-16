@@ -299,6 +299,16 @@ struct Loc {
     var coins: String { s("coins") }
     var achievements: String { s("achievements") }
     var leaderboards: String { s("leaderboards") }
+    // 3.6: everyone's week on the Stats page, and its Settings switch.
+    var weeklyHeader: String { s("weeklyHeader") }
+    var weeklyTopGuesses: String { s("weeklyTopGuesses") }
+    var weeklyTopQuestions: String { s("weeklyTopQuestions") }
+    var weeklyResets: String { s("weeklyResets") }
+    var weeklyEmpty: String { s("weeklyEmpty") }
+    var weeklyOffline: String { s("weeklyOffline") }
+    var weeklySettingsHeader: String { s("weeklySettingsHeader") }
+    var shareWordsToggle: String { s("shareWordsToggle") }
+    var shareWordsBlurb: String { s("shareWordsBlurb") }
     var dailyReminder: String { s("dailyReminder") }
     var time: String { s("time") }
     var reminderBlurb: String { s("reminderBlurb") }
@@ -719,6 +729,15 @@ struct Loc {
         "coins": "Coins",
         "achievements": "Achievements",
         "leaderboards": "Leaderboards",
+        "weeklyHeader": "This week, everyone",
+        "weeklyTopGuesses": "Top guesses this week",
+        "weeklyTopQuestions": "Most asked questions",
+        "weeklyResets": "All players. Resets Monday.",
+        "weeklyEmpty": "Not enough plays yet this week.",
+        "weeklyOffline": "Can't load this week's lists right now.",
+        "weeklySettingsHeader": "Weekly stats",
+        "shareWordsToggle": "Add my words to weekly stats",
+        "shareWordsBlurb": "Adds your cool or colder guesses and the questions you type to the Keeper to everyone's weekly lists. Sent with no id. Close guesses and anything that names the answer stay on your phone.",
         "dailyReminder": "Daily reminder",
         "time": "Time",
         "reminderBlurb": "A gentle nudge when each day's word is ready.",
@@ -1068,6 +1087,15 @@ struct Loc {
         "coins": "Monedas",
         "achievements": "Logros",
         "leaderboards": "Clasificaciones",
+        "weeklyHeader": "Esta semana, todos",
+        "weeklyTopGuesses": "Palabras más probadas esta semana",
+        "weeklyTopQuestions": "Preguntas más hechas",
+        "weeklyResets": "Todos los jugadores. Se reinicia el lunes.",
+        "weeklyEmpty": "Aún no hay suficientes partidas esta semana.",
+        "weeklyOffline": "No se pueden cargar las listas ahora.",
+        "weeklySettingsHeader": "Estadísticas semanales",
+        "shareWordsToggle": "Sumar mis palabras a las estadísticas",
+        "shareWordsBlurb": "Añade tus intentos fríos y las preguntas que escribes al Guardián a las listas semanales de todos. Se envían sin ningún identificador. Los intentos cercanos y todo lo que nombre la respuesta se quedan en tu teléfono.",
         "dailyReminder": "Recordatorio diario",
         "time": "Hora",
         "reminderBlurb": "Un aviso suave cuando la palabra de cada día está lista.",
@@ -1414,6 +1442,15 @@ struct Loc {
         "coins": "Pièces",
         "achievements": "Succès",
         "leaderboards": "Classements",
+        "weeklyHeader": "Cette semaine, tout le monde",
+        "weeklyTopGuesses": "Mots les plus tentés cette semaine",
+        "weeklyTopQuestions": "Questions les plus posées",
+        "weeklyResets": "Tous les joueurs. Remise à zéro le lundi.",
+        "weeklyEmpty": "Pas encore assez de parties cette semaine.",
+        "weeklyOffline": "Impossible de charger les listes pour le moment.",
+        "weeklySettingsHeader": "Statistiques de la semaine",
+        "shareWordsToggle": "Ajouter mes mots aux statistiques",
+        "shareWordsBlurb": "Ajoute tes essais froids et les questions que tu écris au Gardien aux listes de la semaine de tout le monde. Envoyé sans aucun identifiant. Les essais proches et tout ce qui nomme la réponse restent sur ton téléphone.",
         "dailyReminder": "Rappel quotidien",
         "time": "Heure",
         "reminderBlurb": "Un petit signe quand le mot du jour est prêt.",
@@ -1760,6 +1797,15 @@ struct Loc {
         "coins": "Monete",
         "achievements": "Obiettivi",
         "leaderboards": "Classifiche",
+        "weeklyHeader": "Questa settimana, tutti",
+        "weeklyTopGuesses": "Parole più provate questa settimana",
+        "weeklyTopQuestions": "Domande più fatte",
+        "weeklyResets": "Tutti i giocatori. Si azzera il lunedì.",
+        "weeklyEmpty": "Non ci sono ancora abbastanza partite questa settimana.",
+        "weeklyOffline": "Impossibile caricare le liste ora.",
+        "weeklySettingsHeader": "Statistiche settimanali",
+        "shareWordsToggle": "Aggiungi le mie parole alle statistiche",
+        "shareWordsBlurb": "Aggiunge i tuoi tentativi freddi e le domande che scrivi al Custode alle liste settimanali di tutti. Inviati senza alcun identificativo. I tentativi vicini e tutto ciò che nomina la risposta restano sul tuo telefono.",
         "dailyReminder": "Promemoria giornaliero",
         "time": "Ora",
         "reminderBlurb": "Un gentile avviso quando la parola del giorno è pronta.",
@@ -2105,6 +2151,15 @@ struct Loc {
         "coins": "Münzen",
         "achievements": "Erfolge",
         "leaderboards": "Bestenlisten",
+        "weeklyHeader": "Diese Woche, alle",
+        "weeklyTopGuesses": "Häufigste Versuche dieser Woche",
+        "weeklyTopQuestions": "Häufigste Fragen",
+        "weeklyResets": "Alle Spieler. Neustart am Montag.",
+        "weeklyEmpty": "Diese Woche gibt es noch nicht genug Runden.",
+        "weeklyOffline": "Die Listen lassen sich gerade nicht laden.",
+        "weeklySettingsHeader": "Wochenstatistik",
+        "shareWordsToggle": "Meine Wörter zur Wochenstatistik beitragen",
+        "shareWordsBlurb": "Fügt deine kalten Versuche und die Fragen, die du dem Hüter tippst, den Wochenlisten aller hinzu. Ohne jede Kennung gesendet. Nahe Versuche und alles, was die Antwort nennt, bleiben auf deinem Telefon.",
         "dailyReminder": "Tägliche Erinnerung",
         "time": "Uhrzeit",
         "reminderBlurb": "Ein sanfter Stups, wenn das Wort des Tages bereit ist.",

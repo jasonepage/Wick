@@ -8,12 +8,15 @@
     <key>NSPrivacyTrackingDomains</key>
     <array/>
 
-    <!-- Data collection. Single-player (daily/practice) is 100% on-device and
-         collects nothing. Live modes (Race/Dare) send the words and questions the
-         player types to Wick's server (and on to Google's Gemini API) to score
-         warmth and answer questions. It is user-provided content, used only for
+    <!-- Data collection. Single-player (daily/practice) scores on the device.
+         Live modes (Race) send the words and questions the player types to
+         Wick's server (and on to Google's Gemini API) to score warmth and
+         answer questions. Since 3.6, unless the player turns it off in
+         Settings, single-player also sends cool-or-colder guesses and typed
+         Keeper questions (text, language, time; no id) for the weekly lists
+         on the Stats page. All of it is user-provided content, used only for
          app functionality, not linked to identity (no accounts; a random
-         per-install id routes the match), and never used for tracking. -->
+         per-install id routes a live match), and never used for tracking. -->
     <key>NSPrivacyCollectedDataTypes</key>
     <array>
         <!-- 3.3: anonymous play counts (daily started/solved/given up, share and

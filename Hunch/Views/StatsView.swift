@@ -9,6 +9,7 @@ import UIKit
 struct StatsView: View {
     @Environment(GameViewModel.self) private var game
     @Environment(\.dismiss) private var dismiss
+    @State private var weekly = WeeklyStats.shared
 
     private let columns = [GridItem(.flexible()), GridItem(.flexible())]
 
@@ -32,9 +33,13 @@ struct StatsView: View {
                     }
                     achievementsLink
                     leaderboardsLink
+                    weeklySection
                 }
                 .padding(HunchTheme.Spacing.l)
                 .readableWidth()
+            }
+            .task(id: game.language) {
+                await weekly.refreshIfStale(language: game.language)
             }
             .navigationTitle(game.loc.yourStats)
             .navigationBarTitleDisplayMode(.inline)
@@ -44,6 +49,78 @@ struct StatsView: View {
                 }
             }
         }
+    }
+
+    // MARK: - Everyone's week (3.6)
+
+    /// Top guesses and most asked questions across all players this week.
+    /// Fetched from the server and cached (see WeeklyStats), so opening Stats
+    /// does not ask the server every time.
+    private var weeklySection: some View {
+        VStack(alignment: .leading, spacing: HunchTheme.Spacing.s) {
+            HStack(spacing: HunchTheme.Spacing.s) {
+                Image(systemName: "person.3.fill").foregroundStyle(HunchTheme.Palette.keeper)
+                Text(game.loc.weeklyHeader).font(.headline)
+            }
+            .padding(.top, HunchTheme.Spacing.m)
+            Text(game.loc.weeklyResets)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            if let snap = weekly.snapshot {
+                weeklyList(game.loc.weeklyTopGuesses, system: "text.cursor",
+                           color: HunchTheme.Palette.flame, rows: snap.guesses)
+                weeklyList(game.loc.weeklyTopQuestions, system: "questionmark.bubble.fill",
+                           color: HunchTheme.Palette.keeper, rows: snap.questions)
+            } else if weekly.loading {
+                ProgressView()
+                    .frame(maxWidth: .infinity)
+                    .padding(HunchTheme.Spacing.l)
+            } else if weekly.failed {
+                Text(game.loc.weeklyOffline)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(HunchTheme.Spacing.l)
+                    .hunchCard(radius: 16)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func weeklyList(_ title: String, system: String, color: Color,
+                            rows: [WeeklySnapshot.Row]) -> some View {
+        VStack(alignment: .leading, spacing: HunchTheme.Spacing.s) {
+            HStack(spacing: HunchTheme.Spacing.s) {
+                Image(systemName: system).foregroundStyle(color)
+                Text(title).font(.subheadline.weight(.semibold))
+            }
+            if rows.isEmpty {
+                Text(game.loc.weeklyEmpty)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(Array(rows.enumerated()), id: \.element) { index, row in
+                    if index > 0 { Divider() }
+                    HStack(alignment: .firstTextBaseline, spacing: HunchTheme.Spacing.m) {
+                        Text("\(index + 1)")
+                            .font(.subheadline.monospacedDigit())
+                            .foregroundStyle(.tertiary)
+                            .frame(minWidth: 20, alignment: .trailing)
+                        Text(row.text)
+                            .font(.body)
+                            .lineLimit(2)
+                        Spacer(minLength: HunchTheme.Spacing.s)
+                        Text("\(row.count)")
+                            .font(.subheadline.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(HunchTheme.Spacing.l)
+        .hunchCard(tint: color, radius: 16)
     }
 
     private var averageText: String {

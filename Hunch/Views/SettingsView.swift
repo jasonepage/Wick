@@ -21,6 +21,7 @@ struct SettingsView: View {
     @AppStorage("hunch.haptics") private var hapticsOn = true
     @AppStorage("hunch.sound") private var soundOn = true
     @AppStorage("hunch.music") private var musicOn = true
+    @AppStorage(WordTally.shareKey) private var shareWords = true
 
     @State private var showHowTo = false
     @State private var alerts = RaceAlerts.shared
@@ -37,6 +38,7 @@ struct SettingsView: View {
                     feedbackSection
                     if !odrLanguages.isEmpty { dictionariesSection }
                     notificationsSection
+                    weeklyStatsSection
                     aboutSection
 
                     Text("Wick v\(appVersion)")
@@ -278,6 +280,26 @@ struct SettingsView: View {
                     .font(.body.weight(.medium))
                     .tint(HunchTheme.Palette.keeper)
                 Text(game.loc.raceAlertsBlurb)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(HunchTheme.Spacing.l)
+            .hunchCard(radius: 18)
+        }
+    }
+
+    // MARK: - Weekly stats (3.6)
+
+    /// Whether this phone adds its cool-or-colder guesses and typed questions
+    /// to everyone's weekly lists on the Stats page. On by default.
+    private var weeklyStatsSection: some View {
+        VStack(alignment: .leading, spacing: HunchTheme.Spacing.s) {
+            sectionHeader(game.loc.weeklySettingsHeader, system: "person.3.fill", color: HunchTheme.Palette.keeper)
+            VStack(alignment: .leading, spacing: HunchTheme.Spacing.s) {
+                Toggle(game.loc.shareWordsToggle, isOn: $shareWords)
+                    .font(.body.weight(.medium))
+                    .tint(HunchTheme.Palette.keeper)
+                Text(game.loc.shareWordsBlurb)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

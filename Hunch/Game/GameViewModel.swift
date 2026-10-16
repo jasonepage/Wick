@@ -226,6 +226,8 @@ final class GameViewModel {
     /// The last question the Keeper failed to answer, kept so the UI can show
     /// a tappable Retry. Cleared on a successful answer or a fresh question.
     private(set) var failedQuestion: String?
+    /// Whether the failed question was typed (true) or a starter chip (false).
+    private var failedQuestionTyped = true
     private(set) var openingClue: String?
     private(set) var isLoadingClue = false
     private var clueRequested = false
@@ -960,6 +962,12 @@ final class GameViewModel {
             )
             coldStreak = isNewBest ? 0 : coldStreak + 1
 
+            // 3.6 weekly Stats: only a guess that reads Cool or colder leaves
+            // the phone, so the shared list never hints at the answer.
+            if WordTallyRules.shouldSendGuess(rank: rank(forScore: s)) {
+                WordTally.guess(word, language: language)
+            }
+
             if normalized { transientMessage = loc.normalizedTo(typed, word) }
             Feedback.play(isNewBest ? .newClosest(closeness: s) : .guessScored(closeness: s))
             saveDailyState()
@@ -1680,14 +1688,17 @@ final class GameViewModel {
 
         // No deterministic answer: hand it to ask(), which uses the on-device
         // model when available and the offline answerer otherwise.
-        await ask(full)
+        await ask(full, typed: false)
     }
 
-    func ask(_ raw: String) async {
+    /// `typed` is false for a tapped starter chip, which stays out of the
+    /// weekly Stats list (everyone is offered the same chips).
+    func ask(_ raw: String, typed: Bool = true) async {
         let q = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !q.isEmpty, !solved, !revealed, !isAsking else { return }
 
         failedQuestion = nil   // new attempt — clear any prior failure
+        failedQuestionTyped = typed
         isAsking = true
         // Pass the round's prior exchanges (memory) and what Wick is currently
         // wearing (so he reacts truthfully to his own outfit).
@@ -1703,6 +1714,10 @@ final class GameViewModel {
                                            seq: guesses.count + questions.count, at: stampNow()), at: 0)
             quietQuestionNudge()
             saveDailyState()
+            // 3.6 weekly Stats: a typed question, unless it names the answer.
+            if typed, !WordTallyRules.namesAnswer(q, answers: [target, DailyWords.english(of: target, in: language)]) {
+                WordTally.question(q, language: language)
+            }
         case .unavailable(let reason):
             transientMessage = reason
         case .failed:
@@ -1716,7 +1731,7 @@ final class GameViewModel {
     /// Re-asks the last question the Keeper failed to answer.
     func retryFailedQuestion() async {
         guard let q = failedQuestion, !isAsking else { return }
-        await ask(q)
+        await ask(q, typed: failedQuestionTyped)
     }
 
     // MARK: - Sharing

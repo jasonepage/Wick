@@ -3,8 +3,9 @@
 _Last updated: October 2026_
 
 Wick is built to be private by design. There are no accounts, no logins, no
-advertising, and no cross-app tracking. The only thing we count is a handful
-of anonymous play events, described below.
+advertising, and no cross-app tracking. The only things we count are a handful
+of anonymous play events and, since version 3.6, anonymous weekly word counts,
+both described below.
 
 ## iOS single-player (Daily and Practice): on your device
 
@@ -13,7 +14,9 @@ of anonymous play events, described below.
   Apple's built-in Natural Language model for English, and models bundled
   with the app for Spanish, French, Italian and German.
 - "Ask the Keeper" runs on your device using Apple Intelligence (Foundation Models).
-- Nothing you type in iOS single-player is sent to us or any third party.
+- Your words are never sent to any third party. Since version 3.6, some of
+  them may be sent to Wick's own server for the weekly word counts described
+  below, unless you turn that off in Settings.
 
 ## The web game at guesswick.com
 
@@ -22,8 +25,9 @@ round on Wick's server, including the daily puzzle and practice:
 
 - Each **word you guess and question you ask** is sent to Wick's server to be
   scored or answered. To do that, the server may pass the text to **Google's
-  Gemini API**. It is used only to play the round. It is not linked to your identity, not stored
-  in a profile, and not sold.
+  Gemini API**. It is used only to play the round and, as anonymous counts,
+  for the weekly word counts below. It is not linked to your identity, not
+  stored in a profile, and not sold.
 - Your stats and streaks on the web are saved **only in your browser**.
 
 ## Live Race
@@ -46,8 +50,9 @@ play a live Race, on iOS or on the web:
   phone notification that says someone is waiting and in which language, so he
   can come race you. It contains nothing else about you.
 
-On iOS, if you never play a live mode, nothing you type ever leaves your
-device. Only the anonymous play counts below do.
+On iOS, if you never play a live mode and turn off "Add my words to weekly
+stats" in Settings, nothing you type ever leaves your device. Only the
+anonymous play counts below do.
 
 ## Play counts (since version 3.3)
 
@@ -58,7 +63,32 @@ was used. Each event carries a random per-install id so we can count players;
 the server hashes that id before storing it, and it is not tied to your name,
 email, Apple ID, or contacts. No word, question, or anything you type is ever
 included. These counts are used only to improve the game and are not shared
-or sold.
+or sold. (The weekly word counts in the next section are separate and carry
+no id at all.)
+
+## Weekly word counts (since version 3.6)
+
+The Stats page shows "Top guesses this week" and "Most asked questions" across
+all players. To build those lists:
+
+- **On iOS**, while "Add my words to weekly stats" is on in Settings (it is on
+  unless you turn it off), the app sends Wick's server a guessed word that
+  read Cool or colder, or a question you typed to the Keeper. Each one is sent
+  with its language and the time, and nothing else: no id, no account, no
+  device identifier. Guesses that were close to the answer, the answer
+  itself, questions that name the answer, and starter questions you tap are
+  never sent.
+- **On the web and in live Races**, the words and questions already reach the
+  server to be scored (see above). The server counts the same kinds of words
+  and questions from there.
+- The server keeps **counts only**: the word or question and how many times it
+  came up this week. It does not store who sent it. To stop one person from
+  filling a list, the server briefly remembers a scrambled, one-way code for
+  each sender in memory only; it is never written to disk and is thrown away
+  every week.
+- A question is shown only after at least three different players have asked
+  it, and questions with numbers, links, email addresses, or crude words are
+  dropped. The lists reset every Monday (UTC).
 
 ## Solve Replay videos (since version 3.4)
 

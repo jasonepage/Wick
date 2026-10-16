@@ -117,6 +117,8 @@ requests except the in-memory match rooms and the embedding cache.
 | `POST /validate-word` | `{ word }` | `{ ok, verdict }` | May this word be a Race secret? Checks the dictionary and that it embeds cleanly. |
 | `POST /reveal` | `{ guesses: [{ word, score }] }` | `{ points }` | The reveal map: a 2D layout of your guesses around the answer. Only words you sent come back. |
 | `POST /event` | `{ name, ... }` | `{ ok }` | A short allowlist of product events. Ids are hashed on arrival. |
+| `POST /tally` | `{ k: "g" or "q", t, l, at }` | `{ ok }` | iOS solo reports a cool-or-colder guess (`g`) or a typed Keeper question (`q`) for the weekly Stats lists. No id of any kind. |
+| `GET /stats/weekly?lang=` | | `{ week, resetsAt, lang, guesses, questions }` | This week's top guesses and most asked questions, counts only. Resets Monday 00:00 UTC. A row shows once three different senders have sent it. Cached for five minutes. |
 | `WS /match?kid=` | frames in `protocol.ts` | frames | Live Race. Up: `queue` (with an optional `lang`), `guess`, `question`, `heartbeat`. Down: `paired`, `state`, `scored`, `result`. Two players with different languages race the same concept, each hunting and scored in their own; `result` carries every language in play. |
 | `GET /p/:code`, `/r/:run`, `/d/:code` | | HTML | Share links. An installed app opens them via Universal Links; a browser gets a preview page that bounces into the web game. No link ever carries a word. |
 | `GET /live` | | `{ racing, waiting }` | How many people are racing or waiting right now, for the Race screen. Bots are not counted. Cached for five seconds. |

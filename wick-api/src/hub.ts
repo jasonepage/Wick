@@ -65,6 +65,23 @@ export interface HubDeps {
   /** 3.5: a real person started waiting in the Quick Match queue (not a friend
    *  code room). The server wires the maintainer's queue alert here. */
   onQueued?: (info: { lang: Lang; waiting: number; playerId: string }) => void;
+  /** 3.6: a race guess was scored or a race question was answered. The server
+   *  feeds the weekly Stats lists from here (see tally.ts). `secrets` are the
+   *  room word in the seat's language and in English, so the caller can leave
+   *  out anything that names the answer. */
+  onPlayed?: (p: PlayedInfo) => void;
+}
+
+/** One guess or question from a live race, for the weekly Stats lists. */
+export interface PlayedInfo {
+  kind: "guess" | "question";
+  text: string;
+  lang: Lang;
+  playerId: string;
+  secrets: string[];
+  /** Guesses only: the server's warmth. */
+  score?: number;
+  rank?: number;
 }
 
 interface ActiveRoom {
@@ -97,6 +114,7 @@ export class MatchHub {
   private readonly clientLang = new Map<string, Lang>();
   private readonly botConfig?: Partial<BotConfig>;
   private readonly onQueued: (info: { lang: Lang; waiting: number; playerId: string }) => void;
+  private readonly onPlayed: (p: PlayedInfo) => void;
   private readonly metrics: Metrics;
 
   private readonly clients = new Map<string, Client>();
@@ -129,6 +147,7 @@ export class MatchHub {
       deps.answerKeeper ?? (async () => ({ verdict: "Won't say", reply: "Wick is quiet right now." }));
     this.botConfig = deps.botConfig;
     this.onQueued = deps.onQueued ?? (() => {});
+    this.onPlayed = deps.onPlayed ?? (() => {});
   }
 
   // ── connection lifecycle ────────────────────────────────────────────────────
@@ -410,6 +429,7 @@ export class MatchHub {
     //    their own score via `scored`.
     if (ar.room.isActive()) {
       void this.scoreWarmth(secret, guess, lang).then(({ score, rank }) => {
+        this.onPlayed({ kind: "guess", text: guess, lang, playerId, secrets: [secret, ar.secret], score, rank });
         const cur = this.rooms.get(roomId);
         if (!cur || !cur.room.isActive()) return;
         this.dispatch(
@@ -444,7 +464,10 @@ export class MatchHub {
       return;
     }
     const playerId = client.id;
-    void this.answerKeeper(ar.room.secretFor(playerId), question, ar.langs.get(playerId) ?? "en", ar.secret).then(({ verdict, reply }) => {
+    const lang = ar.langs.get(playerId) ?? "en";
+    const secret = ar.room.secretFor(playerId);
+    void this.answerKeeper(secret, question, lang, ar.secret).then(({ verdict, reply }) => {
+      this.onPlayed({ kind: "question", text: question, lang, playerId, secrets: [secret, ar.secret] });
       // The player may have finished/left while the Keeper was thinking.
       this.clients.get(playerId)?.send({ t: "answer", question, verdict, reply });
     });

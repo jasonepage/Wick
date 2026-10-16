@@ -79,6 +79,7 @@ request.
 | `src/pushsubs.ts` | The phones that asked for race alerts and which kinds, in memory; the app re-registers on every foreground |
 | `src/traffic.ts` | Active player count against the same hour of the week over the past seven days, for the "unusual number playing" alert |
 | `src/events.ts`, `src/metrics.ts` | Anonymous play counts and in-memory counters |
+| `src/tally.ts` | This week's most guessed words and most asked questions for the Stats page: counts only, cool-or-colder guesses, nothing that names the answer, kept on the data disk |
 | `scripts/` | Builders for the race pool and the Chinese vocabulary, and `growth.mjs`, which reads play counts from a log export |
 
 Most modules are pure: they take their inputs, including the current time,

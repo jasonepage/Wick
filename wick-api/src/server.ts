@@ -35,6 +35,7 @@ import { queueAlerterFromEnv, AlertHub } from "./alerts.js";
 import { apnsFromEnv } from "./apns.js";
 import { PushRegistry } from "./pushsubs.js";
 import { TrafficMonitor } from "./traffic.js";
+import { WeeklyTally, isColdEnough, mentionsSecret } from "./tally.js";
 
 // Render injects PORT at runtime — never set it by hand. `|| 8080` is a safety
 // net: an empty PORT ("") would otherwise parse to 0 (a random port Render can't
@@ -220,6 +221,40 @@ app.get("/apple-app-site-association", (c) => c.json(AASA)); // legacy root loca
 const metrics = new Metrics();
 app.get("/metrics", (c) => c.json({ ...metrics.snapshot(), growth: metrics.growth() }));
 
+// 3.6: this week's most guessed words and most asked questions, for the Stats
+// page. Counts only, no ids; see tally.ts for the spoiler and privacy rules.
+// Kept on the Render disk (WICK_DATA_DIR) so a deploy does not wipe the week.
+const tally = new WeeklyTally(Date.now);
+{
+  const dir = process.env.WICK_DATA_DIR?.trim();
+  if (dir) {
+    const n = tally.persistTo(`${dir}/tally.json`);
+    console.log(`[wick-api] weekly tally kept in ${dir} (${n} rows loaded)`);
+  }
+}
+
+// The lists themselves. Cached for 5 minutes at the edge and in the app, so a
+// crowd opening Stats costs one sort every few minutes at most.
+app.get("/stats/weekly", (c) => {
+  c.header("Cache-Control", "public, max-age=300");
+  return c.json(tally.snapshot(langOf(c.req.query("lang"))));
+});
+
+// iOS solo scores on the phone, so the app reports its own cool-or-colder
+// guesses and typed questions here: { k: "g" | "q", t: text, l: lang, at: ms }.
+// No id of any kind. The IP is used only, in memory, to count each sender once.
+app.post("/tally", async (c) => {
+  const ip = ipFromXff(c.req.header("x-forwarded-for"));
+  if (!httpLimiter.take(`${ip}:tally`)) return c.json({ ok: false }, 429);
+  const body = (await c.req.json().catch(() => null)) as { k?: unknown; t?: unknown; l?: unknown; at?: unknown } | null;
+  const kind = body?.k === "g" ? "guess" : body?.k === "q" ? "question" : null;
+  if (!kind || typeof body?.t !== "string" || body.t.length > 140) return c.json({ ok: false }, 400);
+  const lang = langOf(body.l);
+  if (kind === "guess" && !isRealWord(body.t, lang)) return c.json({ ok: false });
+  const at = typeof body.at === "number" ? body.at : undefined;
+  return c.json({ ok: tally.add(kind, body.t, lang, { source: ip, at }) });
+});
+
 // Live player count for the Race screen ("N racing now"). Two integers from
 // in-memory maps, no Gemini, no allocation to speak of; cached for 5 s so a
 // front-page crowd polling it costs nothing. Humans only — see hub.liveCounts.
@@ -263,6 +298,7 @@ app.post("/warmth", async (c) => {
     return c.json({ error: "too_long" }, 400);
   }
   touchLang(lang);
+  const ip = ipFromXff(c.req.header("x-forwarded-for"));
   // Reject non-words (typos, keyboard mash) before spending a Gemini call — the
   // guess must be a real word in the round's language, unless it exactly matches
   // the secret. This mirrors iOS, where a non-word simply has no on-device embedding.
@@ -270,6 +306,10 @@ app.post("/warmth", async (c) => {
     return c.json({ score: null, notAWord: true });
   }
   const result = await warmthScore(secret, guess, undefined, lang);
+  // Weekly Stats (3.6): only cool-or-colder guesses, never the answer.
+  if (isColdEnough(result) && guess.trim().toLowerCase() !== secret.trim().toLowerCase()) {
+    tally.add("guess", guess, lang, { source: ip });
+  }
   return c.json({ ...result, lang }); // { score, source, rank?, lang }
 });
 
@@ -392,6 +432,10 @@ app.post("/keeper", async (c) => {
   const secretEnRaw = (body as { secretEn?: unknown }).secretEn;
   const secretEn = typeof secretEnRaw === "string" && secretEnRaw.length <= 64 ? secretEnRaw : undefined;
   const result = await keeperAnswer(secret, question, undefined, lang, secretEn);
+  // Weekly Stats (3.6): never a question that names the answer.
+  if (!mentionsSecret(question, [secret, secretEn])) {
+    tally.add("question", question, lang, { source: ipFromXff(c.req.header("x-forwarded-for")) });
+  }
   return c.json(result); // { verdict, reply, source }
 });
 
@@ -508,6 +552,13 @@ const alertHub = new AlertHub({
 const hub = new MatchHub({
   now: () => Date.now(),
   onQueued: (info) => { traffic.seen(info.playerId); alertHub.onQueued(info); },
+  // Weekly Stats (3.6) from live races: cool-or-colder guesses and questions
+  // that do not name the answer. The player id only dedupes, in memory.
+  onPlayed: (p) => {
+    if (p.kind === "guess" && !isColdEnough({ score: p.score, rank: p.rank })) return;
+    if (mentionsSecret(p.text, p.secrets)) return;
+    tally.add(p.kind, p.text, p.lang, { source: p.playerId });
+  },
   metrics, // 3.1 invite-funnel counters, shared with the matchmaker
   // attest: (client, frame) => verifyAppAttest(...)  // future identity layer (FR-16)
   // Server-authoritative warmth for live matches (Gemini embeddings, C8).
@@ -674,6 +725,7 @@ function shutdown() {
   clearInterval(trafficTicker);
   clearInterval(sweeper);
   pushRegistry?.saveNow();
+  tally.saveNow();
   apns?.close();
   wss.close();
   server.close();

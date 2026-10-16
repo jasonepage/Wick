@@ -6,7 +6,32 @@ numbers.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased] (3.5)
+## [Unreleased] (3.6)
+
+### Added
+
+- **Everyone's week on the Stats page.** iOS Stats now shows "Top guesses this
+  week" and "Most asked questions" across all players, below your own stats.
+  Weekly window, resets Monday 00:00 UTC. The app caches the lists for 30
+  minutes so opening Stats does not hit the server each time.
+- Server: `POST /tally` (iOS solo reports a word or a typed question, with no
+  id) and `GET /stats/weekly?lang=` (counts only). Web solo and live races are
+  counted where the text already reaches the server. Counts are kept on the
+  Render disk in `tally.json`.
+- Spoiler and privacy rules: only guesses that read Cool or colder are
+  counted, never the answer or a question that names it; a row shows once
+  three different senders have sent it; questions with numbers, links,
+  emails or crude words are dropped. Senders are told apart only by a salted
+  hash held in memory for the week.
+- iOS Settings: "Add my words to weekly stats", on by default. The privacy
+  policy and privacy manifest describe it.
+- Race alert reliability: the app registers for pushes again on every
+  foreground, registrations are kept on a Render disk, and the TestFlight
+  launch crash is fixed.
+- Dance page: a whole-race section (5 minutes with the riser and kiai where
+  the race puts them) and an option to export the video silent.
+
+## [3.5]
 
 ### Added
 
