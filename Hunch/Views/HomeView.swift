@@ -20,6 +20,9 @@ struct HomeView: View {
     @State private var showSettings = false
     @State private var showHowTo = false
     @State private var showPractice = false
+    /// 3.6: today's race board.
+    @State private var showBoard = false
+    @State private var board = DailyBoard.shared
 
     private let cols = [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)]
 
@@ -74,6 +77,7 @@ struct HomeView: View {
                             modeCard(title: game.loc.practice, subtitle: game.loc.homePlayAnytime,
                                      system: "dice.fill", color: HunchTheme.Palette.solved) { showPractice = true }
                         }
+                        boardButton
                         secondaryRow
                         utilityRow
                     }
@@ -90,6 +94,7 @@ struct HomeView: View {
             .sheet(isPresented: $showStats) { StatsView() }
             .sheet(isPresented: $showSettings) { SettingsView() }
             .sheet(isPresented: $showHowTo) { HowToPlayView() }
+            .sheet(isPresented: $showBoard) { DailyBoardView() }
             .confirmationDialog(game.loc.chooseDifficulty, isPresented: $showPractice, titleVisibility: .visible) {
                 Button(game.loc.easy) { game.startPractice(tier: 2) }
                 Button(game.loc.medium) { game.startPractice(tier: 3) }
@@ -158,6 +163,19 @@ struct HomeView: View {
                 .strokeBorder(color.opacity(0.28), lineWidth: 1))
         }
         .buttonStyle(.plain)
+    }
+
+    // MARK: Race board (3.6)
+
+    /// Full width under Race and Practice. Shows your place once you have one.
+    private var boardButton: some View {
+        let title: String = {
+            if let me = board.myRow, let snap = board.snapshot, snap.n == WordBank.dailyNumber() {
+                return game.loc.boardRankLine(me.rank, snap.total)
+            }
+            return game.loc.boardOpen
+        }()
+        return slimButton(title, system: "trophy.fill", color: HunchTheme.Palette.coin) { showBoard = true }
     }
 
     // MARK: Secondary row (Past puzzles, Wardrobe)
