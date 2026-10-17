@@ -780,17 +780,27 @@ struct GameView: View {
     private var boardButton: some View {
         if case .daily = game.mode {
             let board = DailyBoard.shared
+            let n = WordBank.dailyNumber()
+            // Not posted yet: one big tap posts it (the player's choice) and
+            // opens the board. Posted: shows the place and opens the board.
+            let pending = board.notSubmitted(n) ? game.boardResultToday() : nil
             Button {
                 Feedback.play(.selection)
+                if let pending {
+                    Task { await board.submit(pending) }
+                }
                 showBoard = true
             } label: {
-                Label(board.myRow.map { game.loc.boardRankLine($0.rank, board.snapshot?.total ?? $0.rank) } ?? game.loc.boardOpen,
-                      systemImage: "trophy.fill")
+                Label(pending != nil
+                      ? game.loc.boardSubmit
+                      : (board.myRow.map { game.loc.boardRankLine($0.rank, board.snapshot?.total ?? $0.rank) } ?? game.loc.boardOpen),
+                      systemImage: pending != nil ? "paperplane.fill" : "trophy.fill")
                     .font(.headline)
                     .frame(maxWidth: .infinity).padding(.vertical, 11)
             }
             .buttonStyle(.borderedProminent)
             .tint(HunchTheme.Palette.keeper)
+            .disabled(board.submitting)
         }
     }
 

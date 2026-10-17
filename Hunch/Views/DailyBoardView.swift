@@ -60,6 +60,32 @@ struct DailyBoardView: View {
                         stat(text: BoardFormat.time(ms: me.ms), label: game.loc.boardColTime)
                     }
                 }
+            } else if board.notSubmitted(n), let result = game.boardResultToday() {
+                // Finished today but not posted: the player decides.
+                Text(game.loc.boardYourResult)
+                    .font(.headline)
+                Text(result.gaveUp
+                     ? "🏳️ " + game.loc.boardGaveUp
+                     : "\(game.loc.boardColGuesses) \(result.g + result.h) · \(game.loc.boardColTime) \(BoardFormat.time(ms: result.ms))")
+                    .font(.title3.weight(.semibold))
+                Button {
+                    Feedback.play(.selection)
+                    Task { await board.submit(result) }
+                } label: {
+                    Label(game.loc.boardSubmit, systemImage: "paperplane.fill")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity).padding(.vertical, 10)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(HunchTheme.Palette.keeper)
+                .disabled(board.submitting)
+                Text(game.loc.boardSubmitNote)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else if !board.notSubmitted(n) {
+                // Submitted while offline: waiting to go out.
+                Text(game.loc.boardWaiting)
+                    .font(.headline)
             } else {
                 Text(game.loc.boardSolveFirst)
                     .font(.headline)

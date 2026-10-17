@@ -26,7 +26,7 @@ import { buildTimeline, bandToken, toneFor, HIDE_ANSWER, STANDARD_PACING, type R
 import { ReplayScene, W as REPLAY_W, H as REPLAY_H, type ReplayCopy } from "./game/replay/scene.ts";
 import { canRecord, canShareFile, downloadVideo, recordReplay, shareVideo, type Recording } from "./game/replay/record.ts";
 import { initEvents, track } from "./net/events.ts";
-import { submitBoard, fetchBoard, flushBoard, rerollBoardName, myBoardId, myBoardName, fmtBoardTime, BOARD_FLAG, type BoardSnapshot } from "./net/board.ts";
+import { submitBoard, fetchBoard, flushBoard, rerollBoardName, myBoardId, myBoardName, fmtBoardTime, BOARD_FLAG, recordResult, recordedResult, notSubmitted, type BoardSnapshot, type BoardResult } from "./net/board.ts";
 import { initPwa, promptInstall } from "./pwa.ts";
 import { buildRun, encodeRun, decodeRun, runDuration, fmtDuration } from "./game/ghost.ts";
 import type { GhostRun } from "./game/ghost.ts";
@@ -798,6 +798,27 @@ function screenArchive(): void {
 let lastBoard: BoardSnapshot | null = null;
 let boardFetching = false;
 
+/** Today's finished daily for the board: the first result remembered, or,
+ *  for a round finished before 3.6, one rebuilt from the saved round (any
+ *  language; a give-up wins over a solve). Null if today isn't finished. */
+function boardResultToday(): BoardResult | null {
+  const n = todaysDaily().puzzleNumber;
+  const r = recordedResult(n);
+  if (r) return r;
+  const found: BoardResult[] = [];
+  for (const lang of ["en", "es", "fr", "it", "de", "zh"] as PlayLang[]) {
+    let saved = null;
+    try { const raw = localStorage.getItem(dailyKey(n, lang)); saved = raw ? JSON.parse(raw) as { guesses?: unknown[]; solved?: boolean; revealed?: boolean; elapsedMs?: number } : null; } catch { saved = null; }
+    if (!saved || !Array.isArray(saved.guesses) || !(saved.solved || saved.revealed)) continue;
+    const ms = typeof saved.elapsedMs === "number" ? saved.elapsedMs : 0;
+    if (ms <= 0) continue;
+    found.push({ n, g: saved.guesses.length, ms, lang, gu: !saved.solved });
+  }
+  const pick = found.find((x) => x.gu) ?? found[0] ?? null;
+  if (pick) recordResult(pick);
+  return pick;
+}
+
 /** 3.6: today's race board. */
 async function screenBoard(): Promise<void> {
   clear("dark");
@@ -834,9 +855,26 @@ async function screenBoard(): Promise<void> {
       await rerollBoardName(httpBase, n, live.kid);
       draw(await fetchBoard(httpBase, n));
     } }, ["🎲 " + t("boardNewName")]);
+    const toPost = !b.me && notSubmitted(n) ? boardResultToday() : null;
+    const submitBtn = toPost ? el("button", { class: "btn primary", onclick: async () => {
+      void playSound("tap");
+      submitBtn?.setAttribute("disabled", "");
+      await submitBoard(httpBase, toPost, live.kid);
+      draw(await fetchBoard(httpBase, n));
+    } }, ["📤 " + t("boardSubmit")]) : null;
     body.replaceChildren(
       el("div", { class: "board-you-card" }, [
-        el("div", { class: "board-you-line" }, [b.me ? t("boardRankLine", b.me.rank, b.total) : t("boardSolveFirst")]),
+        el("div", { class: "board-you-line" }, [
+          b.me ? t("boardRankLine", b.me.rank, b.total)
+            : toPost ? t("boardYourResult")
+            : !notSubmitted(n) ? t("boardWaiting")
+            : t("boardSolveFirst"),
+        ]),
+        ...(toPost && submitBtn ? [
+          el("div", { class: "board-you-stats" }, [toPost.gu ? `🏳️ ${t("boardGaveUp")}` : `${t("boardColGuesses")} ${toPost.g} · ${t("boardColTime")} ${fmtBoardTime(toPost.ms)}`]),
+          submitBtn,
+          el("div", { class: "hint" }, [t("boardSubmitNote")]),
+        ] : []),
         ...(b.me ? [el("div", { class: "board-you-stats" }, [b.me.gu ? `🏳️ ${t("boardGaveUp")}` : `${t("boardColGuesses")} ${b.me.g + b.me.h} · ${t("boardColTime")} ${fmtBoardTime(b.me.ms)}`])] : []),
         ...(name ? [el("div", { class: "board-name-row" }, [el("span", { class: "hint" }, [t("boardRacingAs", name)]), reroll])] : []),
       ]),
@@ -1309,10 +1347,8 @@ function screenSolo(): void {
       void playSound("solved");
       if (sp.mode === "daily") {
         track("daily_solve", { n: sp.puzzleNumber, g: sp.guesses.length });
-        // 3.6: onto today's race board, then show the place on the end card.
-        void submitBoard(httpBase, { n: sp.puzzleNumber, g: sp.guesses.length, ms: sp.elapsedMs, lang: sp.lang, kid: live.kid })
-          .then(() => fetchBoard(httpBase, sp.puzzleNumber))
-          .then((b) => { lastBoard = b; if (sp.solved) renderSolo(); });
+        // 3.6: remember the day's result. It is posted only if the player taps Submit.
+        recordResult({ n: sp.puzzleNumber, g: sp.guesses.length, ms: sp.elapsedMs, lang: sp.lang, gu: false });
       }
     }
     input.value = "";
@@ -1478,11 +1514,9 @@ function giveUpSolo(): void {
   void playSound("gaveup");
   if (sp.mode === "daily") {
     track("daily_giveup", { n: sp.puzzleNumber, g: sp.guesses.length });
-    // A give-up goes on the board too, at the bottom. It is this player's
-    // result for the day, so a quick solve afterward doesn't count.
-    void submitBoard(httpBase, { n: sp.puzzleNumber, g: sp.guesses.length, ms: sp.elapsedMs, lang: sp.lang, kid: live.kid, gu: true })
-      .then(() => fetchBoard(httpBase, sp.puzzleNumber))
-      .then((b) => { lastBoard = b; if (sp.revealed) renderSolo(); });
+    // A give-up is the day's result too (at the bottom if submitted), so a
+    // quick re-solve afterward can't replace it.
+    recordResult({ n: sp.puzzleNumber, g: sp.guesses.length, ms: sp.elapsedMs, lang: sp.lang, gu: true });
   }
   saveDaily();
   renderSolo();
@@ -1538,8 +1572,13 @@ function renderSolo(): void {
           });
         }
         const me = lastBoard?.n === sp.puzzleNumber ? lastBoard.me : undefined;
-        actions.unshift(el("button", { class: "btn primary", onclick: () => { void playSound("tap"); void screenBoard(); } },
-          ["🏆 " + (me && lastBoard ? t("boardRankLine", me.rank, lastBoard.total) : t("boardOpen"))]));
+        // Not posted yet: one big tap posts it (the player's choice) and opens the board.
+        const toPost = notSubmitted(sp.puzzleNumber) ? boardResultToday() : null;
+        actions.unshift(el("button", { class: "btn primary", onclick: () => {
+          void playSound("tap");
+          if (toPost) void submitBoard(httpBase, toPost, live.kid).then(() => screenBoard());
+          else void screenBoard();
+        } }, [toPost ? "📤 " + t("boardSubmit") : "🏆 " + (me && lastBoard ? t("boardRankLine", me.rank, lastBoard.total) : t("boardOpen"))]));
         actions.push(el("button", { class: `btn ${hasMap ? "secondary" : "primary"}`, onclick: () => { void shareDaily(); } }, ["📋 " + t("shareResult")]));
         actions.push(el("button", { class: "btn secondary", onclick: screenStats }, ["📊 " + t("statsTitle")]));
         actions.push(el("button", { class: "btn secondary", onclick: goHome }, [t("backHome")]));
@@ -1580,8 +1619,13 @@ function renderSolo(): void {
           });
         }
         const me = lastBoard?.n === sp.puzzleNumber ? lastBoard.me : undefined;
-        actions.unshift(el("button", { class: "btn primary", onclick: () => { void playSound("tap"); void screenBoard(); } },
-          ["🏆 " + (me && lastBoard ? t("boardRankLine", me.rank, lastBoard.total) : t("boardOpen"))]));
+        // Not posted yet: one big tap posts it (the player's choice) and opens the board.
+        const toPost = notSubmitted(sp.puzzleNumber) ? boardResultToday() : null;
+        actions.unshift(el("button", { class: "btn primary", onclick: () => {
+          void playSound("tap");
+          if (toPost) void submitBoard(httpBase, toPost, live.kid).then(() => screenBoard());
+          else void screenBoard();
+        } }, [toPost ? "📤 " + t("boardSubmit") : "🏆 " + (me && lastBoard ? t("boardRankLine", me.rank, lastBoard.total) : t("boardOpen"))]));
         actions.push(el("button", { class: `btn ${hasMap ? "secondary" : "primary"}`, onclick: () => { void shareDaily(); } }, ["📋 " + t("shareResult")]));
         actions.push(el("button", { class: "btn secondary", onclick: screenStats }, ["📊 " + t("statsTitle")]));
         actions.push(el("button", { class: "btn secondary", onclick: goHome }, [t("backHome")]));

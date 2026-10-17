@@ -14,7 +14,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   is now ranked against everyone else: fewest guesses wins, each hint counts
   as one more, ties go to the faster time. Shown on the solved card ("You're
   #3 of 41 today") and in Stats, on iOS and on the web, with flags for the
-  language each player solved in.
+  language each player solved in. Nothing is posted on its own: the solved
+  and give-up screens offer one big Submit button, and only the first
+  finished round of the day can be submitted. Give-ups go at the bottom.
 - Auto names like "Violet Otter" from a safe word list, with a New name
   button. Nothing is typed, so there is nothing to moderate.
 - Server: `POST /board`, `POST /board/name`, `GET /board?n=&me=`. One entry

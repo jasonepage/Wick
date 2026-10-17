@@ -92,8 +92,9 @@ all players. To build those lists:
 
 ## Today's race board (since version 3.6)
 
-When you solve the daily puzzle, the app or the website sends Wick's server
-the puzzle number, how many guesses and hints you used, how long you played,
+Nothing goes on the board unless you choose to. After you finish the daily
+puzzle, you can tap Submit. Only then does the app or the website send Wick's
+server the puzzle number, how many guesses and hints you used, how long you played,
 and the language, with the random per-install id used for live races. The
 server keeps a scrambled, one-way version of that id (so you get one spot a
 day), never the id itself. You show up on the board under an auto name like

@@ -6,19 +6,23 @@
 //  3.6: today's race board. Everyone plays the same daily word, so every
 //  solver races everyone else, even when nobody is online at the same time.
 //
-//  When the daily is solved, the app sends the puzzle number, the guess
-//  count, the hints used, the active play time and the language, with the
-//  player's per-install id (the same one live races use). The server ranks
-//  by fewest guesses (each hint counts one extra), then time, keeps only the
-//  first result per phone per day, and names each phone with a safe auto
-//  name like "Violet Otter" that the player can reroll. See
+//  Nothing is posted on its own. When a daily is finished (solved or given
+//  up), the app only remembers the first result of the day on this phone.
+//  The player sees it on the board screen and chooses to tap Submit. Only
+//  then does the app send the puzzle number, the guess count, the hints, the
+//  active play time and the language, with the per-install id live races use.
+//  The server ranks by fewest guesses (each hint counts one extra), then
+//  time, keeps one result per phone per day, and shows each phone under a
+//  safe auto name like "Violet Otter" that the player can reroll. See
 //  wick-api/src/board.ts.
 //
-//  If the phone is offline at the solve, the result waits in UserDefaults and
+//  Only the first finished round of the day is offered, so giving up and then
+//  re-solving in another language can't be submitted as a solve.
+//
+//  If the phone is offline when the player taps Submit, the result waits and
 //  goes out as soon as it can: when the network comes back while the app is
-//  open, when the app comes back to the screen, or when the board is opened.
-//  The server takes today's puzzle and yesterday's, so a late-night offline
-//  solve still counts the next day.
+//  open, when the app returns to the screen, or when the board is opened.
+//  The server takes today's puzzle and yesterday's.
 //
 
 import Foundation
@@ -44,6 +48,16 @@ nonisolated struct BoardSnapshot: Codable, Sendable {
     let total: Int
     let top: [BoardRow]
     let me: BoardRow?
+}
+
+/// A finished daily on this phone, waiting for the player to submit it.
+nonisolated struct BoardResult: Codable, Equatable, Sendable {
+    let n: Int
+    let g: Int
+    let h: Int
+    let ms: Int
+    let lang: String
+    let gaveUp: Bool
 }
 
 nonisolated struct BoardSubmitReply: Codable, Sendable {
@@ -99,6 +113,7 @@ final class DailyBoard {
     /// The result as sent, kept for the day so it can be sent again if the
     /// server ever loses it (a deploy without its data disk, say).
     private func sentKey(_ n: Int) -> String { "wick.board.sent.\(n)" }
+    private func resultKey(_ n: Int) -> String { "wick.board.result.\(n)" }
 
     @ObservationIgnored private let pathMonitor = NWPathMonitor()
 
@@ -128,17 +143,37 @@ final class DailyBoard {
 
     private var reroll: Int { defaults.integer(forKey: rerollKey) }
 
-    // MARK: - Submit
+    // MARK: - The day's result
 
-    /// Send a finished daily, solved or given up. Safe to call twice: the
-    /// server keeps the first, so a give-up stays a give-up.
-    func submit(n: Int, guesses: Int, hints: Int, ms: Int, lang: GameLanguage, gaveUp: Bool = false) async {
-        guard myId(n) == nil else { return }
-        let body: [String: Any] = ["n": n, "g": guesses, "h": hints, "ms": ms,
-                                   "lang": lang.rawValue, "kid": LiveConfig.kid, "r": reroll, "gu": gaveUp]
+    /// Remember a finished daily. Only the first one of the day sticks, so a
+    /// give-up can't be swapped for a re-solve in another language.
+    func record(_ r: BoardResult) {
+        guard defaults.data(forKey: resultKey(r.n)) == nil,
+              let data = try? JSONEncoder().encode(r) else { return }
+        defaults.set(data, forKey: resultKey(r.n))
+    }
+
+    /// The remembered first result for puzzle `n`, if any.
+    func recorded(_ n: Int) -> BoardResult? {
+        defaults.data(forKey: resultKey(n)).flatMap { try? JSONDecoder().decode(BoardResult.self, from: $0) }
+    }
+
+    /// The player is not on puzzle `n`'s board yet (on this phone).
+    func notSubmitted(_ n: Int) -> Bool { myId(n) == nil && defaults.dictionary(forKey: pendingKey)?["n"] as? Int != n }
+
+    // MARK: - Submit (only when the player taps Submit)
+
+    private(set) var submitting = false
+
+    func submit(_ r: BoardResult) async {
+        guard myId(r.n) == nil, !submitting else { return }
+        submitting = true
+        defer { submitting = false }
+        let body: [String: Any] = ["n": r.n, "g": r.g, "h": r.h, "ms": r.ms,
+                                   "lang": r.lang, "kid": LiveConfig.kid, "r": reroll, "gu": r.gaveUp]
         defaults.set(body, forKey: pendingKey)
         await sendPending()
-        await refresh(n: n)
+        await refresh(n: r.n)
     }
 
     /// Retry a result that could not be sent at the solve. True when it went

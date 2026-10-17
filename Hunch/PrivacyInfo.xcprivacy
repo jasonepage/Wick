@@ -47,7 +47,7 @@
                 <string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
             </array>
         </dict>
-        <!-- 3.6: today's race board. A solved daily's guess count, hints, time and
+        <!-- 3.6: today's race board, only when the player taps Submit. A finished daily's guess count, hints, time and
              language, keyed by a hash of the per-install id, shown under an
              auto name. Not linked to identity, kept about a week. -->
         <dict>

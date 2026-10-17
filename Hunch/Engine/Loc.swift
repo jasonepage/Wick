@@ -327,6 +327,10 @@ struct Loc {
     var boardColTime: String { s("boardColTime") }
     var boardRules: String { s("boardRules") }
     var boardGaveUp: String { s("boardGaveUp") }
+    var boardYourResult: String { s("boardYourResult") }
+    var boardSubmit: String { s("boardSubmit") }
+    var boardSubmitNote: String { s("boardSubmitNote") }
+    var boardWaiting: String { s("boardWaiting") }
     var dailyReminder: String { s("dailyReminder") }
     var time: String { s("time") }
     var reminderBlurb: String { s("reminderBlurb") }
@@ -747,6 +751,10 @@ struct Loc {
         "coins": "Coins",
         "achievements": "Achievements",
         "leaderboards": "Leaderboards",
+        "boardYourResult": "Your result today",
+        "boardSubmit": "Submit to the board",
+        "boardSubmitNote": "Nothing is posted until you tap Submit. You'll show up under an auto name, never your real one.",
+        "boardWaiting": "Your score will post as soon as you're back online.",
         "boardGaveUp": "Gave up",
         "boardTitle": "Today's race",
         "boardOpen": "Today's race board",
@@ -1119,6 +1127,10 @@ struct Loc {
         "coins": "Monedas",
         "achievements": "Logros",
         "leaderboards": "Clasificaciones",
+        "boardYourResult": "Tu resultado de hoy",
+        "boardSubmit": "Enviar a la clasificación",
+        "boardSubmitNote": "No se publica nada hasta que toques Enviar. Aparecerás con un nombre automático, nunca el tuyo.",
+        "boardWaiting": "Tu puntuación se publicará en cuanto vuelvas a tener conexión.",
         "boardGaveUp": "Te rendiste",
         "boardTitle": "La carrera de hoy",
         "boardOpen": "Clasificación de hoy",
@@ -1488,6 +1500,10 @@ struct Loc {
         "coins": "Pièces",
         "achievements": "Succès",
         "leaderboards": "Classements",
+        "boardYourResult": "Ton résultat du jour",
+        "boardSubmit": "Envoyer au classement",
+        "boardSubmitNote": "Rien n'est publié tant que tu n'appuies pas sur Envoyer. Tu apparais sous un nom automatique, jamais le tien.",
+        "boardWaiting": "Ton score sera publié dès que tu seras de nouveau en ligne.",
         "boardGaveUp": "Abandon",
         "boardTitle": "La course du jour",
         "boardOpen": "Classement du jour",
@@ -1857,6 +1873,10 @@ struct Loc {
         "coins": "Monete",
         "achievements": "Obiettivi",
         "leaderboards": "Classifiche",
+        "boardYourResult": "Il tuo risultato di oggi",
+        "boardSubmit": "Invia alla classifica",
+        "boardSubmitNote": "Non viene pubblicato nulla finché non tocchi Invia. Comparirai con un nome automatico, mai il tuo.",
+        "boardWaiting": "Il tuo punteggio verrà pubblicato appena torni online.",
         "boardGaveUp": "Ti sei arreso",
         "boardTitle": "La gara di oggi",
         "boardOpen": "Classifica di oggi",
@@ -2225,6 +2245,10 @@ struct Loc {
         "coins": "Münzen",
         "achievements": "Erfolge",
         "leaderboards": "Bestenlisten",
+        "boardYourResult": "Dein heutiges Ergebnis",
+        "boardSubmit": "An die Rangliste senden",
+        "boardSubmitNote": "Nichts wird veröffentlicht, bis du auf Senden tippst. Du erscheinst unter einem automatischen Namen, nie unter deinem echten.",
+        "boardWaiting": "Dein Ergebnis wird veröffentlicht, sobald du wieder online bist.",
         "boardGaveUp": "Aufgegeben",
         "boardTitle": "Das heutige Rennen",
         "boardOpen": "Heutige Rangliste",

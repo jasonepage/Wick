@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MPL-2.0
 //
 //  board.ts: today's race board on the web (3.6). Mirrors DailyBoard.swift.
-//  A solved daily is sent once (the server keeps the first result per player),
-//  the player's public row id and auto name are kept in localStorage, and a
-//  result that could not be sent waits there until the board is next opened.
+//  Nothing is posted on its own: a finished daily (the first one of the day)
+//  is remembered here, and only goes to the server when the player taps
+//  Submit. The public row id and auto name are kept in localStorage, and a
+//  submitted result that could not be sent waits there until it can be.
 //
 
 export interface BoardRow { rank: number; id: string; name: string; g: number; h: number; ms: number; lang: string; gu?: boolean }
@@ -21,6 +22,26 @@ function put(k: string, v: string): void { try { localStorage.setItem(k, v); } c
 function drop(k: string): void { try { localStorage.removeItem(k); } catch { /* private mode */ } }
 
 export function myBoardId(n: number): string | null { return get(idKey(n)); }
+
+/** A finished daily on this browser, waiting for the player to submit it. */
+export interface BoardResult { n: number; g: number; ms: number; lang: string; gu: boolean }
+const resultKey = (n: number) => `wick.board.result.${n}`;
+
+/** Remember a finished daily. Only the first of the day sticks, so a give-up
+ *  can't be swapped for a re-solve in another language. */
+export function recordResult(r: BoardResult): void {
+  if (!get(resultKey(r.n))) put(resultKey(r.n), JSON.stringify(r));
+}
+export function recordedResult(n: number): BoardResult | null {
+  const raw = get(resultKey(n));
+  if (!raw) return null;
+  try { return JSON.parse(raw) as BoardResult; } catch { return null; }
+}
+/** Not on puzzle `n`'s board yet, and not waiting to be sent. */
+export function notSubmitted(n: number): boolean {
+  if (myBoardId(n)) return false;
+  try { return (JSON.parse(get(PENDING_KEY) ?? "null") as { n?: number } | null)?.n !== n; } catch { return true; }
+}
 export function myBoardName(): string | null { return get(NAME_KEY); }
 function reroll(): number { return Number(get(REROLL_KEY)) || 0; }
 
@@ -52,13 +73,10 @@ export async function flushBoard(httpBase: string, today: number): Promise<void>
   await sendPending(httpBase, today);
 }
 
-/** Send a finished daily: a solve, or a give-up (`gu`). No hints on the web, so h is always 0. */
-export async function submitBoard(
-  httpBase: string,
-  r: { n: number; g: number; ms: number; lang: string; kid: string; gu?: boolean },
-): Promise<void> {
+/** Post a finished daily, only when the player taps Submit. No hints on the web, so h is 0. */
+export async function submitBoard(httpBase: string, r: BoardResult, kid: string): Promise<void> {
   if (myBoardId(r.n)) return;
-  put(PENDING_KEY, JSON.stringify({ n: r.n, g: r.g, h: 0, ms: Math.round(r.ms), lang: r.lang, kid: r.kid, r: reroll(), gu: r.gu === true }));
+  put(PENDING_KEY, JSON.stringify({ n: r.n, g: r.g, h: 0, ms: Math.round(r.ms), lang: r.lang, kid, r: reroll(), gu: r.gu }));
   await sendPending(httpBase, r.n);
 }
 

@@ -856,6 +856,30 @@ final class GameViewModel {
         }
     }
 
+    /// Today's finished daily for the race board: the first result this phone
+    /// remembered, or, for a round finished before 3.6, one rebuilt from the
+    /// saved board (any language; a give-up wins over a solve so it can't be
+    /// dodged). The time is the stamp of the last action. Nil if today's
+    /// daily isn't finished, or a pre-3.6 round has no time stamps.
+    func boardResultToday() -> BoardResult? {
+        let n = WordBank.dailyNumber()
+        if let r = DailyBoard.shared.recorded(n) { return r }
+        let today = WordBank.dayIndex()
+        var found: [BoardResult] = []
+        for lang in GameLanguage.all {
+            guard let data = UserDefaults.standard.data(forKey: "hunch.dailyState.\(lang.rawValue)"),
+                  let s = try? JSONDecoder().decode(DailyState.self, from: data),
+                  s.day == today, s.solved || s.revealed else { continue }
+            let stamps = s.guesses.compactMap(\.at) + s.questions.compactMap(\.at)
+            guard let ms = stamps.max(), ms > 0 else { continue }
+            found.append(BoardResult(n: n, g: s.guesses.count, h: s.hintsUsed, ms: ms,
+                                     lang: lang.rawValue, gaveUp: !s.solved))
+        }
+        guard let pick = found.first(where: \.gaveUp) ?? found.first else { return nil }
+        DailyBoard.shared.record(pick)   // pin it, so it can't change later
+        return pick
+    }
+
     private func restore(_ s: DailyState) {
         guesses = s.guesses
         questions = s.questions
@@ -1130,10 +1154,10 @@ final class GameViewModel {
                 streak = (lastSolvedDay == today - 1) ? streak + 1 : 1
                 lastSolvedDay = today
             }
-            // 3.6: onto today's race board. The server keeps the first result
-            // per phone, so a re-solve in another language changes nothing.
-            let n = puzzleNumber, g = guessCount, h = hintsUsed, ms = elapsedMs, lang = language
-            Task { await DailyBoard.shared.submit(n: n, guesses: g, hints: h, ms: ms, lang: lang) }
+            // 3.6: remember the day's result for the race board. Nothing is
+            // posted until the player taps Submit there.
+            DailyBoard.shared.record(BoardResult(n: puzzleNumber, g: guessCount, h: hintsUsed,
+                                                 ms: elapsedMs, lang: language.rawValue, gaveUp: false))
         }
 
         // Stats
@@ -1304,11 +1328,11 @@ final class GameViewModel {
         saveMyDuelResult()
         transientMessage = loc.theWordWasToast(target)
         saveDailyState()
-        // A give-up goes on today's race board too, at the bottom. It is this
-        // phone's result for the day, so a quick solve afterward doesn't count.
+        // A give-up is the day's result too (it lands at the bottom of the
+        // board if submitted), so a quick re-solve afterward can't replace it.
         if case .daily = mode {
-            let n = puzzleNumber, g = guessCount, h = hintsUsed, ms = elapsedMs, lang = language
-            Task { await DailyBoard.shared.submit(n: n, guesses: g, hints: h, ms: ms, lang: lang, gaveUp: true) }
+            DailyBoard.shared.record(BoardResult(n: puzzleNumber, g: guessCount, h: hintsUsed,
+                                                 ms: elapsedMs, lang: language.rawValue, gaveUp: true))
         }
     }
 
