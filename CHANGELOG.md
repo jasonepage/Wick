@@ -65,6 +65,20 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Dance page: a whole-race section (5 minutes with the riser and kiai where
   the race puts them) and an option to export the video silent.
 
+
+### Changed
+
+- **Cleaner end of round (iOS).** The solved and gave-up cards now have one
+  big button (the race board), a row of three share tiles (Result as the
+  emoji grid, Map as the picture, Video as the replay), and two quiet buttons
+  (See the map, Play a random word). The open "Race a friend" button is gone
+  from the end cards on iOS and web; "Race them back" still shows after a
+  round that came from a friend's race link.
+- **Prettier map (iOS).** The Reveal map draws one glowing trail through
+  each new closest guess into the word instead of a dashed line through
+  every guess, the heat bands are soft tinted rings with their names off to
+  the side, word labels never overlap, and the word sits on a solid disc.
+
 ## [3.5]
 
 ### Added

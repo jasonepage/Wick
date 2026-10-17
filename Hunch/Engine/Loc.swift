@@ -238,6 +238,10 @@ struct Loc {
     }
     func streakDays(_ n: Int) -> String { f("streakDays", n) }
     var shareResult: String { s("shareResult") }
+    var shareSectionTitle: String { s("shareSectionTitle") }
+    var shareTileResult: String { s("shareTileResult") }
+    var shareTileMap: String { s("shareTileMap") }
+    var shareTileVideo: String { s("shareTileVideo") }
     // Share-card copy
     func shareSolvedIn(_ n: Int) -> String { f("shareSolvedIn", n) }
     func shareQuestions(_ n: Int) -> String {
@@ -663,6 +667,10 @@ struct Loc {
         "solvedIn.other": "“%@” in %d guesses",
         "streakDays": "%d-day streak!",
         "shareResult": "Share result",
+        "shareSectionTitle": "Share",
+        "shareTileResult": "Result",
+        "shareTileMap": "Map",
+        "shareTileVideo": "Video",
         "shareSolvedIn": "solved in %d",
         "shareQuestions.one": "%d question",
         "shareQuestions.other": "%d questions",
@@ -1066,6 +1074,10 @@ struct Loc {
         "solvedIn.other": "«%@» en %d intentos",
         "streakDays": "¡Racha de %d días!",
         "shareResult": "Compartir resultado",
+        "shareSectionTitle": "Compartir",
+        "shareTileResult": "Resultado",
+        "shareTileMap": "Mapa",
+        "shareTileVideo": "Vídeo",
         "shareSolvedIn": "resuelto en %d",
         "shareQuestions.one": "%d pregunta",
         "shareQuestions.other": "%d preguntas",
@@ -1466,6 +1478,10 @@ struct Loc {
         "solvedIn.other": "« %@ » en %d essais",
         "streakDays": "Série de %d jours !",
         "shareResult": "Partager le résultat",
+        "shareSectionTitle": "Partager",
+        "shareTileResult": "Résultat",
+        "shareTileMap": "Carte",
+        "shareTileVideo": "Vidéo",
         "shareSolvedIn": "résolu en %d",
         "shareQuestions.one": "%d question",
         "shareQuestions.other": "%d questions",
@@ -1866,6 +1882,10 @@ struct Loc {
         "solvedIn.other": "«%@» in %d tentativi",
         "streakDays": "Serie di %d giorni!",
         "shareResult": "Condividi il risultato",
+        "shareSectionTitle": "Condividi",
+        "shareTileResult": "Risultato",
+        "shareTileMap": "Mappa",
+        "shareTileVideo": "Video",
         "shareSolvedIn": "risolto in %d",
         "shareQuestions.one": "%d domanda",
         "shareQuestions.other": "%d domande",
@@ -2265,6 +2285,10 @@ struct Loc {
         "solvedIn.other": "„%@“ in %d Versuchen",
         "streakDays": "%d-Tage-Serie!",
         "shareResult": "Ergebnis teilen",
+        "shareSectionTitle": "Teilen",
+        "shareTileResult": "Ergebnis",
+        "shareTileMap": "Karte",
+        "shareTileVideo": "Video",
         "shareSolvedIn": "gelöst in %d",
         "shareQuestions.one": "%d Frage",
         "shareQuestions.other": "%d Fragen",

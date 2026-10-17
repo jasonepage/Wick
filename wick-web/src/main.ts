@@ -1560,11 +1560,12 @@ function renderSolo(): void {
       const actions: HTMLElement[] = [];
       const hasMap = sp.guesses.some((g) => g.warmth !== null);
       const banner = sp.ghost ? raceBanner() : null;
-      if (raceLink()) {
+      // 3.6: only to answer a friend's race; the open "Race a friend" is gone.
+      if (sp.ghost && raceLink()) {
         actions.push(el("button", {
           class: "btn primary",
           onclick: () => { void playSound("tap"); void shareRace(); },
-        }, [sp.ghost ? t("raceThemBack") : t("raceAFriend")]));
+        }, [t("raceThemBack")]));
       }
       if (hasMap) {
         actions.push(el("button", { class: "btn secondary", onclick: () => { void screenReveal(); } }, [t("revealSeeMap")]));
@@ -1608,11 +1609,12 @@ function renderSolo(): void {
       const actions: HTMLElement[] = [];
       const hasMap = sp.guesses.some((g) => g.warmth !== null);
       const banner = sp.ghost ? raceBanner() : null;
-      if (raceLink()) {
+      // 3.6: only to answer a friend's race; the open "Race a friend" is gone.
+      if (sp.ghost && raceLink()) {
         actions.push(el("button", {
           class: "btn primary",
           onclick: () => { void playSound("tap"); void shareRace(); },
-        }, [sp.ghost ? t("raceThemBack") : t("raceAFriend")]));
+        }, [t("raceThemBack")]));
       }
       if (hasMap) {
         actions.push(el("button", { class: "btn secondary", onclick: () => { void screenReveal(); } }, [t("revealSeeMap")]));

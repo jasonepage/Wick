@@ -839,64 +839,32 @@ struct GameView: View {
 
     // MARK: - The Reveal
 
-    /// Opens "The Reveal" — the post-round semantic map of your guesses.
-    private var revealMapButton: some View {
-        Button {
-            Feedback.play(.selection)
-            showReveal = true
-        } label: {
-            Label(game.loc.revealSeeMap, systemImage: "scope")
-                .frame(maxWidth: .infinity).padding(.vertical, 11)
-        }
-        .buttonStyle(.bordered)
-    }
-
     // MARK: - Solved
 
+    /// The end of a solved round. One big button (the race board), a row of
+    /// three ways to share, and two quiet ways to keep going.
     private var solvedCard: some View {
         VStack(spacing: HunchTheme.Spacing.m) {
             KeeperView(mood: .celebrating, size: 92, onPoke: pokeWick)
-            Text(game.loc.solvedTitle).font(.title2.bold())
-            Text(game.loc.solvedIn(game.target, game.guessCount))
-                .foregroundStyle(.secondary)
-            if game.learnTranslation(game.target) != nil {
-                learnLabel(game.target)
-                    .font(.headline)
-            }
-            if game.streak > 1 {
-                Label(game.loc.streakDays(game.streak), systemImage: "flame.fill")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(HunchTheme.Palette.flame)
-            }
-            boardButton
-            raceShareButton
-            if game.currentDuel != nil {
-                duelResultShareButton
-            } else {
-                Button {
-                    // Emoji grid AND the semantic map image — the grid is what
-                    // every guessing game shares, the map is the one only this
-                    // game can. Both are spoiler-free; see RevealShareCard.
-                    ShareSheet.present(game.shareItems())
-                } label: {
-                    Label(game.loc.shareResult, systemImage: "square.and.arrow.up")
+            Text(game.loc.solvedTitle)
+                .font(.system(.largeTitle, design: .rounded).weight(.black))
+            VStack(spacing: HunchTheme.Spacing.xs) {
+                Text(game.loc.solvedIn(game.target, game.guessCount))
+                    .foregroundStyle(.secondary)
+                if game.learnTranslation(game.target) != nil {
+                    learnLabel(game.target)
                         .font(.headline)
-                        .frame(maxWidth: .infinity).padding(.vertical, 11)
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(HunchTheme.Palette.solved)
+                if game.streak > 1 {
+                    Label(game.loc.streakDays(game.streak), systemImage: "flame.fill")
+                        .font(.subheadline.weight(.bold))
+                        .foregroundStyle(HunchTheme.Palette.flame)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 5)
+                        .background(HunchTheme.Palette.flame.opacity(0.14), in: Capsule())
+                }
             }
-            replayButton
-            revealMapButton
-            Menu {
-                Button(game.loc.easy) { game.startPractice(tier: 2) }
-                Button(game.loc.medium) { game.startPractice(tier: 3) }
-                Button(game.loc.hard) { game.startPractice(tier: 4) }
-            } label: {
-                Label(game.loc.playRandom, systemImage: "dice.fill")
-                    .frame(maxWidth: .infinity).padding(.vertical, 11)
-            }
-            .buttonStyle(.bordered)
+            endActions
         }
         .padding(HunchTheme.Spacing.xl)
         .frame(maxWidth: .infinity)
@@ -916,28 +884,111 @@ struct GameView: View {
                     .font(.title3.weight(.semibold))
                     .foregroundStyle(HunchTheme.Palette.keeper)
             }
-            boardButton
-            // A give-up is still a run worth racing — same as web.
-            raceShareButton
-            // Even a give-up counts in a duel — let the player send their result.
-            if game.currentDuel != nil { duelResultShareButton }
-            replayButton
-            revealMapButton
+            endActions
+        }
+        .padding(HunchTheme.Spacing.xl)
+        .frame(maxWidth: .infinity)
+        .hunchCard(radius: HunchTheme.Radius.hero)
+    }
+
+    /// Shared by both end cards so they can never drift apart.
+    @ViewBuilder
+    private var endActions: some View {
+        boardButton
+        // Only when this round WAS a race from a friend's link: answer it.
+        raceShareButton
+        // A duel sends its own result code.
+        if game.currentDuel != nil { duelResultShareButton }
+        shareRow
+        HStack(spacing: HunchTheme.Spacing.s) {
+            Button {
+                Feedback.play(.selection)
+                showReveal = true
+            } label: {
+                quietLabel(game.loc.revealSeeMap, systemImage: "scope")
+            }
+            .buttonStyle(.bordered)
             Menu {
                 Button(game.loc.easy) { game.startPractice(tier: 2) }
                 Button(game.loc.medium) { game.startPractice(tier: 3) }
                 Button(game.loc.hard) { game.startPractice(tier: 4) }
             } label: {
-                Label(game.loc.playRandom, systemImage: "dice.fill")
-                    .frame(maxWidth: .infinity).padding(.vertical, 11)
+                quietLabel(game.loc.playRandom, systemImage: "dice.fill")
             }
-            .buttonStyle(.borderedProminent)
-            .tint(.accentColor)
-            .padding(.top, HunchTheme.Spacing.xs)
+            .buttonStyle(.bordered)
         }
-        .padding(HunchTheme.Spacing.xl)
-        .frame(maxWidth: .infinity)
-        .hunchCard(radius: HunchTheme.Radius.hero)
+        .tint(.secondary)
+    }
+
+    private func quietLabel(_ title: String, systemImage: String) -> some View {
+        Label(title, systemImage: systemImage)
+            .font(.subheadline.weight(.semibold))
+            .lineLimit(1)
+            .minimumScaleFactor(0.7)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 8)
+    }
+
+    /// Three ways to share, side by side: the emoji grid (text), the semantic
+    /// map (an image), and the solve replay (a video). All spoiler-free.
+    private var shareRow: some View {
+        // Mirrors shareImage(): the map needs at least two scored guesses.
+        let canMap = game.guesses.filter { $0.known && $0.score < 100 }.count >= 2
+        return VStack(alignment: .leading, spacing: HunchTheme.Spacing.s) {
+            Text(game.loc.shareSectionTitle)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .textCase(.uppercase)
+                .padding(.leading, HunchTheme.Spacing.xs)
+            HStack(spacing: HunchTheme.Spacing.s) {
+                shareTile(game.loc.shareTileResult, systemImage: "square.grid.3x3.fill",
+                          tint: HunchTheme.Palette.solved) {
+                    Events.track(.shareGrid, n: game.mode == .daily ? game.puzzleNumber : nil)
+                    ShareSheet.present([game.shareText()])
+                }
+                if canMap {
+                    shareTile(game.loc.shareTileMap, systemImage: "scope",
+                              tint: HunchTheme.Palette.hot) {
+                        guard let image = game.shareImage() else { return }
+                        Events.track(.shareMap, n: game.mode == .daily ? game.puzzleNumber : nil)
+                        ShareSheet.present([image])
+                    }
+                }
+                if game.canShareReplay {
+                    shareTile(game.loc.shareTileVideo, systemImage: "film.fill",
+                              tint: HunchTheme.Palette.keeper) {
+                        replayRequest = game.replayRequest()
+                    }
+                }
+            }
+        }
+        .padding(.top, HunchTheme.Spacing.xs)
+    }
+
+    private func shareTile(_ title: String, systemImage: String, tint: Color,
+                           action: @escaping () -> Void) -> some View {
+        Button {
+            Feedback.play(.selection)
+            action()
+        } label: {
+            VStack(spacing: 6) {
+                Image(systemName: systemImage)
+                    .font(.title2.weight(.semibold))
+                Text(title)
+                    .font(.footnote.weight(.bold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+            .foregroundStyle(tint)
+            .frame(maxWidth: .infinity, minHeight: 76)
+            .background(tint.opacity(0.14),
+                        in: RoundedRectangle(cornerRadius: HunchTheme.Radius.card, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: HunchTheme.Radius.card, style: .continuous)
+                .strokeBorder(tint.opacity(0.3), lineWidth: 1))
+            .contentShape(RoundedRectangle(cornerRadius: HunchTheme.Radius.card, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(game.loc.shareSectionTitle + ": " + title)
     }
 
     /// 3.6: today's race board, on a solved daily. Shows your place once the
@@ -970,12 +1021,12 @@ struct GameView: View {
         }
     }
 
-    /// "Race a friend" / "Race them back". Shown on BOTH end cards — solved and
-    /// gave-up — because a give-up is still a perfectly good run to race against,
-    /// and because keeping them in one place stops the two drifting apart.
+    /// "Race them back". Only on a round that came from a friend's race link, so
+    /// the player can answer the challenge (solved or gave up). The open-ended
+    /// "Race a friend" button was taken off the end cards in 3.6.
     @ViewBuilder
     private var raceShareButton: some View {
-        if let run = game.ghostRun() {
+        if game.ghost != nil, let run = game.ghostRun() {
             Button {
                 Feedback.play(.selection)
                 // Same wording as the web share sheet (shareRace in main.ts):
@@ -986,30 +1037,12 @@ struct GameView: View {
                 Events.track(.raceLinkCreated, n: run.mode == .daily ? run.ref : nil)
                 ShareSheet.present([text, Ghost.link(run)])
             } label: {
-                Label(game.ghost == nil ? game.loc.raceAFriend : game.loc.raceThemBack,
-                      systemImage: "flag.checkered")
+                Label(game.loc.raceThemBack, systemImage: "flag.checkered")
                     .font(.headline)
                     .frame(maxWidth: .infinity).padding(.vertical, 11)
             }
             .buttonStyle(.borderedProminent)
             .tint(HunchTheme.Palette.hot)
-        }
-    }
-
-    /// "Share replay" (3.4): a vertical video of the round for TikTok, Reels
-    /// and Shorts. Spoiler-free like the other shares: ranks only, no words.
-    @ViewBuilder
-    private var replayButton: some View {
-        if game.canShareReplay {
-            Button {
-                Feedback.play(.selection)
-                replayRequest = game.replayRequest()
-            } label: {
-                Label(game.loc.replayShare, systemImage: "film")
-                    .frame(maxWidth: .infinity).padding(.vertical, 11)
-            }
-            .buttonStyle(.bordered)
-            .tint(HunchTheme.Palette.keeper)
         }
     }
 
