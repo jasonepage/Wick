@@ -34,7 +34,6 @@ struct StatsView: View {
                     }
                     boardLink
                     achievementsLink
-                    leaderboardsLink
                     weeklySection
                 }
                 .padding(HunchTheme.Spacing.l)
@@ -132,27 +131,6 @@ struct StatsView: View {
 
     private var bestGuessText: String {
         game.bestGuessCount > 0 ? "\(game.bestGuessCount)" : "—"
-    }
-
-    /// The ONLY place Game Center is ever reached from. Tapping it is the
-    /// player's explicit request to be ranked; nothing authenticates before
-    /// this. See `GameCenter.swift` for why that matters.
-    private var leaderboardsLink: some View {
-        Button {
-            Feedback.play(.selection)
-            GameCenter.showDashboard()
-        } label: {
-            HStack(spacing: HunchTheme.Spacing.m) {
-                Image(systemName: "trophy.fill")
-                    .foregroundStyle(HunchTheme.Palette.coin)
-                Text(game.loc.leaderboards).font(.headline).foregroundStyle(.primary)
-                Spacer()
-                Image(systemName: "chevron.right").font(.footnote).foregroundStyle(.tertiary)
-            }
-            .padding(HunchTheme.Spacing.l)
-            .hunchCard(radius: 16)
-        }
-        .buttonStyle(.plain)
     }
 
     /// 3.6: today's race board.
