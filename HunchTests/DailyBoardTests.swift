@@ -37,6 +37,12 @@ struct DailyBoardTests {
         #expect(snap.me?.rank == 2)
     }
 
+    @Test func readsAGiveUp() throws {
+        let json = #"{"n":1420,"total":1,"top":[{"rank":1,"id":"a1b2c3d4","name":"Violet Otter","g":3,"h":0,"ms":40000,"lang":"en","gu":true}]}"#
+        let snap = try JSONDecoder().decode(BoardSnapshot.self, from: Data(json.utf8))
+        #expect(snap.top.first?.gaveUp == true)
+    }
+
     @Test func readsABoardWithoutMe() throws {
         let json = #"{"n":1419,"total":0,"top":[]}"#
         let snap = try JSONDecoder().decode(BoardSnapshot.self, from: Data(json.utf8))

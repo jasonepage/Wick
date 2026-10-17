@@ -29,6 +29,10 @@ nonisolated struct BoardRow: Codable, Hashable, Sendable {
     let h: Int
     let ms: Int
     let lang: String
+    /// Gave up instead of solving. Older servers leave it out.
+    let gu: Bool?
+
+    var gaveUp: Bool { gu == true }
 }
 
 nonisolated struct BoardSnapshot: Codable, Sendable {
@@ -100,11 +104,12 @@ final class DailyBoard {
 
     // MARK: - Submit
 
-    /// Send a finished daily. Safe to call twice: the server keeps the first.
-    func submit(n: Int, guesses: Int, hints: Int, ms: Int, lang: GameLanguage) async {
+    /// Send a finished daily, solved or given up. Safe to call twice: the
+    /// server keeps the first, so a give-up stays a give-up.
+    func submit(n: Int, guesses: Int, hints: Int, ms: Int, lang: GameLanguage, gaveUp: Bool = false) async {
         guard myId(n) == nil else { return }
         let body: [String: Any] = ["n": n, "g": guesses, "h": hints, "ms": ms,
-                                   "lang": lang.rawValue, "kid": LiveConfig.kid, "r": reroll]
+                                   "lang": lang.rawValue, "kid": LiveConfig.kid, "r": reroll, "gu": gaveUp]
         defaults.set(body, forKey: pendingKey)
         await sendPending()
         await refresh(n: n)

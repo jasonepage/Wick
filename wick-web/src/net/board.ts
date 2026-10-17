@@ -6,7 +6,7 @@
 //  result that could not be sent waits there until the board is next opened.
 //
 
-export interface BoardRow { rank: number; id: string; name: string; g: number; h: number; ms: number; lang: string }
+export interface BoardRow { rank: number; id: string; name: string; g: number; h: number; ms: number; lang: string; gu?: boolean }
 export interface BoardSnapshot { n: number; total: number; top: BoardRow[]; me?: BoardRow }
 
 const NAME_KEY = "wick.board.name";
@@ -43,13 +43,13 @@ async function sendPending(httpBase: string, today: number): Promise<void> {
   } catch { /* offline: try again later */ }
 }
 
-/** Send a solved daily. No hints on the web, so h is always 0. */
+/** Send a finished daily: a solve, or a give-up (`gu`). No hints on the web, so h is always 0. */
 export async function submitBoard(
   httpBase: string,
-  r: { n: number; g: number; ms: number; lang: string; kid: string },
+  r: { n: number; g: number; ms: number; lang: string; kid: string; gu?: boolean },
 ): Promise<void> {
   if (myBoardId(r.n)) return;
-  put(PENDING_KEY, JSON.stringify({ n: r.n, g: r.g, h: 0, ms: Math.round(r.ms), lang: r.lang, kid: r.kid, r: reroll() }));
+  put(PENDING_KEY, JSON.stringify({ n: r.n, g: r.g, h: 0, ms: Math.round(r.ms), lang: r.lang, kid: r.kid, r: reroll(), gu: r.gu === true }));
   await sendPending(httpBase, r.n);
 }
 

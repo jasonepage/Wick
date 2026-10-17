@@ -326,6 +326,7 @@ struct Loc {
     var boardColGuesses: String { s("boardColGuesses") }
     var boardColTime: String { s("boardColTime") }
     var boardRules: String { s("boardRules") }
+    var boardGaveUp: String { s("boardGaveUp") }
     var dailyReminder: String { s("dailyReminder") }
     var time: String { s("time") }
     var reminderBlurb: String { s("reminderBlurb") }
@@ -746,6 +747,7 @@ struct Loc {
         "coins": "Coins",
         "achievements": "Achievements",
         "leaderboards": "Leaderboards",
+        "boardGaveUp": "Gave up",
         "boardTitle": "Today's race",
         "boardOpen": "Today's race board",
         "boardRankLine": "You're #%d of %d today",
@@ -758,7 +760,7 @@ struct Loc {
         "boardRacingAs": "Racing as %@",
         "boardColGuesses": "Guesses",
         "boardColTime": "Time",
-        "boardRules": "Fewest guesses wins. Each hint counts as one more guess. Ties go to the faster time. Your first solve of the day is the one that counts.",
+        "boardRules": "Fewest guesses wins. Each hint counts as one more guess. Ties go to the faster time. Giving up puts you at the bottom. Your first result of the day is the one that counts.",
         "weeklyHeader": "This week, everyone",
         "weeklyTopGuesses": "Top guesses this week",
         "weeklyTopQuestions": "Most asked questions",
@@ -1117,6 +1119,7 @@ struct Loc {
         "coins": "Monedas",
         "achievements": "Logros",
         "leaderboards": "Clasificaciones",
+        "boardGaveUp": "Te rendiste",
         "boardTitle": "La carrera de hoy",
         "boardOpen": "Clasificación de hoy",
         "boardRankLine": "Vas #%d de %d hoy",
@@ -1129,7 +1132,7 @@ struct Loc {
         "boardRacingAs": "Compites como %@",
         "boardColGuesses": "Intentos",
         "boardColTime": "Tiempo",
-        "boardRules": "Gana quien use menos intentos. Cada pista cuenta como un intento más. En caso de empate gana el tiempo más rápido. Solo cuenta tu primera resolución del día.",
+        "boardRules": "Gana quien use menos intentos. Cada pista cuenta como un intento más. En caso de empate gana el tiempo más rápido. Rendirte te deja al final. Solo cuenta tu primer resultado del día.",
         "weeklyHeader": "Esta semana, todos",
         "weeklyTopGuesses": "Palabras más probadas esta semana",
         "weeklyTopQuestions": "Preguntas más hechas",
@@ -1485,6 +1488,7 @@ struct Loc {
         "coins": "Pièces",
         "achievements": "Succès",
         "leaderboards": "Classements",
+        "boardGaveUp": "Abandon",
         "boardTitle": "La course du jour",
         "boardOpen": "Classement du jour",
         "boardRankLine": "Tu es #%d sur %d aujourd'hui",
@@ -1497,7 +1501,7 @@ struct Loc {
         "boardRacingAs": "Tu cours en tant que %@",
         "boardColGuesses": "Essais",
         "boardColTime": "Temps",
-        "boardRules": "Le moins d'essais l'emporte. Chaque indice compte comme un essai de plus. En cas d'égalité, le temps le plus rapide gagne. Seule ta première résolution du jour compte.",
+        "boardRules": "Le moins d'essais l'emporte. Chaque indice compte comme un essai de plus. En cas d'égalité, le temps le plus rapide gagne. Abandonner te place en bas. Seul ton premier résultat du jour compte.",
         "weeklyHeader": "Cette semaine, tout le monde",
         "weeklyTopGuesses": "Mots les plus tentés cette semaine",
         "weeklyTopQuestions": "Questions les plus posées",
@@ -1853,6 +1857,7 @@ struct Loc {
         "coins": "Monete",
         "achievements": "Obiettivi",
         "leaderboards": "Classifiche",
+        "boardGaveUp": "Ti sei arreso",
         "boardTitle": "La gara di oggi",
         "boardOpen": "Classifica di oggi",
         "boardRankLine": "Sei #%d su %d oggi",
@@ -1865,7 +1870,7 @@ struct Loc {
         "boardRacingAs": "Gareggi come %@",
         "boardColGuesses": "Tentativi",
         "boardColTime": "Tempo",
-        "boardRules": "Vince chi usa meno tentativi. Ogni indizio conta come un tentativo in più. A parità vince il tempo più veloce. Conta solo la tua prima soluzione del giorno.",
+        "boardRules": "Vince chi usa meno tentativi. Ogni indizio conta come un tentativo in più. A parità vince il tempo più veloce. Arrendersi ti mette in fondo. Conta solo il tuo primo risultato del giorno.",
         "weeklyHeader": "Questa settimana, tutti",
         "weeklyTopGuesses": "Parole più provate questa settimana",
         "weeklyTopQuestions": "Domande più fatte",
@@ -2220,6 +2225,7 @@ struct Loc {
         "coins": "Münzen",
         "achievements": "Erfolge",
         "leaderboards": "Bestenlisten",
+        "boardGaveUp": "Aufgegeben",
         "boardTitle": "Das heutige Rennen",
         "boardOpen": "Heutige Rangliste",
         "boardRankLine": "Du bist heute #%d von %d",
@@ -2232,7 +2238,7 @@ struct Loc {
         "boardRacingAs": "Du spielst als %@",
         "boardColGuesses": "Versuche",
         "boardColTime": "Zeit",
-        "boardRules": "Die wenigsten Versuche gewinnen. Jeder Hinweis zählt als ein Versuch mehr. Bei Gleichstand gewinnt die schnellere Zeit. Nur deine erste Lösung des Tages zählt.",
+        "boardRules": "Die wenigsten Versuche gewinnen. Jeder Hinweis zählt als ein Versuch mehr. Bei Gleichstand gewinnt die schnellere Zeit. Wer aufgibt, landet ganz unten. Nur dein erstes Ergebnis des Tages zählt.",
         "weeklyHeader": "Diese Woche, alle",
         "weeklyTopGuesses": "Häufigste Versuche dieser Woche",
         "weeklyTopQuestions": "Häufigste Fragen",

@@ -6,7 +6,10 @@
 //
 //  Ranking: fewest guesses first, where each hint counts as one extra guess
 //  (the hint's word is already one of the guesses), then the faster time,
-//  then whoever finished first.
+//  then whoever finished first. Players who gave up are on the board too, below
+//  every solver, in the order they gave up. Because only the first result per
+//  player counts, giving up and then solving in one guess (say, in another
+//  language) leaves you as a give-up.
 //
 //  Names: no accounts and nothing typed. Each phone or browser gets a name
 //  like "Violet Otter" picked from two safe word lists by a hash of its id and
@@ -78,12 +81,13 @@ export function nameFor(idHash: string, reroll: number): string {
   return `${ADJECTIVES[h[0]! % ADJECTIVES.length]} ${ANIMALS[h[1]! % ANIMALS.length]}`;
 }
 
-/** Why a result is impossible, or null when it is believable. */
-export function checkResult(g: unknown, h: unknown, ms: unknown): string | null {
-  if (!Number.isInteger(g) || (g as number) < 1 || (g as number) > 300) return "bad_guesses";
+/** Why a result is impossible, or null when it is believable. A give-up can
+ *  have zero guesses and any time. */
+export function checkResult(g: unknown, h: unknown, ms: unknown, gaveUp = false): string | null {
+  if (!Number.isInteger(g) || (g as number) < (gaveUp ? 0 : 1) || (g as number) > 300) return "bad_guesses";
   if (!Number.isInteger(h) || (h as number) < 0 || (h as number) > (g as number)) return "bad_hints";
   if (!Number.isInteger(ms) || (ms as number) < 0 || (ms as number) > DAY_MS) return "bad_time";
-  if ((ms as number) < Math.max(MIN_MS, MIN_MS_PER_GUESS * (g as number))) return "too_fast";
+  if (!gaveUp && (ms as number) < Math.max(MIN_MS, MIN_MS_PER_GUESS * (g as number))) return "too_fast";
   return null;
 }
 
@@ -96,9 +100,11 @@ interface Entry {
   ms: number;
   lang: Lang;
   at: number;
+  /** Gave up instead of solving. */
+  gu: boolean;
 }
 
-export interface BoardRow { rank: number; id: string; name: string; g: number; h: number; ms: number; lang: Lang }
+export interface BoardRow { rank: number; id: string; name: string; g: number; h: number; ms: number; lang: Lang; gu: boolean }
 export interface BoardSnapshot { n: number; total: number; top: BoardRow[]; me?: BoardRow }
 
 export type SubmitResult =
@@ -107,6 +113,8 @@ export type SubmitResult =
 
 function score(e: Entry): number { return e.g + e.h; }
 function compare(a: Entry, b: Entry): number {
+  if (a.gu !== b.gu) return a.gu ? 1 : -1;   // every solver above every give-up
+  if (a.gu) return a.at - b.at;              // give-ups in the order they gave up
   return score(a) - score(b) || a.ms - b.ms || a.at - b.at;
 }
 
@@ -127,11 +135,12 @@ export class RaceBoard {
     return n === cur - 1 && t - puzzleStart(cur) < GRACE_MS;
   }
 
-  submit(input: { n: unknown; g: unknown; h: unknown; ms: unknown; lang: unknown; kid: unknown; r: unknown }): SubmitResult {
+  submit(input: { n: unknown; g: unknown; h: unknown; ms: unknown; lang: unknown; kid: unknown; r: unknown; gu?: unknown }): SubmitResult {
     const { n } = input;
     if (!Number.isInteger(n) || !this.isOpen(n as number)) return { ok: false, reason: "not_today" };
     if (typeof input.kid !== "string" || input.kid.length < 8 || input.kid.length > 128) return { ok: false, reason: "bad_id" };
-    const bad = checkResult(input.g, input.h, input.ms);
+    const gaveUp = input.gu === true;
+    const bad = checkResult(input.g, input.h, input.ms, gaveUp);
     if (bad) return { ok: false, reason: bad };
     const reroll = Number.isInteger(input.r) && (input.r as number) >= 0 && (input.r as number) < 10_000 ? (input.r as number) : 0;
     const day = this.day(n as number);
@@ -142,7 +151,7 @@ export class RaceBoard {
     const entry: Entry = {
       key, name: nameFor(key, reroll),
       g: input.g as number, h: input.h as number, ms: input.ms as number,
-      lang: isLang(input.lang) ? input.lang : "en", at: this.now(),
+      lang: isLang(input.lang) ? input.lang : "en", at: this.now(), gu: gaveUp,
     };
     day.set(key, entry);
     this.sorted.delete(n as number);
@@ -163,7 +172,7 @@ export class RaceBoard {
 
   snapshot(n: number, topN = 50, meId?: string): BoardSnapshot {
     const list = this.standings(n);
-    const row = (e: Entry, i: number): BoardRow => ({ rank: i + 1, id: e.key.slice(0, 8), name: e.name, g: e.g, h: e.h, ms: e.ms, lang: e.lang });
+    const row = (e: Entry, i: number): BoardRow => ({ rank: i + 1, id: e.key.slice(0, 8), name: e.name, g: e.g, h: e.h, ms: e.ms, lang: e.lang, gu: e.gu });
     const out: BoardSnapshot = { n, total: list.length, top: list.slice(0, topN).map(row) };
     if (meId) {
       const i = list.findIndex((e) => e.key.startsWith(meId));
@@ -211,8 +220,9 @@ export class RaceBoard {
         if (!Number.isInteger(n) || !Array.isArray(rows)) continue;
         const day = this.day(n);
         for (const r of rows as Partial<Entry>[]) {
-          if (typeof r.key !== "string" || typeof r.name !== "string" || checkResult(r.g, r.h, r.ms)) continue;
-          day.set(r.key, { key: r.key, name: r.name, g: r.g!, h: r.h!, ms: r.ms!, lang: isLang(r.lang) ? r.lang : "en", at: Number(r.at) || 0 });
+          const gu = r.gu === true;
+          if (typeof r.key !== "string" || typeof r.name !== "string" || checkResult(r.g, r.h, r.ms, gu)) continue;
+          day.set(r.key, { key: r.key, name: r.name, g: r.g!, h: r.h!, ms: r.ms!, lang: isLang(r.lang) ? r.lang : "en", at: Number(r.at) || 0, gu });
           loaded++;
         }
       }

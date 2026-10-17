@@ -825,7 +825,7 @@ async function screenBoard(): Promise<void> {
           el("span", { class: "board-name-text" }, [`${BOARD_FLAG[r.lang] ?? ""} ${r.name}`]),
           ...(r.id === mine ? [el("b", { class: "board-you" }, [t("boardYou")])] : []),
         ]),
-        el("span", { class: "board-num" }, [String(r.g + r.h)]),
+        el("span", { class: "board-num" }, [r.gu ? "🏳️" : String(r.g + r.h)]),
         el("span", { class: "board-num dim" }, [fmtBoardTime(r.ms)]),
       ]));
     const reroll = el("button", { class: "btn secondary sm", onclick: async () => {
@@ -837,7 +837,7 @@ async function screenBoard(): Promise<void> {
     body.replaceChildren(
       el("div", { class: "board-you-card" }, [
         el("div", { class: "board-you-line" }, [b.me ? t("boardRankLine", b.me.rank, b.total) : t("boardSolveFirst")]),
-        ...(b.me ? [el("div", { class: "board-you-stats" }, [`${t("boardColGuesses")} ${b.me.g + b.me.h} · ${t("boardColTime")} ${fmtBoardTime(b.me.ms)}`])] : []),
+        ...(b.me ? [el("div", { class: "board-you-stats" }, [b.me.gu ? `🏳️ ${t("boardGaveUp")}` : `${t("boardColGuesses")} ${b.me.g + b.me.h} · ${t("boardColTime")} ${fmtBoardTime(b.me.ms)}`])] : []),
         ...(name ? [el("div", { class: "board-name-row" }, [el("span", { class: "hint" }, [t("boardRacingAs", name)]), reroll])] : []),
       ]),
       el("p", { class: "hint" }, [t("boardRules")]),
@@ -1476,7 +1476,14 @@ function giveUpSolo(): void {
   if (sp.solved || sp.revealed) return;
   sp.revealed = true;
   void playSound("gaveup");
-  if (sp.mode === "daily") track("daily_giveup", { n: sp.puzzleNumber, g: sp.guesses.length });
+  if (sp.mode === "daily") {
+    track("daily_giveup", { n: sp.puzzleNumber, g: sp.guesses.length });
+    // A give-up goes on the board too, at the bottom. It is this player's
+    // result for the day, so a quick solve afterward doesn't count.
+    void submitBoard(httpBase, { n: sp.puzzleNumber, g: sp.guesses.length, ms: sp.elapsedMs, lang: sp.lang, kid: live.kid, gu: true })
+      .then(() => fetchBoard(httpBase, sp.puzzleNumber))
+      .then((b) => { lastBoard = b; if (sp.revealed) renderSolo(); });
+  }
   saveDaily();
   renderSolo();
 }
@@ -1565,6 +1572,16 @@ function renderSolo(): void {
         actions.push(el("button", { class: "btn secondary", onclick: () => { void playSound("tap"); screenReplay(); } }, [t("replayShare")]));
       }
       if (sp.mode === "daily") {
+        if (lastBoard?.n !== sp.puzzleNumber && !boardFetching) {
+          boardFetching = true;
+          void fetchBoard(httpBase, sp.puzzleNumber).then((b) => {
+            boardFetching = false;
+            if (b) { lastBoard = b; if (sp.revealed && sp.mode === "daily") renderSolo(); }
+          });
+        }
+        const me = lastBoard?.n === sp.puzzleNumber ? lastBoard.me : undefined;
+        actions.unshift(el("button", { class: "btn primary", onclick: () => { void playSound("tap"); void screenBoard(); } },
+          ["🏆 " + (me && lastBoard ? t("boardRankLine", me.rank, lastBoard.total) : t("boardOpen"))]));
         actions.push(el("button", { class: `btn ${hasMap ? "secondary" : "primary"}`, onclick: () => { void shareDaily(); } }, ["📋 " + t("shareResult")]));
         actions.push(el("button", { class: "btn secondary", onclick: screenStats }, ["📊 " + t("statsTitle")]));
         actions.push(el("button", { class: "btn secondary", onclick: goHome }, [t("backHome")]));

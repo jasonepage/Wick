@@ -50,9 +50,15 @@ struct DailyBoardView: View {
             if let me = board.myRow, let snap = board.snapshot {
                 Text(game.loc.boardRankLine(me.rank, snap.total))
                     .font(.title2.bold())
-                HStack(spacing: HunchTheme.Spacing.m) {
-                    stat(me.g, label: game.loc.boardColGuesses, extra: me.h)
-                    stat(text: BoardFormat.time(ms: me.ms), label: game.loc.boardColTime)
+                if me.gaveUp {
+                    Text("🏳️ " + game.loc.boardGaveUp)
+                        .font(.headline)
+                        .foregroundStyle(.secondary)
+                } else {
+                    HStack(spacing: HunchTheme.Spacing.m) {
+                        stat(me.g, label: game.loc.boardColGuesses, extra: me.h)
+                        stat(text: BoardFormat.time(ms: me.ms), label: game.loc.boardColTime)
+                    }
                 }
             } else {
                 Text(game.loc.boardSolveFirst)
@@ -155,8 +161,8 @@ struct DailyBoardView: View {
             }
             Spacer(minLength: HunchTheme.Spacing.s)
             HStack(spacing: 2) {
-                Text("\(row.g + row.h)")
-                if row.h > 0 {
+                Text(row.gaveUp ? "🏳️" : "\(row.g + row.h)")
+                if row.h > 0, !row.gaveUp {
                     Text("(\(row.h)💡)").font(.caption2).foregroundStyle(.secondary)
                 }
             }

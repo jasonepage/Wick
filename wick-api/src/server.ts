@@ -252,13 +252,13 @@ const board = new RaceBoard(Date.now);
   }
 }
 
-// A finished daily: { n, g, h, ms, lang, kid, r }. One entry per id per day;
-// the first one counts. Returns the player's rank and auto name.
+// A finished daily: { n, g, h, ms, lang, kid, r, gu? }. `gu: true` is a
+// give-up. One entry per id per day; the first one counts. Returns the player's rank and auto name.
 app.post("/board", async (c) => {
   if (!httpLimiter.take(`${ipFromXff(c.req.header("x-forwarded-for"))}:board`)) return c.json({ ok: false, reason: "rate_limited" }, 429);
   const b = (await c.req.json().catch(() => null)) as Record<string, unknown> | null;
   if (!b) return c.json({ ok: false, reason: "bad_json" }, 400);
-  const r = board.submit({ n: b.n, g: b.g, h: b.h, ms: b.ms, lang: b.lang, kid: b.kid, r: b.r });
+  const r = board.submit({ n: b.n, g: b.g, h: b.h, ms: b.ms, lang: b.lang, kid: b.kid, r: b.r, gu: b.gu });
   return c.json(r, r.ok ? 200 : 400);
 });
 

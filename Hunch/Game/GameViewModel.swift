@@ -1304,6 +1304,12 @@ final class GameViewModel {
         saveMyDuelResult()
         transientMessage = loc.theWordWasToast(target)
         saveDailyState()
+        // A give-up goes on today's race board too, at the bottom. It is this
+        // phone's result for the day, so a quick solve afterward doesn't count.
+        if case .daily = mode {
+            let n = puzzleNumber, g = guessCount, h = hintsUsed, ms = elapsedMs, lang = language
+            Task { await DailyBoard.shared.submit(n: n, guesses: g, hints: h, ms: ms, lang: lang, gaveUp: true) }
+        }
     }
 
     /// Persist my result for the current duel so a friend's pasted result code can

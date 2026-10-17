@@ -750,6 +750,7 @@ struct GameView: View {
                     .font(.title3.weight(.semibold))
                     .foregroundStyle(HunchTheme.Palette.keeper)
             }
+            boardButton
             // A give-up is still a run worth racing — same as web.
             raceShareButton
             // Even a give-up counts in a duel — let the player send their result.

@@ -106,4 +106,17 @@ describe("RaceBoard", () => {
     expect(b.persistTo(file)).toBe(2);
     expect(b.snapshot(N).top.map((r) => r.g)).toEqual([4, 5]);
   });
+
+  it("puts give-ups below every solver, and a give-up blocks a later solve", () => {
+    let t = NOW;
+    const b = new RaceBoard(() => t);
+    expect(b.submit({ ...ok("quitter", 3, 1_000), gu: true }).ok).toBe(true); // a give-up skips the speed check
+    t += 1000; b.submit(ok("slow", 30, 900_000));
+    t += 1000; b.submit({ ...ok("quitter2", 0, 5_000), gu: true });          // gave up without guessing
+    t += 1000;
+    const cheat = b.submit(ok("quitter", 1, 3_000));                          // then "solves" in one
+    expect(cheat).toMatchObject({ ok: true, already: true });
+    const s = b.snapshot(N);
+    expect(s.top.map((r) => [r.g, r.gu])).toEqual([[30, false], [3, true], [0, true]]);
+  });
 });
