@@ -605,6 +605,7 @@ function screenHome(): void {
         tile("practice", "🎲", t("practice"), t("homePlayAnytime"), startPractice),
         tile("past", "🕓", t("pastPuzzles"), t("homeReplayAnyDay"), screenArchive),
         tile("stats", "📊", t("statsTitle"), t("statsChip"), screenStats),
+        tile("board", "🏆", t("boardOpen"), t("boardChip"), () => { void screenBoard(); }),
       ]),
 
       el("div", { class: "home-foot" }, [
@@ -890,6 +891,7 @@ function screenStats(): void {
             ...distRows,
           ])
         : el("p", { class: "hint center" }, [t("statsEmpty")]),
+      el("button", { class: "btn primary", onclick: () => { void playSound("tap"); void screenBoard(); } }, ["🏆 " + t("boardOpen")]),
     ]),
   );
 }
