@@ -6,7 +6,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  afterAnswer, afterGuess, afterLucky, afterNotAWord, freshState, lettersShown, pickAnimal,
+  afterAnswer, afterGuess, afterLucky, afterNotAWord, freshState, letterPattern, pickAnimal,
+  spelledOut, tutorialClues, ANIMAL_CLUES,
   shouldAutoStart, stepNumber, tutorialLine, tutorialPool, TUTORIAL_ANIMALS, type TutState,
 } from "../src/game/tutorial.ts";
 import { readFileSync } from "node:fs";
@@ -16,7 +17,7 @@ const pool = JSON.parse(readFileSync(new URL("../src/game/dailyPool.json", impor
 
 const t = (key: string, ...args: Array<string | number>): string =>
   `${key}${args.length ? "(" + args.join(",") + ")" : ""}`;
-const ctx = { t, heat: "Cold", verdictLabel: (v: string) => v, secret: "horse" };
+const ctx = { t, heat: "Cold", verdictLabel: (v: string) => v, secret: "frog", animal: "frog" };
 
 test("all ten animals are in the word pool, in every language", () => {
   const rows = tutorialPool(pool as never);
@@ -64,7 +65,7 @@ test("step 3 waits for a question, not a guess", () => {
   const c = afterAnswer(s, "Yes");
   assert.equal(c.state.step, "solve");
   assert.equal(c.state.verdict, "Yes");
-  assert.equal(tutorialLine(c.state, ctx), "tutAnswered(Yes) tutFindIt");
+  assert.equal(tutorialLine(c.state, ctx), "tutAnswered(Yes) tutItsAnAnimal");
 });
 
 test("a question before step 3 does not skip it", () => {
@@ -80,20 +81,33 @@ test("a lucky early solve keeps the step, and step 2 restarts at 1", () => {
   assert.equal(tutorialLine(a, ctx), "tutLucky tutAsk");
 });
 
-test("the solve step escalates: animal after 3 misses, then letters", () => {
+test("the solve step is a dead giveaway: animal, home, sound, letters, spelled", () => {
   let s: TutState = { step: "solve", note: "none", misses: 0, verdict: "" };
-  for (let i = 0; i < 3; i++) s = afterGuess(s, false).state;
-  assert.equal(tutorialLine(s, ctx), "tutItsAnAnimal");
-  for (let i = 0; i < 3; i++) s = afterGuess(s, false).state;
-  assert.equal(tutorialLine(s, ctx), "spellHint(H)");
-  for (let i = 0; i < 3; i++) s = afterGuess(s, false).state;
-  assert.equal(tutorialLine(s, ctx), "spellHint(HO)");
+  const lines: string[] = [tutorialLine(s, ctx)];
+  for (let i = 0; i < 6; i++) { s = afterGuess(s, false).state; lines.push(tutorialLine(s, ctx)); }
+  assert.deepEqual(lines, [
+    "tutItsAnAnimal",
+    "tutGroupWater",
+    "tutSound.frog",
+    "tutLooksLike(F _ _ _)",
+    "tutLooksLike(F R _ _)",
+    "tutLooksLike(F R O _)",
+    "tutSpelled(F-R-O-G)",
+  ]);
+  assert.equal(tutorialClues(s, ctx).length, 4);
 });
 
-test("letters never give away the whole word", () => {
-  const s: TutState = { step: "solve", note: "none", misses: 600, verdict: "" };
-  assert.equal(lettersShown(s, 3), 2);
-  assert.equal(lettersShown(s, 1), 1);
+test("every animal has clues, and their strings exist", () => {
+  for (const a of TUTORIAL_ANIMALS) {
+    const c = ANIMAL_CLUES[a];
+    assert.ok(c, a);
+    for (const l of LANGS) assert.ok(TABLES[l][c.sound], `${l} ${c.sound}`);
+  }
+});
+
+test("letter helpers work on any script", () => {
+  assert.equal(letterPattern("bär", 1), "B _ _");
+  assert.equal(spelledOut("猫"), "猫");
 });
 
 test("a typo gets the not-a-word line without losing the step", () => {

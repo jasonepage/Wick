@@ -19,7 +19,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   step in one short line; the rest of the board is dimmed and the control to
   touch next pulses. Haptics, sounds and a big "Warmer!" pop on every step.
   Finding the animal early gets a "Lucky!" and a bonus animal so the lessons
-  still happen; a stuck solve step hands out "it's an animal", then letters.
+  still happen. The solve step is a dead giveaway: it starts with "it's an
+  animal", and every wrong guess unlocks a stronger clue (where it lives, its
+  sound, then the letters one by one) until the word is spelled out.
   Skippable any time; replay it from How to play or Settings. Players from
   before 3.6 are not forced through it. The web game gets the same level in
   all six languages, in four steps (the web game has no hints, so there is

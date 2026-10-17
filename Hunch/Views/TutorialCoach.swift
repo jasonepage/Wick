@@ -176,6 +176,19 @@ struct TutorialCoachCard: View {
             } else {
                 askBubble
             }
+        case .solve:
+            // The clues so far (the newest one is Wick's line above).
+            let earlier = Array(game.tutorialClues.dropLast())
+            if !earlier.isEmpty {
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(Array(earlier.enumerated()), id: \.offset) { _, clue in
+                        Label(clue, systemImage: "lightbulb.fill")
+                            .font(.footnote.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .transition(.opacity)
+            }
         default:
             EmptyView()
         }

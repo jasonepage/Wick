@@ -52,6 +52,17 @@ export const TUTORIAL_ANIMALS: readonly string[] = [
   "cat", "dog", "cow", "horse", "pig", "duck", "fish", "frog", "bear", "lion",
 ];
 
+/** The solve step's clues, per animal: where it lives, then its sound or
+ *  giveaway trait. Keys into i18n.ts. */
+export const ANIMAL_CLUES: Readonly<Record<string, { group: "farm" | "pet" | "wild" | "water"; sound: string }>> = {
+  cat: { group: "pet", sound: "tutSound.cat" },     dog: { group: "pet", sound: "tutSound.dog" },
+  cow: { group: "farm", sound: "tutSound.cow" },    horse: { group: "farm", sound: "tutSound.horse" },
+  pig: { group: "farm", sound: "tutSound.pig" },    duck: { group: "water", sound: "tutSound.duck" },
+  fish: { group: "water", sound: "tutSound.fish" }, frog: { group: "water", sound: "tutSound.frog" },
+  bear: { group: "wild", sound: "tutSound.bear" },  lion: { group: "wild", sound: "tutSound.lion" },
+};
+const GROUP_KEY = { farm: "tutGroupFarm", pet: "tutGroupPet", wild: "tutGroupWild", water: "tutGroupWater" } as const;
+
 /** localStorage key set when the tutorial is finished or skipped. */
 export const TUTORIAL_DONE_KEY = "wick.tutorial.done";
 
@@ -134,11 +145,14 @@ export function afterLucky(s: TutState): TutState {
   return { ...s, step: s.step === "warmer" ? "guess" : s.step, note: "lucky", misses: 0 };
 }
 
-/** Letters of the answer handed out in the solve step after many misses: one
- *  after 6 misses, one more every 3 after that, never the whole word. */
-export function lettersShown(s: TutState, wordLength: number): number {
-  if (s.step !== "solve" || s.misses < 6) return 0;
-  return Math.min(1 + Math.floor((s.misses - 6) / 3), Math.max(1, wordLength - 1));
+/** "F R _ _": the first `shown` letters, the rest as blanks. */
+export function letterPattern(word: string, shown: number): string {
+  return [...word.toLocaleUpperCase()].map((ch, i) => (i < shown ? ch : "_")).join(" ");
+}
+
+/** "F-R-O-G". */
+export function spelledOut(word: string): string {
+  return [...word.toLocaleUpperCase()].join("-");
 }
 
 /** Everything Wick's line needs from the outside world. */
@@ -148,8 +162,33 @@ export interface LineContext {
   heat: string;
   /** A verdict token ("Yes") in the menu language. */
   verdictLabel: (v: string) => string;
-  /** The secret word, for the letter clue. */
+  /** The secret word, for the letter clues. */
   secret: string;
+  /** The animal's English form, to look up its clues. */
+  animal: string;
+}
+
+/** The solve step is a dead giveaway on purpose: every wrong guess unlocks a
+ *  stronger clue, until the word is spelled out.
+ *    0 misses: it's an animal
+ *    1: where it lives (farm, pet, wild, water)
+ *    2: its sound or giveaway trait ("it hops and says ribbit")
+ *    3+: the letters, one more per miss ("F R _ _"), then "It's F-R-O-G!" */
+export function tutorialClues(s: TutState, c: LineContext): string[] {
+  if (s.step !== "solve") return [];
+  const { t } = c;
+  const out = [t("tutItsAnAnimal")];
+  const info = ANIMAL_CLUES[c.animal];
+  if (!info) return out;
+  if (s.misses >= 1) out.push(t(GROUP_KEY[info.group]));
+  if (s.misses >= 2) out.push(t(info.sound));
+  if (s.misses >= 3) {
+    const shown = s.misses - 2;
+    out.push(shown >= [...c.secret].length
+      ? t("tutSpelled", spelledOut(c.secret))
+      : t("tutLooksLike", letterPattern(c.secret, shown)));
+  }
+  return out;
 }
 
 /** What Wick says right now: a reaction, then the goal. Short on purpose. */
@@ -171,14 +210,11 @@ export function tutorialLine(s: TutState, c: LineContext): string {
       if (s.note === "lucky") return `${t("tutLucky")} ${t("tutAsk")}`;
       return t("tutAsk");
     case "solve": {
-      const letters = lettersShown(s, [...c.secret].length);
-      if (letters > 0) return t("spellHint", [...c.secret].slice(0, letters).join("").toLocaleUpperCase());
-      if (s.misses >= 3) return t("tutItsAnAnimal");
-      if (s.note === "answered") return `${t("tutAnswered", c.verdictLabel(s.verdict))} ${t("tutFindIt")}`;
-      if (s.note === "warmer") return t("tutWarmer");
-      if (s.note === "colder") return t("tutColder");
-      if (s.note === "notAWord") return t("tutNotAWord");
-      return t("tutFindIt");
+      // Always ends on the newest clue, with a short reaction in front.
+      const clue = tutorialClues(s, c).at(-1) ?? t("tutFindIt");
+      if (s.note === "answered") return `${t("tutAnswered", c.verdictLabel(s.verdict))} ${clue}`;
+      if (s.note === "notAWord") return `${t("tutNotAWord")} ${clue}`;
+      return clue;
     }
     case "done":
       return t("tutDoneTitle");

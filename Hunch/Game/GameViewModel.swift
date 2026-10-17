@@ -799,11 +799,34 @@ final class GameViewModel {
         return item.map { StarterQuestions.localizedFull($0, language) } ?? "Is it alive?"
     }
 
-    /// Letters of the answer handed out in the solve step after many misses:
-    /// one after 6 misses, one more every 3 after that, never the whole word.
-    var tutorialLetters: Int {
-        guard tutorialStep == .solve, tutorialMisses >= 6 else { return 0 }
-        return min(1 + (tutorialMisses - 6) / 3, max(1, target.count - 1))
+    /// The solve step is a dead giveaway on purpose: every wrong guess unlocks
+    /// a stronger clue, until the word is spelled out.
+    ///   0 misses: it's an animal
+    ///   1: where it lives (farm, pet, wild, water)
+    ///   2: its sound or giveaway trait ("it hops and says ribbit")
+    ///   3+: the letters, one more per miss ("F R _ _"), then "It's F-R-O-G!"
+    var tutorialClues: [String] {
+        guard tutorialStep == .solve else { return [] }
+        let L = loc
+        var out = [L.tutItsAnAnimal]
+        let m = tutorialMisses
+        guard let pair = currentPair, let info = TutorialAnimals.clues[pair.en] else { return out }
+        if m >= 1 {
+            switch info.group {
+            case .farm:  out.append(L.tutGroupFarm)
+            case .pet:   out.append(L.tutGroupPet)
+            case .wild:  out.append(L.tutGroupWild)
+            case .water: out.append(L.tutGroupWater)
+            }
+        }
+        if m >= 2 { out.append(L.tutClue(info.soundKey)) }
+        if m >= 3 {
+            let shown = m - 2
+            out.append(shown >= target.count
+                       ? L.tutSpelled(TutorialAnimals.spelled(target))
+                       : L.tutLooksLike(TutorialAnimals.pattern(target, shown: shown)))
+        }
+        return out
     }
 
     /// What Wick says right now. Short on purpose: a reaction, then the goal.
@@ -839,17 +862,13 @@ final class GameViewModel {
             default:                     return L.tutHint
             }
         case .solve:
-            if tutorialLetters > 0 {
-                return L.spellHint(String(target.prefix(tutorialLetters)).uppercased())
-            }
-            if tutorialMisses >= 3 { return L.tutItsAnAnimal }
+            // Always ends on the newest clue; a short reaction in front of it.
+            let clue = tutorialClues.last ?? L.tutFindIt
             switch tutorialNote {
-            case .hintLanded: return L.tutHintLanded
-            case .alreadyHot: return L.tutAlreadyHot
-            case .warmer:     return L.tutWarmer
-            case .colder:     return L.tutColder
-            case .notAWord:   return L.tutNotAWord
-            default:          return L.tutFindIt
+            case .answered(let verdict): return L.tutAnswered(displayVerdict(verdict)) + " " + clue
+            case .alreadyHot:            return L.tutAlreadyHot + " " + clue
+            case .notAWord:              return L.tutNotAWord + " " + clue
+            default:                     return clue
             }
         case .done:
             return L.tutDoneTitle
@@ -902,6 +921,7 @@ final class GameViewModel {
         case .solve:
             tutorialNote = isNewBest ? .warmer : .colder
             tutorialMisses += 1
+            Haptics.soft()   // a new clue just unlocked
         case .done:
             break
         }
@@ -913,7 +933,7 @@ final class GameViewModel {
         if tutorialStep == .ask {
             advanceTutorial(to: .hint, note: .answered(verdict))
         } else if tutorialStep == .solve {
-            tutorialNote = .none
+            tutorialNote = .answered(verdict)
         }
     }
 

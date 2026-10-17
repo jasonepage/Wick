@@ -34,7 +34,7 @@ import { mountBackdrop, setBackdropHeat } from "./game/backdrop.ts";
 import { dailyStarters, starterText, STARTER_CATEGORIES, type StarterItem } from "./game/starters.ts";
 import {
   TUT_STEPS, TUTORIAL_DONE_KEY, afterAnswer, afterGuess, afterLucky, afterNotAWord, freshState,
-  pickAnimal, shouldAutoStart, stepNumber, tutorialLine, tutorialPool,
+  pickAnimal, shouldAutoStart, stepNumber, tutorialClues, tutorialLine, tutorialPool,
   type TutChange, type TutState, type TutStep,
 } from "./game/tutorial.ts";
 import { play as playSound, playGuessTone, soundEnabled, setSoundEnabled, armAudioUnlock } from "./game/sound.ts";
@@ -2025,7 +2025,10 @@ function renderTutorialCoach(beat: boolean): void {
 
   const latest = tut.guesses[0];
   const heat = latest && latest.warmth !== null ? t("heat." + scoreLabel(latest.warmth * 100).label) : t("heat.Cold");
-  const line = tutorialLine(s, { t, heat, verdictLabel, secret: tut.secret });
+  const ctx = { t, heat, verdictLabel, secret: tut.secret, animal: tut.word?.en ?? "" };
+  const line = tutorialLine(s, ctx);
+  // The clues so far (the newest is Wick's line).
+  const earlier = tutorialClues(s, ctx).slice(0, -1);
   const showBar = s.step === "warmer" && !!latest && latest.warmth !== null && s.note !== "notAWord";
   const sig = `${s.step}|${line}|${showBar ? latest!.warmth : ""}|${tut.asking}`;
   if (body.dataset.sig === sig) return;
@@ -2036,6 +2039,9 @@ function renderTutorialCoach(beat: boolean): void {
   const kids: HTMLElement[] = [lineEl];
   if (showBar) kids.push(heatBar(latest!.warmth));
   if (s.step === "ask") kids.push(tut.asking ? el("div", { class: "tut-thinking" }, ["…"]) : askBubble());
+  if (earlier.length > 0) {
+    kids.push(el("ul", { class: "tut-clues" }, earlier.map((c) => el("li", {}, ["💡 " + c]))));
+  }
   body.replaceChildren(...kids);
 }
 

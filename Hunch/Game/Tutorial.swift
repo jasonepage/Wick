@@ -80,6 +80,31 @@ enum TutorialAnimals {
             : rows
     }()
 
+    /// Where an animal lives, for the second clue of the solve step.
+    enum Group { case farm, pet, wild, water }
+
+    /// The solve step's clues, per animal: where it lives, then the sound it
+    /// makes (or its giveaway trait). Keys into Loc ("tutSound.cow").
+    static let clues: [String: (group: Group, soundKey: String)] = [
+        "cat": (.pet, "tutSound.cat"),     "dog": (.pet, "tutSound.dog"),
+        "cow": (.farm, "tutSound.cow"),    "horse": (.farm, "tutSound.horse"),
+        "pig": (.farm, "tutSound.pig"),    "duck": (.water, "tutSound.duck"),
+        "fish": (.water, "tutSound.fish"), "frog": (.water, "tutSound.frog"),
+        "bear": (.wild, "tutSound.bear"),  "lion": (.wild, "tutSound.lion"),
+    ]
+
+    /// "F R _ _": the first `shown` letters, the rest as blanks.
+    static func pattern(_ word: String, shown: Int) -> String {
+        word.uppercased().enumerated()
+            .map { $0.offset < shown ? String($0.element) : "_" }
+            .joined(separator: " ")
+    }
+
+    /// "F-R-O-G".
+    static func spelled(_ word: String) -> String {
+        word.uppercased().map(String.init).joined(separator: "-")
+    }
+
     /// A random animal, never one whose English form is in `excluding`.
     static func random(excluding: Set<String> = []) -> DailyWord {
         let pool = all.filter { !excluding.contains($0.en) }

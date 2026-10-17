@@ -916,3 +916,7 @@ a.btn { display: block; box-sizing: border-box; text-align: center; text-decorat
   .tut-heat-marker { transition: none; }
 }
 @keyframes tut-fade { 0% { opacity: 0; } 15% { opacity: 1; } 80% { opacity: 1; } 100% { opacity: 0; } }
+
+/* The solve step's earlier clues, under Wick's line. */
+.tut-clues { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px;
+  font-size: 0.85rem; font-weight: 700; opacity: 0.72; }
