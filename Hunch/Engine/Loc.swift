@@ -309,6 +309,23 @@ struct Loc {
     var weeklySettingsHeader: String { s("weeklySettingsHeader") }
     var shareWordsToggle: String { s("shareWordsToggle") }
     var shareWordsBlurb: String { s("shareWordsBlurb") }
+    // 3.6: today's race board.
+    var boardTitle: String { s("boardTitle") }
+    var boardOpen: String { s("boardOpen") }
+    /// "You're #3 of 41 today"
+    func boardRankLine(_ rank: Int, _ total: Int) -> String { f("boardRankLine", rank, total) }
+    /// "41 racing today"
+    func boardPlayers(_ total: Int) -> String { f("boardPlayers", total) }
+    var boardEmpty: String { s("boardEmpty") }
+    var boardSolveFirst: String { s("boardSolveFirst") }
+    var boardNewName: String { s("boardNewName") }
+    var boardYou: String { s("boardYou") }
+    var boardOffline: String { s("boardOffline") }
+    /// "Racing as Violet Otter"
+    func boardRacingAs(_ name: String) -> String { f("boardRacingAs", name) }
+    var boardColGuesses: String { s("boardColGuesses") }
+    var boardColTime: String { s("boardColTime") }
+    var boardRules: String { s("boardRules") }
     var dailyReminder: String { s("dailyReminder") }
     var time: String { s("time") }
     var reminderBlurb: String { s("reminderBlurb") }
@@ -729,6 +746,19 @@ struct Loc {
         "coins": "Coins",
         "achievements": "Achievements",
         "leaderboards": "Leaderboards",
+        "boardTitle": "Today's race",
+        "boardOpen": "Today's race board",
+        "boardRankLine": "You're #%d of %d today",
+        "boardPlayers": "%d racing today",
+        "boardEmpty": "Nobody has solved today's word yet. Be the first!",
+        "boardSolveFirst": "Solve today's word to get on the board.",
+        "boardNewName": "New name",
+        "boardYou": "You",
+        "boardOffline": "Can't load the board right now.",
+        "boardRacingAs": "Racing as %@",
+        "boardColGuesses": "Guesses",
+        "boardColTime": "Time",
+        "boardRules": "Fewest guesses wins. Each hint counts as one more guess. Ties go to the faster time. Your first solve of the day is the one that counts.",
         "weeklyHeader": "This week, everyone",
         "weeklyTopGuesses": "Top guesses this week",
         "weeklyTopQuestions": "Most asked questions",
@@ -1087,6 +1117,19 @@ struct Loc {
         "coins": "Monedas",
         "achievements": "Logros",
         "leaderboards": "Clasificaciones",
+        "boardTitle": "La carrera de hoy",
+        "boardOpen": "Clasificación de hoy",
+        "boardRankLine": "Vas #%d de %d hoy",
+        "boardPlayers": "%d compitiendo hoy",
+        "boardEmpty": "Nadie ha resuelto la palabra de hoy. ¡Sé el primero!",
+        "boardSolveFirst": "Resuelve la palabra de hoy para entrar en la clasificación.",
+        "boardNewName": "Nuevo nombre",
+        "boardYou": "Tú",
+        "boardOffline": "No se puede cargar la clasificación ahora.",
+        "boardRacingAs": "Compites como %@",
+        "boardColGuesses": "Intentos",
+        "boardColTime": "Tiempo",
+        "boardRules": "Gana quien use menos intentos. Cada pista cuenta como un intento más. En caso de empate gana el tiempo más rápido. Solo cuenta tu primera resolución del día.",
         "weeklyHeader": "Esta semana, todos",
         "weeklyTopGuesses": "Palabras más probadas esta semana",
         "weeklyTopQuestions": "Preguntas más hechas",
@@ -1442,6 +1485,19 @@ struct Loc {
         "coins": "Pièces",
         "achievements": "Succès",
         "leaderboards": "Classements",
+        "boardTitle": "La course du jour",
+        "boardOpen": "Classement du jour",
+        "boardRankLine": "Tu es #%d sur %d aujourd'hui",
+        "boardPlayers": "%d en course aujourd'hui",
+        "boardEmpty": "Personne n'a encore trouvé le mot du jour. Sois le premier !",
+        "boardSolveFirst": "Trouve le mot du jour pour entrer au classement.",
+        "boardNewName": "Nouveau nom",
+        "boardYou": "Toi",
+        "boardOffline": "Impossible de charger le classement pour le moment.",
+        "boardRacingAs": "Tu cours en tant que %@",
+        "boardColGuesses": "Essais",
+        "boardColTime": "Temps",
+        "boardRules": "Le moins d'essais l'emporte. Chaque indice compte comme un essai de plus. En cas d'égalité, le temps le plus rapide gagne. Seule ta première résolution du jour compte.",
         "weeklyHeader": "Cette semaine, tout le monde",
         "weeklyTopGuesses": "Mots les plus tentés cette semaine",
         "weeklyTopQuestions": "Questions les plus posées",
@@ -1797,6 +1853,19 @@ struct Loc {
         "coins": "Monete",
         "achievements": "Obiettivi",
         "leaderboards": "Classifiche",
+        "boardTitle": "La gara di oggi",
+        "boardOpen": "Classifica di oggi",
+        "boardRankLine": "Sei #%d su %d oggi",
+        "boardPlayers": "%d in gara oggi",
+        "boardEmpty": "Nessuno ha ancora risolto la parola di oggi. Sii il primo!",
+        "boardSolveFirst": "Risolvi la parola di oggi per entrare in classifica.",
+        "boardNewName": "Nuovo nome",
+        "boardYou": "Tu",
+        "boardOffline": "Impossibile caricare la classifica ora.",
+        "boardRacingAs": "Gareggi come %@",
+        "boardColGuesses": "Tentativi",
+        "boardColTime": "Tempo",
+        "boardRules": "Vince chi usa meno tentativi. Ogni indizio conta come un tentativo in più. A parità vince il tempo più veloce. Conta solo la tua prima soluzione del giorno.",
         "weeklyHeader": "Questa settimana, tutti",
         "weeklyTopGuesses": "Parole più provate questa settimana",
         "weeklyTopQuestions": "Domande più fatte",
@@ -2151,6 +2220,19 @@ struct Loc {
         "coins": "Münzen",
         "achievements": "Erfolge",
         "leaderboards": "Bestenlisten",
+        "boardTitle": "Das heutige Rennen",
+        "boardOpen": "Heutige Rangliste",
+        "boardRankLine": "Du bist heute #%d von %d",
+        "boardPlayers": "%d heute im Rennen",
+        "boardEmpty": "Noch niemand hat das heutige Wort gelöst. Sei der Erste!",
+        "boardSolveFirst": "Löse das heutige Wort, um in die Rangliste zu kommen.",
+        "boardNewName": "Neuer Name",
+        "boardYou": "Du",
+        "boardOffline": "Die Rangliste lässt sich gerade nicht laden.",
+        "boardRacingAs": "Du spielst als %@",
+        "boardColGuesses": "Versuche",
+        "boardColTime": "Zeit",
+        "boardRules": "Die wenigsten Versuche gewinnen. Jeder Hinweis zählt als ein Versuch mehr. Bei Gleichstand gewinnt die schnellere Zeit. Nur deine erste Lösung des Tages zählt.",
         "weeklyHeader": "Diese Woche, alle",
         "weeklyTopGuesses": "Häufigste Versuche dieser Woche",
         "weeklyTopQuestions": "Häufigste Fragen",

@@ -90,6 +90,16 @@ all players. To build those lists:
   it, and questions with numbers, links, email addresses, or crude words are
   dropped. The lists reset every Monday (UTC).
 
+## Today's race board (since version 3.6)
+
+When you solve the daily puzzle, the app or the website sends Wick's server
+the puzzle number, how many guesses and hints you used, how long you played,
+and the language, with the random per-install id used for live races. The
+server keeps a scrambled, one-way version of that id (so you get one spot a
+day), never the id itself. You show up on the board under an auto name like
+"Violet Otter", picked from a word list, and you can roll a new one. Nothing
+you typed is sent. Board entries are kept for about a week and then deleted.
+
 ## Solve Replay videos (since version 3.4)
 
 "Share replay" turns a finished round into a short video. The video is made

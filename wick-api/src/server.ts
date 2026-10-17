@@ -36,6 +36,7 @@ import { apnsFromEnv } from "./apns.js";
 import { PushRegistry } from "./pushsubs.js";
 import { TrafficMonitor } from "./traffic.js";
 import { WeeklyTally, isColdEnough, mentionsSecret } from "./tally.js";
+import { RaceBoard, puzzleNumber } from "./board.js";
 
 // Render injects PORT at runtime — never set it by hand. `|| 8080` is a safety
 // net: an empty PORT ("") would otherwise parse to 0 (a random port Render can't
@@ -238,6 +239,45 @@ const tally = new WeeklyTally(Date.now);
 app.get("/stats/weekly", (c) => {
   c.header("Cache-Control", "public, max-age=300");
   return c.json(tally.snapshot(langOf(c.req.query("lang"))));
+});
+
+// 3.6: today's race board. Every daily solver is ranked against everyone else
+// (fewest guesses, hints counting one extra each, then time). See board.ts.
+const board = new RaceBoard(Date.now);
+{
+  const dir = process.env.WICK_DATA_DIR?.trim();
+  if (dir) {
+    const n = board.persistTo(`${dir}/board.json`);
+    console.log(`[wick-api] race board kept in ${dir} (${n} entries loaded)`);
+  }
+}
+
+// A finished daily: { n, g, h, ms, lang, kid, r }. One entry per id per day;
+// the first one counts. Returns the player's rank and auto name.
+app.post("/board", async (c) => {
+  if (!httpLimiter.take(`${ipFromXff(c.req.header("x-forwarded-for"))}:board`)) return c.json({ ok: false, reason: "rate_limited" }, 429);
+  const b = (await c.req.json().catch(() => null)) as Record<string, unknown> | null;
+  if (!b) return c.json({ ok: false, reason: "bad_json" }, 400);
+  const r = board.submit({ n: b.n, g: b.g, h: b.h, ms: b.ms, lang: b.lang, kid: b.kid, r: b.r });
+  return c.json(r, r.ok ? 200 : 400);
+});
+
+// A new auto name: { n, kid, r }. Also renames today's entry if there is one.
+app.post("/board/name", async (c) => {
+  if (!httpLimiter.take(`${ipFromXff(c.req.header("x-forwarded-for"))}:board`)) return c.json({ ok: false }, 429);
+  const b = (await c.req.json().catch(() => null)) as Record<string, unknown> | null;
+  const name = board.rename(b?.n, b?.kid, b?.r);
+  return name ? c.json({ ok: true, name }) : c.json({ ok: false }, 400);
+});
+
+// The board: GET /board?n=&me=. `n` defaults to today; `me` is the short public
+// id the app got back from POST /board, to fetch its own row. Top 50.
+app.get("/board", (c) => {
+  const q = Number(c.req.query("n"));
+  const n = Number.isInteger(q) && q > 0 ? q : puzzleNumber(Date.now());
+  const me = c.req.query("me");
+  c.header("Cache-Control", "public, max-age=15");
+  return c.json(board.snapshot(n, 50, typeof me === "string" && /^[0-9a-f]{8}$/.test(me) ? me : undefined));
 });
 
 // iOS solo scores on the phone, so the app reports its own cool-or-colder
@@ -726,6 +766,7 @@ function shutdown() {
   clearInterval(sweeper);
   pushRegistry?.saveNow();
   tally.saveNow();
+  board.saveNow();
   apns?.close();
   wss.close();
   server.close();

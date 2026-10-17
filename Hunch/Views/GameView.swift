@@ -26,6 +26,8 @@ struct GameView: View {
     @State private var showStarters = false
     /// Set to open the Solve Replay sheet (3.4).
     @State private var replayRequest: ReplayRequest?
+    /// 3.6: today's race board.
+    @State private var showBoard = false
 
     /// Cute one-liners Wick says when you poke him. Never reveal anything.
     private static let pokeQuips = [
@@ -135,6 +137,7 @@ struct GameView: View {
             }
             .sheet(isPresented: $showShop) { ShopView() }
             .sheet(isPresented: $showSettings) { SettingsView() }
+            .sheet(isPresented: $showBoard) { DailyBoardView() }
             .sheet(item: $replayRequest) { request in
                 ReplayExportView(request: request, loc: game.loc)
             }
@@ -699,6 +702,7 @@ struct GameView: View {
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(HunchTheme.Palette.flame)
             }
+            boardButton
             raceShareButton
             if game.currentDuel != nil {
                 duelResultShareButton
@@ -767,6 +771,26 @@ struct GameView: View {
         .padding(HunchTheme.Spacing.xl)
         .frame(maxWidth: .infinity)
         .hunchCard(radius: HunchTheme.Radius.hero)
+    }
+
+    /// 3.6: today's race board, on a solved daily. Shows your place once the
+    /// server has it.
+    @ViewBuilder
+    private var boardButton: some View {
+        if case .daily = game.mode {
+            let board = DailyBoard.shared
+            Button {
+                Feedback.play(.selection)
+                showBoard = true
+            } label: {
+                Label(board.myRow.map { game.loc.boardRankLine($0.rank, board.snapshot?.total ?? $0.rank) } ?? game.loc.boardOpen,
+                      systemImage: "trophy.fill")
+                    .font(.headline)
+                    .frame(maxWidth: .infinity).padding(.vertical, 11)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(HunchTheme.Palette.keeper)
+        }
     }
 
     /// "Race a friend" / "Race them back". Shown on BOTH end cards — solved and

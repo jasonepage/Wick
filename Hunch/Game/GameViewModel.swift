@@ -1130,6 +1130,10 @@ final class GameViewModel {
                 streak = (lastSolvedDay == today - 1) ? streak + 1 : 1
                 lastSolvedDay = today
             }
+            // 3.6: onto today's race board. The server keeps the first result
+            // per phone, so a re-solve in another language changes nothing.
+            let n = puzzleNumber, g = guessCount, h = hintsUsed, ms = elapsedMs, lang = language
+            Task { await DailyBoard.shared.submit(n: n, guesses: g, hints: h, ms: ms, lang: lang) }
         }
 
         // Stats

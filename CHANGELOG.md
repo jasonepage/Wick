@@ -10,6 +10,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Today's race board.** Everyone plays the same daily word, so every solver
+  is now ranked against everyone else: fewest guesses wins, each hint counts
+  as one more, ties go to the faster time. Shown on the solved card ("You're
+  #3 of 41 today") and in Stats, on iOS and on the web, with flags for the
+  language each player solved in.
+- Auto names like "Violet Otter" from a safe word list, with a New name
+  button. Nothing is typed, so there is nothing to moderate.
+- Server: `POST /board`, `POST /board/name`, `GET /board?n=&me=`. One entry
+  per player per day (the first solve counts), impossible times rejected,
+  yesterday's puzzle accepted for two hours after midnight UTC, the last
+  week kept in `board.json` on the Render disk.
 - **Everyone's week on the Stats page.** iOS Stats now shows "Top guesses this
   week" and "Most asked questions" across all players, below your own stats.
   Weekly window, resets Monday 00:00 UTC. The app caches the lists for 30

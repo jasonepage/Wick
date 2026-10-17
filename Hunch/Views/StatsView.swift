@@ -10,6 +10,7 @@ struct StatsView: View {
     @Environment(GameViewModel.self) private var game
     @Environment(\.dismiss) private var dismiss
     @State private var weekly = WeeklyStats.shared
+    @State private var showBoard = false
 
     private let columns = [GridItem(.flexible()), GridItem(.flexible())]
 
@@ -31,6 +32,7 @@ struct StatsView: View {
                         statCard(game.loc.coins, value: "\(game.coins)",
                                  system: "circle.hexagongrid.fill", color: HunchTheme.Palette.coin)
                     }
+                    boardLink
                     achievementsLink
                     leaderboardsLink
                     weeklySection
@@ -41,6 +43,7 @@ struct StatsView: View {
             .task(id: game.language) {
                 await weekly.refreshIfStale(language: game.language)
             }
+            .sheet(isPresented: $showBoard) { DailyBoardView() }
             .navigationTitle(game.loc.yourStats)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -143,6 +146,25 @@ struct StatsView: View {
                 Image(systemName: "trophy.fill")
                     .foregroundStyle(HunchTheme.Palette.coin)
                 Text(game.loc.leaderboards).font(.headline).foregroundStyle(.primary)
+                Spacer()
+                Image(systemName: "chevron.right").font(.footnote).foregroundStyle(.tertiary)
+            }
+            .padding(HunchTheme.Spacing.l)
+            .hunchCard(radius: 16)
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// 3.6: today's race board.
+    private var boardLink: some View {
+        Button {
+            Feedback.play(.selection)
+            showBoard = true
+        } label: {
+            HStack(spacing: HunchTheme.Spacing.m) {
+                Image(systemName: "flag.checkered")
+                    .foregroundStyle(HunchTheme.Palette.keeper)
+                Text(game.loc.boardOpen).font(.headline).foregroundStyle(.primary)
                 Spacer()
                 Image(systemName: "chevron.right").font(.footnote).foregroundStyle(.tertiary)
             }

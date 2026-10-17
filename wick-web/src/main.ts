@@ -26,6 +26,7 @@ import { buildTimeline, bandToken, toneFor, HIDE_ANSWER, STANDARD_PACING, type R
 import { ReplayScene, W as REPLAY_W, H as REPLAY_H, type ReplayCopy } from "./game/replay/scene.ts";
 import { canRecord, canShareFile, downloadVideo, recordReplay, shareVideo, type Recording } from "./game/replay/record.ts";
 import { initEvents, track } from "./net/events.ts";
+import { submitBoard, fetchBoard, rerollBoardName, myBoardId, myBoardName, fmtBoardTime, BOARD_FLAG, type BoardSnapshot } from "./net/board.ts";
 import { initPwa, promptInstall } from "./pwa.ts";
 import { buildRun, encodeRun, decodeRun, runDuration, fmtDuration } from "./game/ghost.ts";
 import type { GhostRun } from "./game/ghost.ts";
@@ -792,6 +793,64 @@ function screenArchive(): void {
 //  STATISTICS (local daily stats — parity with iOS StatsView)
 // ════════════════════════════════════════════════════════════════════════════
 
+/** 3.6: the last board fetched, so the end card can show the player's place. */
+let lastBoard: BoardSnapshot | null = null;
+let boardFetching = false;
+
+/** 3.6: today's race board. */
+async function screenBoard(): Promise<void> {
+  clear("dark");
+  const n = todaysDaily().puzzleNumber;
+  const body = el("div", { class: "board-body" }, [el("p", { class: "hint center" }, ["…"])]);
+  app.append(
+    el("main", { class: "card" }, [
+      el("div", { class: "solo-head" }, [
+        el("button", { class: "icon-btn dark", onclick: goHome, title: "Home" }, ["←"]),
+        el("span", { class: "solo-title dark" }, [t("boardTitle")]),
+        el("span", {}, [""]),
+      ]),
+      body,
+    ]),
+  );
+  const draw = (b: BoardSnapshot | null): void => {
+    lastBoard = b;
+    if (!b) { body.replaceChildren(el("p", { class: "hint center" }, [t("boardOffline")])); return; }
+    const mine = myBoardId(n);
+    const name = myBoardName();
+    const rows = b.top.map((r) =>
+      el("div", { class: `board-row${r.rank <= 3 ? " top3" : ""}${r.id === mine ? " me" : ""}` }, [
+        el("span", { class: "board-rank" }, [String(r.rank)]),
+        el("span", { class: "board-name" }, [
+          el("span", { class: "board-name-text" }, [`${BOARD_FLAG[r.lang] ?? ""} ${r.name}`]),
+          ...(r.id === mine ? [el("b", { class: "board-you" }, [t("boardYou")])] : []),
+        ]),
+        el("span", { class: "board-num" }, [String(r.g + r.h)]),
+        el("span", { class: "board-num dim" }, [fmtBoardTime(r.ms)]),
+      ]));
+    const reroll = el("button", { class: "btn secondary sm", onclick: async () => {
+      void playSound("tap");
+      reroll.setAttribute("disabled", "");
+      await rerollBoardName(httpBase, n, live.kid);
+      draw(await fetchBoard(httpBase, n));
+    } }, ["🎲 " + t("boardNewName")]);
+    body.replaceChildren(
+      el("div", { class: "board-you-card" }, [
+        el("div", { class: "board-you-line" }, [b.me ? t("boardRankLine", b.me.rank, b.total) : t("boardSolveFirst")]),
+        ...(b.me ? [el("div", { class: "board-you-stats" }, [`${t("boardColGuesses")} ${b.me.g + b.me.h} · ${t("boardColTime")} ${fmtBoardTime(b.me.ms)}`])] : []),
+        ...(name ? [el("div", { class: "board-name-row" }, [el("span", { class: "hint" }, [t("boardRacingAs", name)]), reroll])] : []),
+      ]),
+      el("p", { class: "hint" }, [t("boardRules")]),
+      el("div", { class: "board-head" }, [
+        el("span", {}, [t("boardPlayers", b.total)]),
+        el("span", { class: "board-num" }, [t("boardColGuesses")]),
+        el("span", { class: "board-num" }, [t("boardColTime")]),
+      ]),
+      ...(rows.length ? rows : [el("p", { class: "hint center" }, [t("boardEmpty")])]),
+    );
+  };
+  draw(await fetchBoard(httpBase, n));
+}
+
 function screenStats(): void {
   clear("dark");
   const s = computeStats(todaysDaily().puzzleNumber);
@@ -1246,7 +1305,13 @@ function screenSolo(): void {
     if (correct) {
       sp.solved = true;
       void playSound("solved");
-      if (sp.mode === "daily") track("daily_solve", { n: sp.puzzleNumber, g: sp.guesses.length });
+      if (sp.mode === "daily") {
+        track("daily_solve", { n: sp.puzzleNumber, g: sp.guesses.length });
+        // 3.6: onto today's race board, then show the place on the end card.
+        void submitBoard(httpBase, { n: sp.puzzleNumber, g: sp.guesses.length, ms: sp.elapsedMs, lang: sp.lang, kid: live.kid })
+          .then(() => fetchBoard(httpBase, sp.puzzleNumber))
+          .then((b) => { lastBoard = b; if (sp.solved) renderSolo(); });
+      }
     }
     input.value = "";
     renderSolo();
@@ -1455,6 +1520,17 @@ function renderSolo(): void {
         actions.push(el("button", { class: "btn secondary", onclick: () => { void playSound("tap"); screenReplay(); } }, [t("replayShare")]));
       }
       if (sp.mode === "daily") {
+        // A solved daily reopened later: fetch the board once to show the place.
+        if (lastBoard?.n !== sp.puzzleNumber && !boardFetching) {
+          boardFetching = true;
+          void fetchBoard(httpBase, sp.puzzleNumber).then((b) => {
+            boardFetching = false;
+            if (b) { lastBoard = b; if (sp.solved && sp.mode === "daily") renderSolo(); }
+          });
+        }
+        const me = lastBoard?.n === sp.puzzleNumber ? lastBoard.me : undefined;
+        actions.unshift(el("button", { class: "btn primary", onclick: () => { void playSound("tap"); void screenBoard(); } },
+          ["🏆 " + (me && lastBoard ? t("boardRankLine", me.rank, lastBoard.total) : t("boardOpen"))]));
         actions.push(el("button", { class: `btn ${hasMap ? "secondary" : "primary"}`, onclick: () => { void shareDaily(); } }, ["📋 " + t("shareResult")]));
         actions.push(el("button", { class: "btn secondary", onclick: screenStats }, ["📊 " + t("statsTitle")]));
         actions.push(el("button", { class: "btn secondary", onclick: goHome }, [t("backHome")]));
