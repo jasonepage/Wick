@@ -48,10 +48,13 @@ export function setMusicEnabled(on: boolean): void {
 const LOOP_START = 1;
 const LOOP_END = 33;
 const BAR = 2;            // seconds per bar at 120 BPM
-const VOLUME = 0.6;       // under the guess tones, which are the feedback
+// 3.6: quieter and slower to arrive, so it can never jump-scare anyone (a
+// streamer talking over it, most of all). About -31 LUFS out of the speakers
+// with the master gain in sound.ts, well under voice level.
+const VOLUME = 0.35;      // under the guess tones, which are the feedback
 const RISER = 4;          // seconds: 2 bars
 const DUCK = 0.35;        // chill level by the end of the riser
-const FADE_IN = 1.5;
+const FADE_IN = 4;        // seconds: a slow swell, never a sudden start
 const FADE_OUT = 1.2;
 /** Kiai is the last minute. The riser needs 2 bars (4 s) plus up to a bar of
  *  waiting for a bar line, so it starts at 1:05 to land kiai near 1:00. */

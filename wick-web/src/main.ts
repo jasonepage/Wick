@@ -28,7 +28,7 @@ import { canRecord, canShareFile, downloadVideo, recordReplay, shareVideo, type 
 import { initEvents, track } from "./net/events.ts";
 import { submitBoard, fetchBoard, flushBoard, rerollBoardName, myBoardId, myBoardName, fmtBoardTime, BOARD_FLAG, recordResult, recordedResult, notSubmitted, type BoardSnapshot, type BoardResult } from "./net/board.ts";
 import { initPwa, promptInstall } from "./pwa.ts";
-import { buildRun, encodeRun, decodeRun, runDuration, fmtDuration } from "./game/ghost.ts";
+import { encodeRun, decodeRun, runDuration, fmtDuration } from "./game/ghost.ts";
 import type { GhostRun } from "./game/ghost.ts";
 import { mountBackdrop, setBackdropHeat } from "./game/backdrop.ts";
 import { dailyStarters, starterText, STARTER_CATEGORIES, type StarterItem } from "./game/starters.ts";
@@ -361,7 +361,7 @@ function screenSettings(): void {
 
   const musicToggle = el("button", {
     class: `toggle ${musicEnabled() ? "on" : ""}`,
-    onclick: () => { setMusicEnabled(!musicEnabled()); rerender(screenSettings); },
+    onclick: () => { setMusicEnabled(!musicEnabled()); renderMusicPill(); rerender(screenSettings); },
   }, [musicEnabled() ? t("setOn") : t("setOff")]);
 
   const soundToggle = el("button", {
@@ -609,7 +609,7 @@ function screenHome(): void {
 
       // grid
       el("div", { class: "menu-grid" }, [
-        tile("duel", "🏁", t("duelRace"), t("homeRaceSub"), screenDuel),
+        raceTile(),
         tile("practice", "🎲", t("practice"), t("homePlayAnytime"), startPractice),
         tile("past", "🕓", t("pastPuzzles"), t("homeReplayAnyDay"), screenArchive),
         tile("stats", "📊", t("statsTitle"), t("statsChip"), screenStats),
@@ -692,7 +692,7 @@ function applyGuessWarmth(
   if (result === "not_a_word") {
     const i = sp.guesses.indexOf(g);
     if (i >= 0) sp.guesses.splice(i, 1);
-    toast("Hmm — that's not a word I know. Try another.");
+    toast(t("notAWordToast"));
   } else if (result === null) {
     g.warmth = 0;
   } else {
@@ -1479,42 +1479,6 @@ function renderGhostStrip(): void {
   );
 }
 
-/** A "race me on this word" link for the round just played, or null if the round
- *  predates the action recorder (nothing to replay). Carries numbers only — see
- *  game/ghost.ts.
- *  Exported rather than wired to a button on purpose: the strip that gives a
- *  link meaning lands in phase 3, and shipping the share action before it would
- *  hand people a link that does almost nothing. */
-function raceLink(): string | null {
-  const practice = sp.mode === "practice";
-  if (practice && sp.practiceIndex < 0) return null; // round predates the index
-  const run = buildRun(
-    practice ? "practice" : "daily",
-    practice ? sp.practiceIndex : sp.puzzleNumber,
-    sp.solved, sp.guesses, sp.replies,
-  );
-  if (!run) return null;
-  // Path form, not ?r= — Universal Links match on PATH only, so this is what
-  // lets an installed iOS app receive the link. The SPA fallback already serves
-  // index.html for any path, so nothing server-side changes.
-  return `${location.origin}/r/${encodeRun(run)}`;
-}
-
-/** Share the round as a challenge. Numbers only — see game/ghost.ts. */
-async function shareRace(): Promise<void> {
-  const url = raceLink();
-  if (!url) { toast(t("raceNothingToShare")); return; }
-  track("race_link_created", sp.mode === "daily" ? { n: sp.puzzleNumber } : {});
-  const mine = sp.ghost ? raceElapsed() : sp.elapsedMs;
-  const text = sp.solved ? t("raceShareSolved", fmtDuration(mine)) : t("raceShareUnsolved");
-  if (typeof navigator.share === "function") {
-    try { await navigator.share({ text, url }); return; }
-    catch (e) { if ((e as { name?: string }).name === "AbortError") return; }
-  }
-  try { await navigator.clipboard.writeText(`${text} ${url}`); toast(t("raceLinkCopied")); }
-  catch { toast(t("raceLinkFailed")); }
-}
-
 /** Reveal the word and end the round (parity with iOS "Give up"). */
 function giveUpSolo(): void {
   if (sp.solved || sp.revealed) return;
@@ -1560,13 +1524,6 @@ function renderSolo(): void {
       const actions: HTMLElement[] = [];
       const hasMap = sp.guesses.some((g) => g.warmth !== null);
       const banner = sp.ghost ? raceBanner() : null;
-      // 3.6: only to answer a friend's race; the open "Race a friend" is gone.
-      if (sp.ghost && raceLink()) {
-        actions.push(el("button", {
-          class: "btn primary",
-          onclick: () => { void playSound("tap"); void shareRace(); },
-        }, [t("raceThemBack")]));
-      }
       if (hasMap) {
         actions.push(el("button", { class: "btn secondary", onclick: () => { void screenReveal(); } }, [t("revealSeeMap")]));
         actions.push(el("button", { class: "btn secondary", onclick: () => { void playSound("tap"); screenReplay(); } }, [t("replayShare")]));
@@ -1609,13 +1566,6 @@ function renderSolo(): void {
       const actions: HTMLElement[] = [];
       const hasMap = sp.guesses.some((g) => g.warmth !== null);
       const banner = sp.ghost ? raceBanner() : null;
-      // 3.6: only to answer a friend's race; the open "Race a friend" is gone.
-      if (sp.ghost && raceLink()) {
-        actions.push(el("button", {
-          class: "btn primary",
-          onclick: () => { void playSound("tap"); void shareRace(); },
-        }, [t("raceThemBack")]));
-      }
       if (hasMap) {
         actions.push(el("button", { class: "btn secondary", onclick: () => { void screenReveal(); } }, [t("revealSeeMap")]));
         actions.push(el("button", { class: "btn secondary", onclick: () => { void playSound("tap"); screenReplay(); } }, [t("replayShare")]));
@@ -2322,82 +2272,150 @@ function screenHowTo(): void {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
+//  STREAMER QUALITY OF LIFE (3.6 web)
+// ════════════════════════════════════════════════════════════════════════════
+//
+//  - A music switch that is always on screen (top right) and the M key, so race
+//    music can be killed in one move, on stream, from any screen.
+//  - The Race tile on Home pulses a red LIVE dot with the real queue count,
+//    and one click puts you in Quick Match. R does the same from Home.
+//  - Enter on the result screen races again.
+//  - A race found while the tab is in the background flashes the tab title.
+
+let musicHintShown = false;
+
+/** The corner music switch. Lives on <body>, outside #app, so no screen
+ *  change can remove it. */
+function mountMusicPill(): void {
+  if (document.querySelector("#music-pill")) return;
+  const pill = el("button", { id: "music-pill", class: "music-pill", onclick: () => { toggleMusic(); } });
+  document.body.append(pill);
+  renderMusicPill();
+}
+
+function renderMusicPill(): void {
+  const pill = document.querySelector<HTMLButtonElement>("#music-pill");
+  if (!pill) return;
+  const on = musicEnabled();
+  pill.classList.toggle("off", !on);
+  pill.replaceChildren(el("span", { class: "music-pill-icon" }, [on ? "🔊" : "🔇"]), el("span", { class: "music-pill-lbl" }, [on ? t("musicOn") : t("musicOff")]));
+  pill.title = t("musicToggleTitle");
+  pill.setAttribute("aria-label", t("musicToggleTitle"));
+  pill.setAttribute("aria-pressed", on ? "true" : "false");
+}
+
+function toggleMusic(): void {
+  const on = !musicEnabled();
+  setMusicEnabled(on);   // turning it off fades the music out right away
+  renderMusicPill();
+  // Turned back on mid-race: start it again, from a fade.
+  if (on && live.snapshot && document.querySelector("#hero")) {
+    void startRaceMusic().then(() => { if (live.snapshot) updateRaceMusic(live.snapshot.clock.remainingMs); });
+  }
+  toast(on ? "🔊 " + t("musicOn") : "🔇 " + t("musicOff"));
+}
+
+/** Once per visit, the first time race music starts: say where the switch is. */
+function maybeShowMusicHint(): void {
+  if (musicHintShown || !musicEnabled()) return;
+  musicHintShown = true;
+  toast(t("musicFirstToast"));
+}
+
+/** Flash the tab title while the page is in the background. */
+function flashTitle(message: string): void {
+  if (!document.hidden) return;
+  const original = document.title;
+  let on = false;
+  const timer = window.setInterval(() => { on = !on; document.title = on ? message : original; }, 900);
+  const stop = () => {
+    if (document.hidden) return;
+    window.clearInterval(timer);
+    document.title = original;
+    document.removeEventListener("visibilitychange", stop);
+  };
+  document.addEventListener("visibilitychange", stop);
+}
+
+/** M: music on or off. R on Home: race now. Enter on a result: race again.
+ *  Never while typing in a field (guesses are typed with these letters). */
+function armHotkeys(): void {
+  window.addEventListener("keydown", (e) => {
+    if (e.metaKey || e.ctrlKey || e.altKey || e.repeat) return;
+    const target = e.target as HTMLElement | null;
+    if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "SELECT" || target.isContentEditable)) return;
+    const key = e.key.toLowerCase();
+    if (key === "m") { e.preventDefault(); toggleMusic(); return; }
+    if (key === "r" && document.querySelector(".home-wrap")) { e.preventDefault(); quickRace(); return; }
+    if (e.key === "Enter") {
+      const again = document.querySelector<HTMLButtonElement>("#result-again");
+      if (again) { e.preventDefault(); again.click(); }
+    }
+  });
+}
+
+/** The Race tile on Home: a pulsing red LIVE dot, the real queue count, and
+ *  one click into Quick Match. */
+function raceTile(): HTMLElement {
+  const sub = el("div", { class: "tile-sub" }, [t("homeRaceSub")]);
+  const tileEl = el("button", { class: "tile duel live-tile", onclick: quickRace, title: "R" }, [
+    el("span", { class: "live-badge" }, [el("i", { class: "live-dot" }), t("liveBadge")]),
+    el("div", { class: "tile-icon" }, ["🏁"]),
+    el("div", { class: "tile-title" }, [t("duelRace")]),
+    sub,
+  ]);
+  // Honest numbers only: humans racing, someone waiting, or the plain line.
+  const refresh = () => {
+    fetchLiveCounts(httpBase).then((c) => {
+      if (!sub.isConnected) return;
+      sub.textContent = c && c.racing > 0 ? t("liveRacingNow", c.racing)
+        : c && c.waiting > 0 ? t("liveOneWaiting")
+        : t("homeRaceSub");
+    });
+  };
+  window.setTimeout(refresh, 0);
+  if (liveCountTimer !== null) window.clearInterval(liveCountTimer);
+  liveCountTimer = window.setInterval(refresh, 15_000);
+  return tileEl;
+}
+
+// ════════════════════════════════════════════════════════════════════════════
 //  LIVE MATCH
 // ════════════════════════════════════════════════════════════════════════════
 
-function screenDuel(): void {
-  track("duel_open");
+/** Race a friend (3.6 web): invite with a link and a code, or join with a
+ *  code. Live only; the web no longer makes ghost-race links (it still opens
+ *  ones made on iOS, see screenChallenge). */
+function screenFriend(): void {
   clear("dark");
-  // Launch-week ordering: live racing is the hero (bigger, first, with a real
-  // player count); the friend's-ghost race stays, as the quieter second option.
-  // "Race a friend" opens today's daily: a finished board already shows the
-  // Race a friend share button, an unfinished one is where the run starts.
-  const count = el("div", { class: "live-count" }, [""]);
-  const hero = el("button", { class: "duel-hero live", onclick: () => { void playSound("tap"); screenLobby(); } }, [
-    el("div", { class: "duel-hero-icon" }, ["⚡"]),
-    el("div", { class: "duel-hero-title" }, [t("raceStrangerTitle")]),
-    el("div", { class: "duel-hero-sub" }, [t("liveRaceBlurb")]),
-    count,
-    el("div", { class: "duel-hero-cta" }, [t("liveRaceNow")]),
-  ]);
-  const ghost = el("button", { class: "duel-choice race secondary", onclick: () => { void playSound("tap"); startDaily(); } }, [
-    el("div", { class: "duel-choice-icon" }, ["🏁"]),
-    el("div", { class: "duel-choice-text" }, [
-      el("div", { class: "duel-choice-title" }, [t("raceAFriend")]),
-      el("div", { class: "duel-choice-sub" }, [t("raceFriendBlurb")]),
-    ]),
-  ]);
-  app.append(
-    el("main", { class: "card" }, [
-      el("div", { class: "solo-head" }, [
-        el("button", { class: "icon-btn dark", onclick: goHome, title: "Home" }, ["←"]),
-        el("span", { class: "solo-title dark" }, [t("duelRace")]),
-        el("span", {}, [""]),
-      ]),
-      el("div", { class: "duel-choices" }, [hero, ghost]),
-    ]),
-  );
-  // Honest numbers only: humans racing, humans waiting, or "no one", never an
-  // implied opponent. Polled every 10 s; the route is cached 5 s server-side.
-  const refresh = () => {
-    fetchLiveCounts(httpBase).then((c) => {
-      if (!count.isConnected) return;
-      if (!c) { count.textContent = ""; return; }
-      count.textContent =
-        c.racing > 0 ? t("liveRacingNow", c.racing)
-        : c.waiting > 0 ? t("liveOneWaiting")
-        : t("liveNobodyQueueing");
-    });
-  };
-  refresh();
-  liveCountTimer = window.setInterval(refresh, 10_000);
-}
-
-function screenLobby(): void {
-  clear("light");
-  const codeInput = el("input", { class: "field", placeholder: "have a code? enter it", spellcheck: false });
+  const codeInput = el("input", { class: "field", placeholder: t("friendCodePlaceholder"), spellcheck: false, autocomplete: "off" });
   const join = () => {
     const c = codeInput.value.trim();
-    if (!c) return toast("Enter the code your friend sent.");
+    if (!c) { toast(t("friendEnterCode")); return; }
     startLive("casual", c, false); // JOIN an existing invite
   };
   codeInput.addEventListener("keydown", (e) => { if (e.key === "Enter") join(); });
   app.append(
     el("main", { class: "card" }, [
       el("div", { class: "solo-head" }, [
-        el("button", { class: "icon-btn dark", onclick: goHome, title: "Home" }, ["←"]),
-        el("span", { class: "solo-title dark" }, ["Race"]),
+        el("button", { class: "icon-btn dark", onclick: goHome, title: t("back") }, ["←"]),
+        el("span", { class: "solo-title dark" }, [t("friendTitle")]),
         el("span", {}, [""]),
       ]),
-      wickBox("mascot-wrap", { score: null, size: 96, id: "lobby" }),
-      el("p", { class: "center muted" }, ["Race someone to warm up to the same hidden word."]),
-      el("button", { class: "btn primary", onclick: () => startLive("casual") }, ["⚡ Quick Match"]),
-      el("button", { class: "btn secondary", onclick: hostRace }, ["👋 Invite a friend"]),
-      el("div", { class: "lbl" }, ["Have a code?"]),
-      el("div", { class: "row" }, [codeInput, el("button", { class: "btn secondary join", onclick: join }, ["Join"])]),
-      el("p", { class: "hint" }, ["Invite makes a link to send. Quick Match finds anyone (or a practice flame)."]),
+      wickBox("mascot-wrap", { score: null, size: 96, id: "friend" }),
+      el("p", { class: "center muted" }, [t("friendBlurb")]),
+      el("button", { class: "btn primary", onclick: () => { void playSound("tap"); hostRace(); } }, [t("friendInvite")]),
+      el("p", { class: "hint center" }, [t("friendInviteSub")]),
+      el("div", { class: "lbl" }, [t("friendJoin")]),
+      el("div", { class: "row" }, [codeInput, el("button", { class: "btn secondary join", onclick: join }, [t("friendJoinBtn")])]),
     ]),
   );
+}
+
+/** One click from Home to a live race: straight into Quick Match. */
+function quickRace(): void {
+  void playSound("tap");
+  startLive("casual");
 }
 
 /** Host a Race: generate a code, host it, and offer the share link on the next screen. */
@@ -2417,7 +2435,12 @@ function startLive(mode: MatchMode, friendCode?: string, create?: boolean, opts?
   live.startsAt = null;
   stopRaceMusic();
   live.client?.close();
-  live.client = new WickMatchClient({
+  // An intentionally closed client still reports its close (and, while it was
+  // connecting, an error). Only the CURRENT client may show an error screen, so
+  // leaving the queue (Cancel, Race a friend instead, Home) never flashes
+  // "Lost connection" over the next screen.
+  let me: WickMatchClient | null = null;
+  live.client = me = new WickMatchClient({
     serverBase,
     kid: live.kid,
     // "Race a flame now": the server expedites this queue so the next tick
@@ -2425,7 +2448,13 @@ function startLive(mode: MatchMode, friendCode?: string, create?: boolean, opts?
     query: opts?.fillNow ? { fill: "now" } : undefined,
     handlers: {
       onOpen: () => live.client?.queue(mode, friendCode, create, playLang()),
-      onPaired: (f) => { live.opponentKind = f.opponentKind; screenMatch(); void startRaceMusic(); },
+      onPaired: (f) => {
+        live.opponentKind = f.opponentKind;
+        screenMatch();
+        void startRaceMusic().then(maybeShowMusicHint);
+        // Queued and tabbed away (a streamer on their stream deck): flash the tab.
+        flashTitle(t("raceFoundTitle"));
+      },
       // Use the duration, not the server's wall time, so a skewed clock can't
       // show a countdown that is already over or an hour long.
       onQueued: (f) => { live.startsAt = Date.now() + f.waitMs; if (!live.snapshot) screenSearching(); },
@@ -2440,7 +2469,7 @@ function startLive(mode: MatchMode, friendCode?: string, create?: boolean, opts?
           const i = live.guesses.findIndex((x) => normalize(x.word) === normalize(f.guess) && x.warmth === null);
           if (i >= 0) {
             live.guesses.splice(i, 1); // a non-word never counted — drop it
-            toast("Hmm — that's not a word I know. Try another.");
+            toast(t("notAWordToast"));
             renderMatch();
           }
           return;
@@ -2454,8 +2483,8 @@ function startLive(mode: MatchMode, friendCode?: string, create?: boolean, opts?
       },
       onResult: (f) => { stopRaceMusic(); screenResult(f.result, f.word, f.words); },
       onOpponentLeft: () => { live.opponentLeft = true; renderMatch(); },
-      onError: (e) => handleLiveError(e, create),
-      onClose: ({ clean }) => { if (!clean && !live.snapshot) showError("Lost connection to the server."); },
+      onError: (e) => { if (live.client === me) handleLiveError(e, create); },
+      onClose: ({ clean }) => { if (live.client === me && !clean && !live.snapshot) showError(t("connLost")); },
     },
   });
   screenSearching();
@@ -2470,7 +2499,7 @@ function handleLiveError(e: { code: string; message: string }, create?: boolean)
     return;
   }
   if (e.code === "no_such_invite") {
-    toast("That invite's expired — ask your friend for a new link.");
+    toast(t("inviteExpired"));
     leaveLive();
     return;
   }
@@ -2482,16 +2511,16 @@ function screenSearching(): void {
   const code = live.friendCode;
   const kids: (Node | string)[] = [
     wickBox("mascot-wrap", { score: null, size: 128, id: "search" }),
-    el("h2", {}, [live.hosting ? "Waiting for your friend…" : code ? "Joining…" : "Finding an opponent…"]),
+    el("h2", {}, [live.hosting ? t("searchWaitingFriend") : code ? t("searchJoining") : t("searchFinding")]),
   ];
   if (code && live.hosting) {
     kids.push(el("p", { class: "code" }, [code]));
     kids.push(
-      el("button", { class: "btn primary", onclick: () => shareInvite(inviteURL(code, "race"), "Race me in Wick!") }, ["📤 Share invite link"]),
+      el("button", { class: "btn primary", onclick: () => shareInvite(inviteURL(code, "race"), t("inviteText")) }, [t("searchShareInvite")]),
     );
-    kids.push(el("p", { class: "hint" }, ["Send the link — your friend taps it to join. Or they can type the code."]));
+    kids.push(el("p", { class: "hint" }, [t("searchShareHint")]));
     kids.push(qrImage(inviteURL(code, "race")));
-    kids.push(el("p", { class: "hint" }, ["Or scan the code."]));
+    kids.push(el("p", { class: "hint" }, [t("searchScanHint")]));
   } else if (code) {
     kids.push(el("p", { class: "code" }, [code]));
   } else if (live.startsAt !== null) {
@@ -2499,6 +2528,7 @@ function screenSearching(): void {
     // moment, so two people a minute apart still race each other. If someone
     // shows up sooner the server pairs early and `paired` replaces this screen.
     const clock = el("p", { class: "code" }, [fmtCountdown(live.startsAt)]);
+    kids.push(el("p", { class: "center muted" }, [t("liveRaceBlurb")]));
     kids.push(el("p", { class: "center muted" }, [t("liveNextRaceIn")]));
     kids.push(clock);
     kids.push(el("p", { class: "center muted" }, [t("livePracticeFlameSteps")]));
@@ -2512,11 +2542,19 @@ function screenSearching(): void {
   const fallback = el("div", { class: "search-fallback", hidden: true }, [
     el("p", { class: "center muted" }, [t("searchStillLooking")]),
     el("button", { class: "btn primary", onclick: () => { void playSound("tap"); startLive("casual", undefined, undefined, { fillNow: true }); } }, [t("searchRaceFlame")]),
-    el("button", { class: "btn secondary", onclick: () => { void playSound("tap"); live.client?.close(); live.client = null; startDaily(); } }, [t("searchRaceGhost")]),
   ]);
   kids.push(fallback);
   searchFallbackTimer = window.setTimeout(() => { fallback.removeAttribute("hidden"); }, live.hosting ? 20_000 : 15_000);
-  kids.push(el("button", { class: "btn ghost", onclick: leaveLive }, ["Cancel"]));
+  // Quick Match can switch to a friend race without going Home first.
+  if (!code) {
+    kids.push(el("button", { class: "btn secondary", onclick: () => {
+      void playSound("tap");
+      live.client?.close();
+      live.client = null;
+      screenFriend();
+    } }, [t("raceFriendInstead")]));
+  }
+  kids.push(el("button", { class: "btn ghost", onclick: leaveLive }, [t("searchCancel")]));
   app.append(el("main", { class: "card" }, kids));
 }
 
@@ -2621,12 +2659,12 @@ function screenResult(result: MatchResult, word?: string, words?: Record<string,
   clear("dark");
   const me = result.players.find((p) => p.id === live.kid);
   const youWon = result.winner === live.kid;
-  const headline = result.draw ? "A friendly draw" : youWon ? "You warmed up first!" : "So close — they got there first.";
+  const headline = result.draw ? t("resultDraw") : youWon ? t("resultWon") : t("resultLost");
   const reason: Record<MatchResult["reason"], string> = {
-    solved: "Solved the word",
-    timeout: "Time ran out — decided on warmth",
-    forfeit: "Opponent left",
-    void: "Match voided",
+    solved: t("reasonSolved"),
+    timeout: t("reasonTimeout"),
+    forfeit: t("reasonForfeit"),
+    void: t("reasonVoid"),
   };
 
   // Winner → green happy Wick; loser → grey "-_-" deadpan Wick (never the blue
@@ -2659,13 +2697,15 @@ function screenResult(result: MatchResult, word?: string, words?: Record<string,
       me
         ? el("p", { class: "center" }, [
             me.solvedAtMs !== null
-              ? `You solved in ${(me.solvedAtMs / 1000).toFixed(1)}s, ${me.guessCount} guesses.`
-              : `${me.guessCount} guesses, best warmth ${Math.round(me.bestWarmth * 100)}%.`,
+              ? t("resultSolvedLine", (me.solvedAtMs / 1000).toFixed(1), me.guessCount)
+              : t("resultUnsolvedLine", me.guessCount, `${Math.round(me.bestWarmth * 100)}%`),
           ])
-        : el("p", { class: "center muted" }, ["Match over."]),
+        : el("p", { class: "center muted" }, [t("resultMatchOver")]),
       ...(word ? [reveal] : []),
-      el("button", { class: "btn primary", onclick: () => startLive(live.mode, live.friendCode) }, [live.friendCode ? "Rematch" : "Play again"]),
-      el("button", { class: "btn ghost", onclick: () => { leaveLive(); } }, ["Home"]),
+      // One tap (or Enter) back into the queue: the streamer's loop.
+      el("button", { id: "result-again", class: "btn primary", onclick: () => { void playSound("tap"); startLive(live.mode, live.friendCode); } },
+        [live.friendCode ? t("rematch") : t("raceAgain")]),
+      el("button", { class: "btn ghost", onclick: () => { leaveLive(); } }, [t("backHome")]),
     ]),
   );
 
@@ -2768,6 +2808,8 @@ function applyLang(): void {
 
 function boot(): void {
   applyLang();
+  mountMusicPill();
+  armHotkeys();
   mountBackdrop();
   initEvents(httpBase, live.kid);
   // A daily solved offline goes onto the race board once we can reach the server.

@@ -77,6 +77,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   (See the map, Play a random word). The open "Race a friend" button is gone
   from the end cards on iOS and web; "Race them back" still shows after a
   round that came from a friend's race link.
+- **Streamer friendly web game.** A music switch sits in the top right
+  corner of every screen (and M toggles it), and race music is quieter and
+  swells in over 4 seconds so it can never jump-scare anyone. The Race tile
+  on Home pulses a red LIVE dot with the real queue count, and one click (or
+  R) puts you straight into Quick Match. Enter on the result screen races
+  again, and a race found while the tab is in the background flashes the tab
+  title. The live race screens are now in all six languages.
+- **Race a friend (web)** is now live only: invite with a link and a code, or
+  join with a code, reachable from the Quick Match screen. The web no longer
+  makes ghost-race links; it still opens ones made on iOS.
 - **Prettier map (iOS).** The Reveal map draws one glowing trail through
   each new closest guess into the word instead of a dashed line through
   every guess, the heat bands are soft tinted rings with their names off to
