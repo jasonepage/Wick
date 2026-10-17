@@ -6,8 +6,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  afterAnswer, afterGuess, afterLucky, afterNotAWord, freshState, letterPattern, pickAnimal,
-  spelledOut, tutorialClues, ANIMAL_CLUES,
+  afterAnswer, afterGuess, afterLucky, afterNotAWord, freshState, letterFacts, pickAnimal,
+  tutorialClues, ANIMAL_CLUES,
   shouldAutoStart, stepNumber, tutorialLine, tutorialPool, TUTORIAL_ANIMALS, type TutState,
 } from "../src/game/tutorial.ts";
 import { readFileSync } from "node:fs";
@@ -81,7 +81,7 @@ test("a lucky early solve keeps the step, and step 2 restarts at 1", () => {
   assert.equal(tutorialLine(a, ctx), "tutLucky tutAsk");
 });
 
-test("the solve step is a dead giveaway: animal, home, sound, letters, spelled", () => {
+test("the solve step clues: animal, home, sound, first letter, last letter, length", () => {
   let s: TutState = { step: "solve", note: "none", misses: 0, verdict: "" };
   const lines: string[] = [tutorialLine(s, ctx)];
   for (let i = 0; i < 6; i++) { s = afterGuess(s, false).state; lines.push(tutorialLine(s, ctx)); }
@@ -89,10 +89,10 @@ test("the solve step is a dead giveaway: animal, home, sound, letters, spelled",
     "tutItsAnAnimal",
     "tutGroupWater",
     "tutSound.frog",
-    "tutLooksLike(F _ _ _)",
-    "tutLooksLike(F R _ _)",
-    "tutLooksLike(F R O _)",
-    "tutSpelled(F-R-O-G)",
+    "tutStartsWith(F)",
+    "tutStartsEnds(F,G)",
+    "tutLetterCount(4,F,G)",
+    "tutLetterCount(4,F,G)",
   ]);
   assert.equal(tutorialClues(s, ctx).length, 4);
 });
@@ -105,9 +105,12 @@ test("every animal has clues, and their strings exist", () => {
   }
 });
 
-test("letter helpers work on any script", () => {
-  assert.equal(letterPattern("bär", 1), "B _ _");
-  assert.equal(spelledOut("猫"), "猫");
+test("letter facts work on any script, and the word is never spelled out", () => {
+  assert.deepEqual(letterFacts("bär"), { first: "B", last: "R", count: 3 });
+  assert.deepEqual(letterFacts("鸭子"), { first: "鸭", last: "子", count: 2 });
+  let s: TutState = { step: "solve", note: "none", misses: 0, verdict: "" };
+  for (let i = 0; i < 20; i++) s = afterGuess(s, false).state;
+  assert.ok(!tutorialLine(s, ctx).toLowerCase().includes("frog"));
 });
 
 test("a typo gets the not-a-word line without losing the step", () => {

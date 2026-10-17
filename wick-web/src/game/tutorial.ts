@@ -145,14 +145,10 @@ export function afterLucky(s: TutState): TutState {
   return { ...s, step: s.step === "warmer" ? "guess" : s.step, note: "lucky", misses: 0 };
 }
 
-/** "F R _ _": the first `shown` letters, the rest as blanks. */
-export function letterPattern(word: string, shown: number): string {
-  return [...word.toLocaleUpperCase()].map((ch, i) => (i < shown ? ch : "_")).join(" ");
-}
-
-/** "F-R-O-G". */
-export function spelledOut(word: string): string {
-  return [...word.toLocaleUpperCase()].join("-");
+/** The first and last letter (any script), upper-cased, and the length. */
+export function letterFacts(word: string): { first: string; last: string; count: number } {
+  const chars = [...word.toLocaleUpperCase()];
+  return { first: chars[0] ?? "", last: chars[chars.length - 1] ?? "", count: chars.length };
 }
 
 /** Everything Wick's line needs from the outside world. */
@@ -168,12 +164,14 @@ export interface LineContext {
   animal: string;
 }
 
-/** The solve step is a dead giveaway on purpose: every wrong guess unlocks a
- *  stronger clue, until the word is spelled out.
+/** The solve step is close to a giveaway on purpose: every wrong guess
+ *  unlocks a stronger clue. The word itself is never spelled out.
  *    0 misses: it's an animal
  *    1: where it lives (farm, pet, wild, water)
  *    2: its sound or giveaway trait ("it hops and says ribbit")
- *    3+: the letters, one more per miss ("F R _ _"), then "It's F-R-O-G!" */
+ *    3: it starts with F
+ *    4: it starts with F and ends with G
+ *    5+: it has 4 letters, starts with F and ends with G */
 export function tutorialClues(s: TutState, c: LineContext): string[] {
   if (s.step !== "solve") return [];
   const { t } = c;
@@ -183,10 +181,10 @@ export function tutorialClues(s: TutState, c: LineContext): string[] {
   if (s.misses >= 1) out.push(t(GROUP_KEY[info.group]));
   if (s.misses >= 2) out.push(t(info.sound));
   if (s.misses >= 3) {
-    const shown = s.misses - 2;
-    out.push(shown >= [...c.secret].length
-      ? t("tutSpelled", spelledOut(c.secret))
-      : t("tutLooksLike", letterPattern(c.secret, shown)));
+    const { first, last, count } = letterFacts(c.secret);
+    if (s.misses === 3 || count < 2) out.push(t("tutStartsWith", first));
+    else if (s.misses === 4) out.push(t("tutStartsEnds", first, last));
+    else out.push(t("tutLetterCount", count, first, last));
   }
   return out;
 }

@@ -93,18 +93,6 @@ enum TutorialAnimals {
         "bear": (.wild, "tutSound.bear"),  "lion": (.wild, "tutSound.lion"),
     ]
 
-    /// "F R _ _": the first `shown` letters, the rest as blanks.
-    static func pattern(_ word: String, shown: Int) -> String {
-        word.uppercased().enumerated()
-            .map { $0.offset < shown ? String($0.element) : "_" }
-            .joined(separator: " ")
-    }
-
-    /// "F-R-O-G".
-    static func spelled(_ word: String) -> String {
-        word.uppercased().map(String.init).joined(separator: "-")
-    }
-
     /// A random animal, never one whose English form is in `excluding`.
     static func random(excluding: Set<String> = []) -> DailyWord {
         let pool = all.filter { !excluding.contains($0.en) }

@@ -799,12 +799,14 @@ final class GameViewModel {
         return item.map { StarterQuestions.localizedFull($0, language) } ?? "Is it alive?"
     }
 
-    /// The solve step is a dead giveaway on purpose: every wrong guess unlocks
-    /// a stronger clue, until the word is spelled out.
+    /// The solve step is close to a giveaway on purpose: every wrong guess
+    /// unlocks a stronger clue. The word itself is never spelled out.
     ///   0 misses: it's an animal
     ///   1: where it lives (farm, pet, wild, water)
     ///   2: its sound or giveaway trait ("it hops and says ribbit")
-    ///   3+: the letters, one more per miss ("F R _ _"), then "It's F-R-O-G!"
+    ///   3: it starts with F
+    ///   4: it starts with F and ends with G
+    ///   5+: it has 4 letters, starts with F and ends with G
     var tutorialClues: [String] {
         guard tutorialStep == .solve else { return [] }
         let L = loc
@@ -820,11 +822,16 @@ final class GameViewModel {
             }
         }
         if m >= 2 { out.append(L.tutClue(info.soundKey)) }
-        if m >= 3 {
-            let shown = m - 2
-            out.append(shown >= target.count
-                       ? L.tutSpelled(TutorialAnimals.spelled(target))
-                       : L.tutLooksLike(TutorialAnimals.pattern(target, shown: shown)))
+        let word = target.uppercased()
+        if m >= 3, let first = word.first {
+            let last = String(word.last ?? first)
+            if m == 3 || word.count < 2 {
+                out.append(L.tutStartsWith(String(first)))
+            } else if m == 4 {
+                out.append(L.tutStartsEnds(String(first), last))
+            } else {
+                out.append(L.tutLetterCount(word.count, String(first), last))
+            }
         }
         return out
     }

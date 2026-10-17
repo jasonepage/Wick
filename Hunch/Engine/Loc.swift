@@ -436,8 +436,11 @@ struct Loc {
     var tutGroupWater: String { s("tutGroupWater") }
     /// A per-animal clue by key ("tutSound.frog").
     func tutClue(_ key: String) -> String { s(key) }
-    func tutLooksLike(_ pattern: String) -> String { f("tutLooksLike", pattern) }
-    func tutSpelled(_ word: String) -> String { f("tutSpelled", word) }
+    func tutStartsWith(_ first: String) -> String { f("tutStartsWith", first) }
+    func tutStartsEnds(_ first: String, _ last: String) -> String { f("tutStartsEnds", first, last) }
+    func tutLetterCount(_ count: Int, _ first: String, _ last: String) -> String {
+        f("tutLetterCount", count, first, last)
+    }
     var tutAlreadyHot: String { s("tutAlreadyHot") }
     var tutLucky: String { s("tutLucky") }
     var tutDoneTitle: String { s("tutDoneTitle") }
@@ -914,8 +917,9 @@ struct Loc {
         "tutSound.frog": "Clue: it hops and says ribbit!",
         "tutSound.bear": "Clue: it loves honey!",
         "tutSound.lion": "Clue: it roars and has a big mane!",
-        "tutLooksLike": "It looks like this: %@",
-        "tutSpelled": "It's %@! Type it in!",
+        "tutStartsWith": "Clue: it starts with %@!",
+        "tutStartsEnds": "Clue: it starts with %@ and ends with %@!",
+        "tutLetterCount": "Clue: it has %d letters, starts with %@ and ends with %@!",
         "tutAlreadyHot": "You're already super close, no hint needed! Now find the secret word.",
         "tutLucky": "Whoa, you found it already! Here's a new secret word.",
         "tutDoneTitle": "You did it!",
@@ -1332,8 +1336,9 @@ struct Loc {
         "tutSound.frog": "Pista: ¡salta y hace croac!",
         "tutSound.bear": "Pista: ¡le encanta la miel!",
         "tutSound.lion": "Pista: ¡ruge y tiene una gran melena!",
-        "tutLooksLike": "Se ve así: %@",
-        "tutSpelled": "¡Es %@! ¡Escríbelo!",
+        "tutStartsWith": "Pista: ¡empieza por %@!",
+        "tutStartsEnds": "Pista: ¡empieza por %@ y termina en %@!",
+        "tutLetterCount": "Pista: ¡tiene %d letras, empieza por %@ y termina en %@!",
         "tutAlreadyHot": "¡Ya estás muy cerca, no hace falta pista! Ahora encuentra la palabra secreta.",
         "tutLucky": "¡Guau, ya la encontraste! Aquí tienes una nueva palabra secreta.",
         "tutDoneTitle": "¡Lo lograste!",
@@ -1752,8 +1757,9 @@ struct Loc {
         "tutSound.frog": "Indice : ça saute et ça fait croâ !",
         "tutSound.bear": "Indice : ça adore le miel !",
         "tutSound.lion": "Indice : ça rugit et ça a une grande crinière !",
-        "tutLooksLike": "Ça ressemble à ça : %@",
-        "tutSpelled": "C'est %@ ! Tape-le !",
+        "tutStartsWith": "Indice : ça commence par %@ !",
+        "tutStartsEnds": "Indice : ça commence par %@ et finit par %@ !",
+        "tutLetterCount": "Indice : %d lettres, ça commence par %@ et finit par %@ !",
         "tutAlreadyHot": "Tu es déjà tout près, pas besoin d'indice ! Maintenant, trouve le mot secret.",
         "tutLucky": "Waouh, tu l'as déjà trouvé ! Voici un nouveau mot secret.",
         "tutDoneTitle": "Tu as réussi !",
@@ -2172,8 +2178,9 @@ struct Loc {
         "tutSound.frog": "Indizio: salta e fa cra cra!",
         "tutSound.bear": "Indizio: adora il miele!",
         "tutSound.lion": "Indizio: ruggisce e ha una grande criniera!",
-        "tutLooksLike": "È fatta così: %@",
-        "tutSpelled": "È %@! Scrivila!",
+        "tutStartsWith": "Indizio: inizia con %@!",
+        "tutStartsEnds": "Indizio: inizia con %@ e finisce con %@!",
+        "tutLetterCount": "Indizio: ha %d lettere, inizia con %@ e finisce con %@!",
         "tutAlreadyHot": "Sei già vicinissimo, niente indizio! Ora trova la parola segreta.",
         "tutLucky": "Wow, l'hai già trovata! Ecco una nuova parola segreta.",
         "tutDoneTitle": "Ce l'hai fatta!",
@@ -2591,8 +2598,9 @@ struct Loc {
         "tutSound.frog": "Tipp: Es hüpft und quakt!",
         "tutSound.bear": "Tipp: Es liebt Honig!",
         "tutSound.lion": "Tipp: Es brüllt und hat eine große Mähne!",
-        "tutLooksLike": "So sieht es aus: %@",
-        "tutSpelled": "Es ist %@! Tipp es ein!",
+        "tutStartsWith": "Tipp: Es fängt mit %@ an!",
+        "tutStartsEnds": "Tipp: Es fängt mit %@ an und hört mit %@ auf!",
+        "tutLetterCount": "Tipp: Es hat %d Buchstaben, fängt mit %@ an und hört mit %@ auf!",
         "tutAlreadyHot": "Du bist schon ganz nah, kein Tipp nötig! Jetzt finde das geheime Wort.",
         "tutLucky": "Wow, du hast es schon gefunden! Hier ist ein neues geheimes Wort.",
         "tutDoneTitle": "Geschafft!",
