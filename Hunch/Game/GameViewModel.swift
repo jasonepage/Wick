@@ -228,6 +228,8 @@ final class GameViewModel {
     private(set) var failedQuestion: String?
     /// Whether the failed question was typed (true) or a starter chip (false).
     private var failedQuestionTyped = true
+    /// True while a hint plays its word, so that word is not counted as typed.
+    @ObservationIgnored private var submittingHint = false
     private(set) var openingClue: String?
     private(set) var isLoadingClue = false
     private var clueRequested = false
@@ -964,7 +966,7 @@ final class GameViewModel {
 
             // 3.6 weekly Stats: only a guess that reads Cool or colder leaves
             // the phone, so the shared list never hints at the answer.
-            if WordTallyRules.shouldSendGuess(rank: rank(forScore: s)) {
+            if !submittingHint, WordTallyRules.shouldSendGuess(rank: rank(forScore: s)) {
                 WordTally.guess(word, language: language)
             }
 
@@ -1479,7 +1481,11 @@ final class GameViewModel {
             Feedback.play(.coinSpent)
         }
         hintsUsed += 1
+        // The hint's word is Wick's pick, not the player's, so it stays out of
+        // the weekly Stats list.
+        submittingHint = true
         submit(pick.word)
+        submittingHint = false
         transientMessage = loc.hintLands(pick.word, pick.rank)
         saveDailyState()
     }
