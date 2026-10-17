@@ -10,6 +10,27 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Tutorial level.** A brand-new player opens straight into a hands-on
+  level instead of a How to play sheet. The secret word is one of ten simple
+  animals, and every step waits for the player to do the thing: guess any
+  word (the heat bar shows where it landed), guess a warmer one, ask Wick a
+  yes or no question ("Is it alive?" types itself into the real field, the
+  player presses send), use a free hint, then solve it. Wick coaches each
+  step in one short line; the rest of the board is dimmed and the control to
+  touch next pulses. Haptics, sounds and a big "Warmer!" pop on every step.
+  Finding the animal early gets a "Lucky!" and a bonus animal so the lessons
+  still happen; a stuck solve step hands out "it's an animal", then letters.
+  Skippable any time; replay it from How to play or Settings. Players from
+  before 3.6 are not forced through it. The web game gets the same level in
+  all six languages, in four steps (the web game has no hints, so there is
+  no hint step). The tutorial never touches the
+  daily, stats, streak, coins, achievements, round history, the weekly word
+  stats or the race board.
+- How to play is now a glance: a big "Play the tutorial" button, the heat
+  bar, a real question with Wick's answer, and two one-line rules.
+- Server: `tutorial_start`, `tutorial_done` and `tutorial_skip` (with the
+  step it was skipped on) on the `/event` allowlist, to see where new players
+  drop off.
 - **Today's race board.** Everyone plays the same daily word, so every solver
   is now ranked against everyone else: fewest guesses wins, each hint counts
   as one more, ties go to the faster time. Shown on the solved card ("You're

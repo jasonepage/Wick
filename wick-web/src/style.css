@@ -798,3 +798,121 @@ a.btn { display: block; box-sizing: border-box; text-align: center; text-decorat
 .theme-light .tile.board { background: linear-gradient(140deg, rgba(255,240,205,0.92), rgba(255,228,214,0.85)); }
 .theme-dark .tile.board  { background: rgba(242,183,64,0.12); border-color: rgba(242,183,64,0.32); }
 .theme-dark .tile.board .tile-title { color: rgb(242,183,64); }
+
+/* ── 3.6: the tutorial level ──────────────────────────────────────────────
+   The real board, with a spotlight: everything on the card that is not part
+   of the current lesson dims (and stops taking taps), the outside of the card
+   darkens, and the field to use next pulses a violet ring. */
+.tut-card > * { transition: opacity 0.3s ease, filter 0.3s ease; }
+.tut-card.spot { box-shadow: 0 0 0 100vmax rgba(8, 5, 16, 0.38), 0 24px 60px rgba(0, 0, 0, 0.45); }
+.tut-card.spot > :not(.lit) { opacity: 0.22; filter: saturate(0.4); pointer-events: none; }
+
+.tut-head { gap: 8px; }
+.tut-badges { display: flex; gap: 5px; }
+.tut-badge { width: 26px; height: 26px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center;
+  font-size: 0.78rem; font-weight: 900; background: rgba(128, 128, 128, 0.14); opacity: 0.55;
+  transition: transform 0.35s cubic-bezier(.3, 1.6, .5, 1), background 0.3s ease, opacity 0.3s ease; }
+.tut-badge.done { background: rgb(var(--p-keeper)); color: #fff; opacity: 1; }
+.tut-badge.now { opacity: 1; background: rgba(var(--p-keeper), 0.2); box-shadow: 0 0 0 2px rgb(var(--p-keeper)); transform: scale(1.12); }
+.tut-skip { cursor: pointer; font-family: inherit; font-size: 0.88rem; font-weight: 800; color: inherit; background: transparent;
+  border: 1px solid rgba(128, 128, 128, 0.35); border-radius: 999px; padding: 6px 12px; opacity: 0.85; }
+.tut-skip:hover { opacity: 1; }
+
+/* Wick's coaching card. */
+.tut-coach { display: flex; align-items: flex-start; gap: 12px; padding: 14px 14px 14px 10px; border-radius: 20px;
+  background: rgba(var(--p-keeper), 0.13); border: 1px solid rgba(var(--p-keeper), 0.4); }
+.tut-coach.hop { animation: tut-hop 0.42s cubic-bezier(.3, 1.6, .5, 1); }
+@keyframes tut-hop { 0% { transform: scale(1); } 40% { transform: scale(1.04); } 100% { transform: scale(1); } }
+.tut-wick { flex: 0 0 auto; width: 64px; }
+.tut-wick svg { display: block; width: 64px; height: auto; overflow: visible; }
+.tut-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+.tut-line { margin: 0; font-size: 1.04rem; font-weight: 750; line-height: 1.35; cursor: default; }
+.tut-rest { color: transparent; }
+.tut-thinking { font-size: 1.4rem; font-weight: 900; letter-spacing: 0.2em; opacity: 0.7; animation: tut-blink 1s infinite; }
+@keyframes tut-blink { 50% { opacity: 0.25; } }
+
+/* Freezing to Boiling, with your guess on it. */
+.tut-heat { display: flex; flex-direction: column; gap: 6px; }
+.tut-heat-bar { position: relative; height: 10px; border-radius: 999px; margin: 5px 0;
+  background: linear-gradient(90deg, rgb(var(--p-freezing)), rgb(var(--p-cold)), rgb(var(--p-cool)), rgb(var(--p-warm)), rgb(var(--p-hot)), rgb(var(--p-boiling))); }
+.tut-heat-marker { position: absolute; top: 50%; left: 0; width: 20px; height: 20px; border-radius: 999px; background: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.25); box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3); transform: translate(-50%, -50%);
+  transition: left 0.8s cubic-bezier(.3, 1.3, .5, 1); }
+.tut-heat-ends { display: flex; justify-content: space-between; font-size: 0.76rem; font-weight: 800; }
+.tut-heat-ends .cold { color: rgb(var(--p-freezing)); }
+.tut-heat-ends .hot { color: rgb(var(--p-boiling)); }
+
+/* Step 3: Wick's question, ready to type itself into the field. */
+.tut-ask { display: flex; align-items: center; gap: 10px; width: 100%; cursor: pointer; font-family: inherit; color: inherit;
+  font-size: 1rem; font-weight: 800; text-align: left; padding: 11px 13px; border-radius: 14px;
+  background: rgba(255, 255, 255, 0.06); border: 1.5px solid rgba(var(--p-keeper), 0.6); }
+.theme-light .tut-ask { background: rgba(255, 255, 255, 0.85); }
+.tut-ask:hover { filter: brightness(1.08); }
+.tut-ask-q { flex: 1; }
+.tut-tap { animation: tut-tap 1s ease-in-out infinite; }
+@keyframes tut-tap { 50% { transform: translateY(-3px) scale(1.15); } }
+
+/* The field to use next, and the send button once a question is typed. */
+.field.tut-ring { animation: tut-ping 1.3s ease-out infinite; }
+@keyframes tut-ping {
+  0%   { box-shadow: 0 0 0 2px rgba(var(--p-keeper), 1), 0 0 0 2px rgba(var(--p-keeper), 0.7); }
+  100% { box-shadow: 0 0 0 2px rgba(var(--p-keeper), 1), 0 0 0 16px rgba(var(--p-keeper), 0); }
+}
+.send.tut-pulse { animation: tut-pulse 0.9s ease-in-out infinite; background: rgb(var(--p-keeper)); }
+@keyframes tut-pulse { 50% { transform: scale(1.14); box-shadow: 0 0 0 8px rgba(var(--p-keeper), 0.25); } }
+
+/* The big pop: "Warmer!", "Lucky!", "You got it!". */
+.tut-cheer { position: fixed; left: 50%; top: 38%; z-index: 9998; pointer-events: none; text-align: center;
+  padding: 16px 28px; border-radius: 28px; background: rgba(20, 16, 30, 0.72); backdrop-filter: blur(12px);
+  animation: tut-cheer 1.5s cubic-bezier(.3, 1.5, .5, 1) both; }
+.tut-cheer-icon { font-size: 3rem; line-height: 1.1; }
+.tut-cheer-text { font-size: 2.4rem; font-weight: 900; letter-spacing: -0.01em; }
+.tut-cheer.warmer .tut-cheer-text { color: rgb(var(--p-hot)); }
+.tut-cheer.lucky .tut-cheer-text { color: #f2b740; }
+.tut-cheer.solved .tut-cheer-text { color: #7fce78; }
+@keyframes tut-cheer {
+  0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.3) rotate(-8deg); }
+  22%  { opacity: 1; transform: translate(-50%, -50%) scale(1.12) rotate(-4deg); }
+  35%  { transform: translate(-50%, -50%) scale(1) rotate(-4deg); }
+  80%  { opacity: 1; transform: translate(-50%, -50%) scale(1) rotate(-4deg); }
+  100% { opacity: 0; transform: translate(-50%, -60%) scale(0.9) rotate(-4deg); }
+}
+
+/* The finish line. */
+.tut-done { display: flex; flex-direction: column; align-items: stretch; gap: 12px; text-align: center;
+  padding: 18px 16px; border-radius: 22px; background: rgba(var(--p-solved), 0.12); border: 1px solid rgba(var(--p-solved), 0.35); }
+.tut-done-title { margin: 0; font-size: 2rem; font-weight: 900; }
+.tut-done p { margin: 0; }
+.tut-stamps { display: flex; justify-content: center; gap: 10px; }
+.tut-stamp { display: flex; flex-direction: column; align-items: center; gap: 4px; animation: tut-stamp 0.4s cubic-bezier(.3, 1.6, .5, 1) both; }
+.tut-stamp-icon { width: 42px; height: 42px; border-radius: 999px; display: flex; align-items: center; justify-content: center;
+  font-size: 1.2rem; background: rgb(var(--p-solved)); box-shadow: 0 4px 12px rgba(var(--p-solved), 0.4); }
+.tut-stamp-lbl { font-size: 0.72rem; font-weight: 800; opacity: 0.75; }
+@keyframes tut-stamp { from { opacity: 0; transform: scale(0.2) rotate(-20deg); } to { opacity: 1; transform: none; } }
+.tut-headline { font-size: 1.15rem; font-weight: 900; color: #b9a6ff; }
+.theme-light .tut-headline { color: rgb(var(--p-keeper)); }
+
+/* How to play: the tutorial button and the three one-line rules. */
+.tut-play { display: flex; align-items: center; gap: 12px; width: 100%; cursor: pointer; font-family: inherit; color: inherit;
+  text-align: left; padding: 12px 14px; border-radius: 20px; background: rgba(var(--p-keeper), 0.13);
+  border: 1.5px solid rgba(var(--p-keeper), 0.45); }
+.tut-play:hover { filter: brightness(1.06); }
+.tut-play-wick { flex: 0 0 auto; width: 60px; }
+.tut-play-wick svg { display: block; width: 60px; height: auto; overflow: visible; }
+.tut-play-text { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.tut-play-text b { font-size: 1.15rem; }
+.tut-play-text small { font-size: 0.85rem; opacity: 0.7; }
+.tut-play-go { font-size: 1.6rem; color: rgb(var(--p-keeper)); }
+.howto-rule { display: flex; flex-direction: column; gap: 10px; padding: 14px; border-radius: 18px;
+  background: rgba(128, 128, 128, 0.08); border: 1px solid rgba(128, 128, 128, 0.14); }
+.howto-top { display: flex; align-items: center; gap: 10px; }
+.howto-icon { font-size: 1.35rem; }
+.howto-text { font-weight: 800; font-size: 1rem; }
+
+@media (prefers-reduced-motion: reduce) {
+  .tut-coach.hop, .tut-tap, .field.tut-ring, .send.tut-pulse, .tut-thinking, .tut-stamp { animation: none; }
+  .field.tut-ring { box-shadow: 0 0 0 2px rgba(var(--p-keeper), 1); }
+  .tut-cheer { animation: tut-fade 1.5s ease both; transform: translate(-50%, -50%); }
+  .tut-heat-marker { transition: none; }
+}
+@keyframes tut-fade { 0% { opacity: 0; } 15% { opacity: 1; } 80% { opacity: 1; } 100% { opacity: 0; } }

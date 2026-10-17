@@ -457,6 +457,13 @@ final class GameViewModel {
         // re-read so the streak on screen isn't a stale zero.
         CloudSync.onMerge = { [weak self] in self?.adoptCloudState() }
         refreshReminders()
+
+        // 3.6: a brand-new player opens straight into the tutorial level, not
+        // Home: Wick is asking for a word within a couple of seconds. A link
+        // that arrives on the same launch still wins (ContentView covers it).
+        if TutorialFlags.shouldAutoStart(solves: solves) {
+            startTutorial()
+        }
     }
 
     // MARK: - Vocabulary auto-retry
@@ -544,6 +551,9 @@ final class GameViewModel {
             // A duel is locked to its own language (the word index is per-language),
             // so switching language leaves the duel and drops to today's daily.
             startDaily()
+        case .tutorial:
+            // Same animal, new language, from the top.
+            startTutorial(animal: currentPair, track: false)
         }
     }
 
@@ -713,6 +723,250 @@ final class GameViewModel {
                                 gaveUp: revealed && !solved,
                                 guessCount: guesses.filter(\.known).count)
         return DuelCode.encode(result)
+    }
+
+    // MARK: - Tutorial (3.6)
+    //
+    // The hands-on tutorial level. Steps, notes and animals are defined in
+    // Game/Tutorial.swift; the coaching UI is Views/TutorialCoach.swift. The
+    // logic lives here because it reacts to the round's private state.
+    //
+    // Sandbox rules, enforced where each side effect happens: `markSolved`
+    // returns before rewards, `recordRound` skips it, `saveDailyState` only
+    // saves `.daily`, `revealHint` spends nothing, and the weekly tally,
+    // coaching tips and Wick's offer cards all stand down in `.tutorial`.
+
+    /// The step the player is on. Meaningless outside `.tutorial`.
+    private(set) var tutorialStep: TutorialStep = .firstGuess
+    /// What just happened, so Wick can react before restating the goal.
+    private(set) var tutorialNote: TutorialNote = .none
+    /// Tries at the current step that didn't complete it. In the solve step it
+    /// drives the escalating clues (animal, then letters).
+    private(set) var tutorialMisses = 0
+    /// Bumped on every step change; the coach plays its level-up beat on it.
+    private(set) var tutorialBeat = 0
+    /// Bumped for a big on-screen cheer; `tutorialCheerKind` says which.
+    private(set) var tutorialCheerID = 0
+    private(set) var tutorialCheerKind: TutorialCheer = .warmer
+    /// Animals used this run, so a bonus animal is never a repeat.
+    private var tutorialUsed: Set<String> = []
+    /// The first guess's heat word, frozen when step 2 starts, so Wick's line
+    /// doesn't change mid-sentence when the rank list finishes building.
+    private var tutorialFirstHeat = ""
+
+    /// Start (or restart) the tutorial. `animal` keeps the same animal (a
+    /// language switch); nil picks a random one of the ten.
+    func startTutorial(animal: DailyWord? = nil, track: Bool = true) {
+        let pick = animal ?? TutorialAnimals.random()
+        currentPair = pick
+        mode = .tutorial
+        target = pick.word(for: language)
+        targetTier = pick.tier
+        puzzleNumber = 0
+        practicePoolIndex = -1
+        resetRound()
+        tutorialStep = .firstGuess
+        tutorialNote = .none
+        tutorialMisses = 0
+        tutorialUsed = [pick.en]
+        tutorialBeat &+= 1
+        onHomeScreen = false
+        if track { Events.track(.tutorialStart) }
+    }
+
+    /// The Skip button (any step). Marks the tutorial done and lands on Home
+    /// with today's board restored.
+    func skipTutorial() {
+        guard mode == .tutorial else { return }
+        if tutorialStep != .done {
+            // `n` carries the step they left on (1...5), to see where kids drop off.
+            Events.track(.tutorialSkip, n: tutorialStep.rawValue)
+        }
+        markTutorialDone()
+        startDaily()
+        onHomeScreen = true
+    }
+
+    /// "Play today's puzzle" on the finished tutorial.
+    func leaveTutorialForDaily() {
+        markTutorialDone()
+        playDaily()
+    }
+
+    /// "Is it alive?" in the play language: the question step 3 offers to type.
+    var tutorialQuestion: String {
+        let item = StarterQuestions.categories.flatMap(\.items).first { $0.key == .alive }
+        return item.map { StarterQuestions.localizedFull($0, language) } ?? "Is it alive?"
+    }
+
+    /// Letters of the answer handed out in the solve step after many misses:
+    /// one after 6 misses, one more every 3 after that, never the whole word.
+    var tutorialLetters: Int {
+        guard tutorialStep == .solve, tutorialMisses >= 6 else { return 0 }
+        return min(1 + (tutorialMisses - 6) / 3, max(1, target.count - 1))
+    }
+
+    /// What Wick says right now. Short on purpose: a reaction, then the goal.
+    var tutorialLine: String {
+        let L = loc
+        switch tutorialStep {
+        case .firstGuess:
+            switch tutorialNote {
+            case .notAWord: return L.tutNotAWord
+            case .lucky:    return L.tutLucky + " " + L.tutGuessAny
+            default:        return L.tutGuessAny
+            }
+        case .warmer:
+            switch tutorialNote {
+            case .notAWord: return L.tutNotAWord
+            case .colder:   return L.tutColder
+            default:        return L.tutHeat(tutorialFirstHeat)
+            }
+        case .ask:
+            switch tutorialNote {
+            case .warmer:     return L.tutWarmer + " " + L.tutAsk
+            case .askInstead: return L.tutAskInstead
+            case .notAWord:   return L.tutNotAWord + " " + L.tutAsk
+            case .lucky:      return L.tutLucky + " " + L.tutAsk
+            default:          return L.tutAsk
+            }
+        case .hint:
+            switch tutorialNote {
+            case .answered(let verdict): return L.tutAnswered(displayVerdict(verdict)) + " " + L.tutHint
+            case .hintInstead:           return L.tutHintInstead
+            case .notAWord:              return L.tutNotAWord + " " + L.tutHint
+            case .lucky:                 return L.tutLucky + " " + L.tutHint
+            default:                     return L.tutHint
+            }
+        case .solve:
+            if tutorialLetters > 0 {
+                return L.spellHint(String(target.prefix(tutorialLetters)).uppercased())
+            }
+            if tutorialMisses >= 3 { return L.tutItsAnAnimal }
+            switch tutorialNote {
+            case .hintLanded: return L.tutHintLanded
+            case .alreadyHot: return L.tutAlreadyHot
+            case .warmer:     return L.tutWarmer
+            case .colder:     return L.tutColder
+            case .notAWord:   return L.tutNotAWord
+            default:          return L.tutFindIt
+            }
+        case .done:
+            return L.tutDoneTitle
+        }
+    }
+
+    /// The latest guess's heat word ("Freezing" ... "Boiling"), localized.
+    var tutorialHeatName: String {
+        guard let last = lastSubmitted, last.known else { return loc.heat("Cold") }
+        let r = rank(forScore: last.score)
+        return r > 0 ? loc.heat(HunchTheme.rankLabel(r)) : loc.heat(HunchTheme.label(for: last.score))
+    }
+
+    private func advanceTutorial(to step: TutorialStep, note: TutorialNote) {
+        tutorialStep = step
+        tutorialNote = note
+        tutorialMisses = 0
+        tutorialBeat &+= 1
+        Feedback.play(.levelUp)
+    }
+
+    private func cheerTutorial(_ kind: TutorialCheer) {
+        tutorialCheerKind = kind
+        tutorialCheerID &+= 1
+    }
+
+    /// A scored guess the player typed (never a hint's word).
+    private func tutorialGuessed(isNewBest: Bool) {
+        switch tutorialStep {
+        case .firstGuess:
+            tutorialFirstHeat = tutorialHeatName
+            advanceTutorial(to: .warmer, note: .none)
+        case .warmer:
+            if isNewBest {
+                cheerTutorial(.warmer)
+                advanceTutorial(to: .ask, note: .warmer)
+            } else {
+                tutorialMisses += 1
+                // Never a dead end: three misses and the lesson moves on.
+                if tutorialMisses >= 3 {
+                    advanceTutorial(to: .ask, note: .movedOn)
+                } else {
+                    tutorialNote = .colder
+                }
+            }
+        case .ask:
+            tutorialNote = .askInstead
+        case .hint:
+            tutorialNote = .hintInstead
+        case .solve:
+            tutorialNote = isNewBest ? .warmer : .colder
+            tutorialMisses += 1
+        case .done:
+            break
+        }
+    }
+
+    /// Wick answered a question. Only step 3 is waiting for one; later
+    /// questions are just play.
+    private func tutorialAnswered(_ verdict: String) {
+        if tutorialStep == .ask {
+            advanceTutorial(to: .hint, note: .answered(verdict))
+        } else if tutorialStep == .solve {
+            tutorialNote = .none
+        }
+    }
+
+    /// A hint word landed.
+    private func tutorialHinted() {
+        if tutorialStep == .hint {
+            advanceTutorial(to: .solve, note: .hintLanded)
+        }
+    }
+
+    /// The hint had nothing to give (already in the top 20, or no closer word
+    /// left). In step 4 that still counts: the button was found and tapped.
+    private func tutorialHintNotNeeded() {
+        if tutorialStep == .hint {
+            advanceTutorial(to: .solve, note: .alreadyHot)
+        } else {
+            transientMessage = loc.topTakeIt(Self.minHintRank)
+        }
+    }
+
+    /// Found the animal before step 5. Cheer, then a bonus animal carries on
+    /// from the same step, so the remaining lessons still happen.
+    private func tutorialLuckySolve() {
+        Feedback.play(.solved)
+        cheerTutorial(.lucky)
+        let next = TutorialAnimals.random(excluding: tutorialUsed)
+        tutorialUsed.insert(next.en)
+        currentPair = next
+        target = next.word(for: language)
+        targetTier = next.tier
+        resetRound()
+        // "Warmer" needs a first guess to beat, so step 2 starts over at 1.
+        if tutorialStep == .warmer { tutorialStep = .firstGuess }
+        tutorialNote = .lucky
+        tutorialMisses = 0
+        tutorialBeat &+= 1
+    }
+
+    /// Solved in step 5: the tutorial is complete. Called from `markSolved`
+    /// before anything is recorded or rewarded.
+    private func finishTutorialBySolving() {
+        tutorialStep = .done
+        tutorialNote = .none
+        tutorialBeat &+= 1
+        cheerTutorial(.solved)
+        markTutorialDone()
+        Events.track(.tutorialDone, g: guessCount)
+    }
+
+    private func markTutorialDone() {
+        TutorialFlags.done = true
+        // The pre-3.6 flag too, so nothing old ever shows the sheet again.
+        UserDefaults.standard.set(true, forKey: TutorialFlags.legacySeenHowToKey)
     }
 
     /// A player who wanders off mid-round shouldn't produce a ghost that stands
@@ -957,6 +1211,12 @@ final class GameViewModel {
         // Solve on any reading of the typed word — "windmills" solves
         // "windmill", "häuser" solves "haus" — not just the canonical form.
         if word == target || engine.matchesTarget(typed, target: target) {
+            // Tutorial: found it before step 5. Celebrate, then a bonus animal
+            // carries on from the same step, so the lessons still happen.
+            if mode == .tutorial, tutorialStep < .solve, !submittingHint {
+                tutorialLuckySolve()
+                return
+            }
             let g = Guess(word: target, score: 100, known: true, order: guesses.count + 1,
                           seq: guesses.count + questions.count, at: stampNow())
             guesses.insert(g, at: 0)
@@ -990,15 +1250,17 @@ final class GameViewModel {
 
             // 3.6 weekly Stats: only a guess that reads Cool or colder leaves
             // the phone, so the shared list never hints at the answer.
-            if !submittingHint, WordTallyRules.shouldSendGuess(rank: rank(forScore: s)) {
+            if !submittingHint, mode != .tutorial, WordTallyRules.shouldSendGuess(rank: rank(forScore: s)) {
                 WordTally.guess(word, language: language)
             }
 
             if normalized { transientMessage = loc.normalizedTo(typed, word) }
             Feedback.play(isNewBest ? .newClosest(closeness: s) : .guessScored(closeness: s))
             saveDailyState()
+            if mode == .tutorial, !submittingHint { tutorialGuessed(isNewBest: isNewBest) }
         } else {
             lastSubmitted = Guess(word: typed, score: 0, known: false, order: guesses.count + 1, seq: nil)
+            if mode == .tutorial { tutorialNote = .notAWord }
             if let suggestion = engine.spellingSuggestion(for: typed) {
                 transientMessage = loc.didYouMean(typed, suggestion)
             } else {
@@ -1079,7 +1341,7 @@ final class GameViewModel {
     /// on lifetime rounds, not on the current round, so a returning player never
     /// sees it again.
     var coachTip: String? {
-        guard isLearningTheGame, !solved, !revealed, let last = lastSubmitted else { return nil }
+        guard isLearningTheGame, mode != .tutorial, !solved, !revealed, let last = lastSubmitted else { return nil }
 
         // Not a real word to the engine. The toast says "not in my vocabulary";
         // this says what to do about it.
@@ -1102,7 +1364,7 @@ final class GameViewModel {
     }
 
     var keeperNudge: String? {
-        guard !solved, !revealed, lastSubmitted?.known == true,
+        guard !solved, !revealed, mode != .tutorial, lastSubmitted?.known == true,
               let traj = trajectory else { return nil }
         let best = rank(forScore: bestScore)
 
@@ -1126,6 +1388,11 @@ final class GameViewModel {
         solved = true
         Feedback.play(.solved)
         if guesses.count == 1 { wickEggFlicker &+= 1 }   // first-guess solve — Wick pops with delight
+        // The tutorial ends here, before anything is recorded or rewarded.
+        if mode == .tutorial {
+            finishTutorialBySolving()
+            return
+        }
         recordRound(solved: true)
 
         // Archive replays are for completion only — no coins, streak, stats,
@@ -1214,6 +1481,12 @@ final class GameViewModel {
         unlocked          = Set(d.stringArray(forKey: "hunch.achievements") ?? [])
         wardrobe.reloadFromDefaults()
         refreshReminders()
+        // 3.6: a returning player on a new phone can land in the tutorial
+        // before their progress arrives. If they haven't started it, let them go.
+        if mode == .tutorial, tutorialStep == .firstGuess, guesses.isEmpty, questions.isEmpty, solves > 0 {
+            startDaily()
+            onHomeScreen = true
+        }
     }
 
     // MARK: - Reminders
@@ -1321,7 +1594,7 @@ final class GameViewModel {
 
     /// Give up: reveal the word and end the round (no reward, streak untouched).
     func giveUp() {
-        guard !solved, !revealed else { return }
+        guard !solved, !revealed, mode != .tutorial else { return }
         revealed = true
         Feedback.play(.gaveUp)
         recordRound(solved: false)
@@ -1377,6 +1650,10 @@ final class GameViewModel {
         case .duel:
             // Duels aren't logged to history/stats/archive.
             return
+        case .tutorial:
+            // The tutorial is a sandbox. Logging it would also count as one of
+            // the two "learning" rounds and switch the coaching off too soon.
+            return
         }
         if mode == .daily {
             Events.track(solved ? .dailySolve : .dailyGiveup, n: puzzleNumber, g: guesses.count)
@@ -1421,7 +1698,10 @@ final class GameViewModel {
             return
         }
 
-        let useFree = freeHintsLeft > 0
+        // The tutorial's hint is always free and never counts against the
+        // day's free hints or the coin balance.
+        let tutorial = mode == .tutorial
+        let useFree = tutorial || freeHintsLeft > 0
         guard useFree || coins >= Self.hintCoinCost else {
             transientMessage = loc.hintsCost(Self.hintCoinCost)
             return
@@ -1436,6 +1716,7 @@ final class GameViewModel {
 
         // Already close — a hint would just give the answer away.
         if bestRank <= Self.minHintRank {
+            if tutorial { tutorialHintNotNeeded(); return }
             transientMessage = loc.topTakeIt(Self.minHintRank)
             return
         }
@@ -1490,6 +1771,7 @@ final class GameViewModel {
         let preferred = candidates(skipExistingRanks: true)
         let available = preferred.isEmpty ? candidates(skipExistingRanks: false) : preferred
         guard !available.isEmpty else {
+            if tutorial { tutorialHintNotNeeded(); return }
             transientMessage = loc.noCloserHint
             return
         }
@@ -1506,7 +1788,9 @@ final class GameViewModel {
             pick = available.max(by: { $0.rank < $1.rank })!
         }
 
-        if useFree {
+        if tutorial {
+            Feedback.play(.selection)
+        } else if useFree {
             let today = WordBank.dayIndex()
             if freeHintDay != today { freeHintDay = today; freeHintsUsedToday = 0 }
             freeHintsUsedToday += 1
@@ -1522,6 +1806,7 @@ final class GameViewModel {
         submittingHint = false
         transientMessage = loc.hintLands(pick.word, pick.rank)
         saveDailyState()
+        if tutorial { tutorialHinted() }
     }
 
     // MARK: - Coins shop
@@ -1667,7 +1952,7 @@ final class GameViewModel {
     /// The routine case still exists so someone who never gets stuck eventually
     /// learns that questions are a thing.
     var questionNudge: QuestionNudge? {
-        guard !solved, !revealed, !isAsking,
+        guard !solved, !revealed, !isAsking, mode != .tutorial,
               offeredStarter != nil,
               guessCount >= nudgeSnoozeUntilGuess else { return nil }
         // Closing in — get out of the way. Ranks may not be built yet on a
@@ -1723,6 +2008,7 @@ final class GameViewModel {
             Haptics.selection()
             quietQuestionNudge()
             saveDailyState()
+            if mode == .tutorial { tutorialAnswered(verdict) }
             return
         }
 
@@ -1736,6 +2022,15 @@ final class GameViewModel {
     func ask(_ raw: String, typed: Bool = true) async {
         let q = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !q.isEmpty, !solved, !revealed, !isAsking else { return }
+        // Tutorial: Wick's own "Is it alive?" gets the sure answer from the
+        // animal's tags (always Yes), never a model's guess.
+        if mode == .tutorial, typed,
+           let item = StarterQuestions.categories.flatMap(\.items).first(where: { $0.key == .alive }),
+           q.lowercased() == StarterQuestions.localizedFull(item, language).lowercased(),
+           WordAttributes.category(for: target, language: language) != nil {
+            await askStarter(item)
+            return
+        }
 
         failedQuestion = nil   // new attempt — clear any prior failure
         failedQuestionTyped = typed
@@ -1754,8 +2049,9 @@ final class GameViewModel {
                                            seq: guesses.count + questions.count, at: stampNow()), at: 0)
             quietQuestionNudge()
             saveDailyState()
+            if mode == .tutorial { tutorialAnswered(verdict) }
             // 3.6 weekly Stats: a typed question, unless it names the answer.
-            if typed, !WordTallyRules.namesAnswer(q, answers: [target, DailyWords.english(of: target, in: language)]) {
+            if typed, mode != .tutorial, !WordTallyRules.namesAnswer(q, answers: [target, DailyWords.english(of: target, in: language)]) {
                 WordTally.question(q, language: language)
             }
         case .unavailable(let reason):
@@ -1801,6 +2097,7 @@ final class GameViewModel {
         case .practice: return "Wick\(flag) · \(loc.practice)\(outfitEmoji)"
         case .archive:  return "Wick #\(puzzleNumber)\(flag)\(outfitEmoji)"
         case .duel:     return "Wick\(flag) · \(loc.duel)\(outfitEmoji)"
+        case .tutorial: return "Wick"
         }
     }
 

@@ -16,7 +16,9 @@ export type WickEvent =
   | "daily_start" | "daily_solve" | "daily_giveup"
   | "share_grid" | "share_map" | "reveal_view"
   | "duel_open" | "practice_start"
-  | "race_link_created" | "race_link_opened" | "race_finished";
+  | "race_link_created" | "race_link_opened" | "race_finished"
+  // 3.6 tutorial funnel. Skip sends the step it was skipped on (1 to 4) as `n`.
+  | "tutorial_start" | "tutorial_done" | "tutorial_skip";
 
 interface EventBody {
   e: WickEvent;

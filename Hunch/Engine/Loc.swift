@@ -403,18 +403,47 @@ struct Loc {
     var setPlayInHintOff: String { s("setPlayInHintOff") }
     func raceTheirWord(_ word: String, _ language: String) -> String { f("raceTheirWord", word, language) }
 
-    // MARK: - How to play
-    var meetKeeper: String { s("meetKeeper") }
-    var meetKeeperSub: String { s("meetKeeperSub") }
+    // MARK: - How to play (3.6: a glance, plus the tutorial button)
     var letsPlay: String { s("letsPlay") }
-    var howStep1Title: String { s("howStep1Title") }
-    var howStep1Detail: String { s("howStep1Detail") }
-    var howStep2Title: String { s("howStep2Title") }
-    var howStep2Detail: String { s("howStep2Detail") }
-    var howStep3Title: String { s("howStep3Title") }
-    var howStep3Detail: String { s("howStep3Detail") }
-    var howStep4Title: String { s("howStep4Title") }
-    var howStep4Detail: String { s("howStep4Detail") }
+    var howGuessLine: String { s("howGuessLine") }
+    var howAskLine: String { s("howAskLine") }
+    var howHintLine: String { s("howHintLine") }
+    var howDailyLine: String { s("howDailyLine") }
+
+    // MARK: - Tutorial level (3.6)
+    var tutTitle: String { s("tutTitle") }
+    var tutSkip: String { s("tutSkip") }
+    var tutGuessAny: String { s("tutGuessAny") }
+    var tutNotAWord: String { s("tutNotAWord") }
+    func tutHeat(_ heat: String) -> String { f("tutHeat", heat) }
+    var tutColder: String { s("tutColder") }
+    var tutWarmer: String { s("tutWarmer") }
+    var tutAsk: String { s("tutAsk") }
+    var tutAskInstead: String { s("tutAskInstead") }
+    func tutAnswered(_ verdict: String) -> String { f("tutAnswered", verdict) }
+    var tutHint: String { s("tutHint") }
+    var tutHintInstead: String { s("tutHintInstead") }
+    var tutHintLanded: String { s("tutHintLanded") }
+    var tutFindIt: String { s("tutFindIt") }
+    var tutItsAnAnimal: String { s("tutItsAnAnimal") }
+    var tutAlreadyHot: String { s("tutAlreadyHot") }
+    var tutLucky: String { s("tutLucky") }
+    var tutDoneTitle: String { s("tutDoneTitle") }
+    func tutDoneWord(_ word: String) -> String { f("tutDoneWord", word) }
+    var tutDoneHeadline: String { s("tutDoneHeadline") }
+    var tutPlayDaily: String { s("tutPlayDaily") }
+    var tutFreeHint: String { s("tutFreeHint") }
+    var tutCheerWarmer: String { s("tutCheerWarmer") }
+    var tutCheerLucky: String { s("tutCheerLucky") }
+    var tutCheerSolved: String { s("tutCheerSolved") }
+    var tutBadgeGuess: String { s("tutBadgeGuess") }
+    var tutBadgeWarmer: String { s("tutBadgeWarmer") }
+    var tutBadgeAsk: String { s("tutBadgeAsk") }
+    var tutBadgeHint: String { s("tutBadgeHint") }
+    var tutBadgeSolve: String { s("tutBadgeSolve") }
+    func tutStepOf(_ step: Int, _ total: Int) -> String { f("tutStepOf", step, total) }
+    var tutPlayTutorial: String { s("tutPlayTutorial") }
+    var tutPlayTutorialSub: String { s("tutPlayTutorialSub") }
 
     // MARK: - Shop
     var getCoins: String { s("getCoins") }
@@ -839,17 +868,44 @@ struct Loc {
         "setPlayInHintOn": "The word, your guesses and Wick are all in this language. Turn it off to play in English with meanings shown.",
         "setPlayInHintOff": "Menus and word meanings only. The word, your guesses and Wick stay in English, so you can learn English as you play. Turn it on to play the round in this language.",
         // How to play
-        "meetKeeper": "Meet the Keeper",
-        "meetKeeperSub": "It guards the secret word — and warms up as you get close.",
         "letsPlay": "Let's play",
-        "howStep1Title": "Guess by meaning",
-        "howStep1Detail": "There's one secret word. Type any word and you'll see how close it is — by meaning, not spelling.",
-        "howStep2Title": "Hot or cold",
-        "howStep2Detail": "Closer guesses score higher and turn red-hot. Far-off ones stay icy blue. The screen warms up as you close in.",
-        "howStep3Title": "Ask Wick",
-        "howStep3Detail": "Stuck? Ask Wick yes/no questions like “Is it alive?” — it works on every iPhone, answers truthfully, and never reveals the word.",
-        "howStep4Title": "A new word daily",
-        "howStep4Detail": "Everyone gets the same word each day. Solve it, build a streak, and share your result.",
+        "tutTitle": "Tutorial",
+        "tutSkip": "Skip",
+        "tutGuessAny": "I'm hiding a secret word. Type any word and send it!",
+        "tutNotAWord": "I don't know that word. Try a real one!",
+        "tutHeat": "%@! That's how close you are. Blue is far, red is super close. Now try a warmer word!",
+        "tutColder": "Colder! Try a word with a totally different meaning.",
+        "tutWarmer": "Warmer! You're getting closer.",
+        "tutAsk": "Now my secret move: ask me a yes or no question!",
+        "tutAskInstead": "Good try! But now ask me a question. Tap the bubble!",
+        "tutAnswered": "I said %@!",
+        "tutHint": "Ask me stuff like that as much as you want. Now tap Free hint!",
+        "tutHintInstead": "Nice! Now tap the Free hint button to get a clue word.",
+        "tutHintLanded": "That clue is closer to the secret word! Now find it. Guess or ask!",
+        "tutFindIt": "Now find the secret word! Guess words or ask me questions.",
+        "tutItsAnAnimal": "Psst... it's an animal!",
+        "tutAlreadyHot": "You're already super close, no hint needed! Now find the secret word.",
+        "tutLucky": "Whoa, you found it already! Here's a new secret word.",
+        "tutDoneTitle": "You did it!",
+        "tutDoneWord": "The secret word was %@.",
+        "tutDoneHeadline": "Race against others to reveal the Secret Word!",
+        "tutPlayDaily": "Play today's puzzle",
+        "tutFreeHint": "Free hint",
+        "tutCheerWarmer": "Warmer!",
+        "tutCheerLucky": "Lucky!",
+        "tutCheerSolved": "You got it!",
+        "tutBadgeGuess": "Guess",
+        "tutBadgeWarmer": "Warmer",
+        "tutBadgeAsk": "Ask",
+        "tutBadgeHint": "Hint",
+        "tutBadgeSolve": "Solve",
+        "tutStepOf": "Step %d of %d",
+        "tutPlayTutorial": "Play the tutorial",
+        "tutPlayTutorialSub": "Learn by playing. About a minute.",
+        "howGuessLine": "Guess any word. Get warmer.",
+        "howAskLine": "Ask me yes or no questions.",
+        "howHintLine": "Stuck? A hint gives you a closer word.",
+        "howDailyLine": "A new word every day. Race everyone to solve it!",
         // Shop
         "getCoins": "Get coins",
         "yourBalance": "Your balance",
@@ -1210,17 +1266,44 @@ struct Loc {
         "setPlayInHintOn": "La palabra, tus intentos y Wick están en este idioma. Desactívalo para jugar en inglés con los significados a la vista.",
         "setPlayInHintOff": "Solo menús y significados. La palabra, tus intentos y Wick siguen en inglés, para que aprendas inglés mientras juegas. Actívalo para jugar la ronda en este idioma.",
         // How to play
-        "meetKeeper": "Conoce al Guardián",
-        "meetKeeperSub": "Custodia la palabra secreta y se calienta a medida que te acercas.",
         "letsPlay": "¡A jugar!",
-        "howStep1Title": "Adivina por significado",
-        "howStep1Detail": "Hay una palabra secreta. Escribe cualquier palabra y verás qué tan cerca está —por significado, no por ortografía.",
-        "howStep2Title": "Caliente o frío",
-        "howStep2Detail": "Los intentos más cercanos puntúan más alto y se vuelven al rojo vivo. Los lejanos quedan azul helado. La pantalla se calienta a medida que te acercas.",
-        "howStep3Title": "Pregunta a Wick",
-        "howStep3Detail": "¿Atascado? Hazle a Wick preguntas de sí/no como «¿Está vivo?» —funciona en todos los iPhone, responde con la verdad y nunca revela la palabra.",
-        "howStep4Title": "Una palabra nueva cada día",
-        "howStep4Detail": "Todos reciben la misma palabra cada día. Resuélvela, crea una racha y comparte tu resultado.",
+        "tutTitle": "Tutorial",
+        "tutSkip": "Saltar",
+        "tutGuessAny": "Escondo una palabra secreta. ¡Escribe cualquier palabra y envíala!",
+        "tutNotAWord": "No conozco esa palabra. ¡Prueba con una de verdad!",
+        "tutHeat": "¡%@! Así de cerca estás. Azul es lejos, rojo es muy cerca. ¡Ahora prueba una palabra más caliente!",
+        "tutColder": "¡Más frío! Prueba una palabra con un significado muy distinto.",
+        "tutWarmer": "¡Más caliente! Te estás acercando.",
+        "tutAsk": "Ahora mi truco secreto: ¡hazme una pregunta de sí o no!",
+        "tutAskInstead": "¡Buen intento! Pero ahora hazme una pregunta. ¡Toca la burbuja!",
+        "tutAnswered": "¡Dije %@!",
+        "tutHint": "Pregúntame cosas así todas las veces que quieras. ¡Ahora toca Pista gratis!",
+        "tutHintInstead": "¡Bien! Ahora toca el botón Pista gratis para recibir una palabra pista.",
+        "tutHintLanded": "¡Esa pista está más cerca de la palabra secreta! Ahora encuéntrala. ¡Adivina o pregunta!",
+        "tutFindIt": "¡Ahora encuentra la palabra secreta! Adivina palabras o hazme preguntas.",
+        "tutItsAnAnimal": "Psst... ¡es un animal!",
+        "tutAlreadyHot": "¡Ya estás muy cerca, no hace falta pista! Ahora encuentra la palabra secreta.",
+        "tutLucky": "¡Guau, ya la encontraste! Aquí tienes una nueva palabra secreta.",
+        "tutDoneTitle": "¡Lo lograste!",
+        "tutDoneWord": "La palabra secreta era %@.",
+        "tutDoneHeadline": "¡Compite contra otros para revelar la Palabra Secreta!",
+        "tutPlayDaily": "Jugar el puzzle de hoy",
+        "tutFreeHint": "Pista gratis",
+        "tutCheerWarmer": "¡Más caliente!",
+        "tutCheerLucky": "¡Qué suerte!",
+        "tutCheerSolved": "¡La tienes!",
+        "tutBadgeGuess": "Adivina",
+        "tutBadgeWarmer": "Caliente",
+        "tutBadgeAsk": "Pregunta",
+        "tutBadgeHint": "Pista",
+        "tutBadgeSolve": "Resuelve",
+        "tutStepOf": "Paso %d de %d",
+        "tutPlayTutorial": "Jugar el tutorial",
+        "tutPlayTutorialSub": "Aprende jugando. Más o menos un minuto.",
+        "howGuessLine": "Adivina palabras. Busca el calor.",
+        "howAskLine": "Hazme preguntas de sí o no.",
+        "howHintLine": "¿Atascado? Una pista te da una palabra más cercana.",
+        "howDailyLine": "Una palabra nueva cada día. ¡Compite con todos para resolverla!",
         // Shop
         "getCoins": "Conseguir monedas",
         "yourBalance": "Tu saldo",
@@ -1583,17 +1666,44 @@ struct Loc {
         "setPlayInHintOn": "Le mot, tes essais et Wick sont dans cette langue. Désactive pour jouer en anglais avec les sens affichés.",
         "setPlayInHintOff": "Menus et sens des mots seulement. Le mot, tes essais et Wick restent en anglais, pour apprendre l'anglais en jouant. Active pour jouer la manche dans cette langue.",
         // How to play
-        "meetKeeper": "Voici le Gardien",
-        "meetKeeperSub": "Il garde le mot secret — et se réchauffe quand tu approches.",
         "letsPlay": "C'est parti !",
-        "howStep1Title": "Devine par le sens",
-        "howStep1Detail": "Il y a un mot secret. Écris n'importe quel mot et tu verras à quel point il est proche — par le sens, pas l'orthographe.",
-        "howStep2Title": "Chaud ou froid",
-        "howStep2Detail": "Les essais proches marquent plus et virent au rouge brûlant. Les lointains restent bleu glacé. L'écran se réchauffe quand tu approches.",
-        "howStep3Title": "Demande à Wick",
-        "howStep3Detail": "Bloqué ? Pose à Wick des questions oui/non comme « Est-ce vivant ? » — ça marche sur tous les iPhone, il répond honnêtement et ne révèle jamais le mot.",
-        "howStep4Title": "Un mot nouveau chaque jour",
-        "howStep4Detail": "Tout le monde reçoit le même mot chaque jour. Trouve-le, bâtis une série et partage ton résultat.",
+        "tutTitle": "Tutoriel",
+        "tutSkip": "Passer",
+        "tutGuessAny": "Je cache un mot secret. Tape n'importe quel mot et envoie-le !",
+        "tutNotAWord": "Je ne connais pas ce mot. Essaie un vrai mot !",
+        "tutHeat": "%@ ! Voilà à quel point tu es proche. Bleu, c'est loin. Rouge, c'est tout près. Maintenant, essaie un mot plus chaud !",
+        "tutColder": "Plus froid ! Essaie un mot au sens très différent.",
+        "tutWarmer": "Plus chaud ! Tu te rapproches.",
+        "tutAsk": "Maintenant, mon coup secret : pose-moi une question par oui ou non !",
+        "tutAskInstead": "Bien tenté ! Mais maintenant, pose-moi une question. Touche la bulle !",
+        "tutAnswered": "J'ai dit %@ !",
+        "tutHint": "Pose-moi ce genre de question autant que tu veux. Maintenant, touche Indice gratuit !",
+        "tutHintInstead": "Bien ! Maintenant, touche le bouton Indice gratuit pour avoir un mot indice.",
+        "tutHintLanded": "Cet indice est plus proche du mot secret ! Maintenant, trouve-le. Devine ou demande !",
+        "tutFindIt": "Maintenant, trouve le mot secret ! Devine des mots ou pose-moi des questions.",
+        "tutItsAnAnimal": "Psst... c'est un animal !",
+        "tutAlreadyHot": "Tu es déjà tout près, pas besoin d'indice ! Maintenant, trouve le mot secret.",
+        "tutLucky": "Waouh, tu l'as déjà trouvé ! Voici un nouveau mot secret.",
+        "tutDoneTitle": "Tu as réussi !",
+        "tutDoneWord": "Le mot secret était %@.",
+        "tutDoneHeadline": "Fais la course contre les autres pour révéler le Mot Secret !",
+        "tutPlayDaily": "Jouer l'énigme du jour",
+        "tutFreeHint": "Indice gratuit",
+        "tutCheerWarmer": "Plus chaud !",
+        "tutCheerLucky": "Quelle chance !",
+        "tutCheerSolved": "Trouvé !",
+        "tutBadgeGuess": "Deviner",
+        "tutBadgeWarmer": "Chaud",
+        "tutBadgeAsk": "Demander",
+        "tutBadgeHint": "Indice",
+        "tutBadgeSolve": "Trouver",
+        "tutStepOf": "Étape %d sur %d",
+        "tutPlayTutorial": "Jouer le tutoriel",
+        "tutPlayTutorialSub": "Apprends en jouant. Environ une minute.",
+        "howGuessLine": "Devine des mots. Cherche la chaleur.",
+        "howAskLine": "Pose-moi des questions par oui ou non.",
+        "howHintLine": "Bloqué ? Un indice te donne un mot plus proche.",
+        "howDailyLine": "Un nouveau mot chaque jour. Fais la course pour le trouver !",
         // Shop
         "getCoins": "Obtenir des pièces",
         "yourBalance": "Ton solde",
@@ -1956,17 +2066,44 @@ struct Loc {
         "setPlayInHintOn": "La parola, i tuoi tentativi e Wick sono in questa lingua. Disattiva per giocare in inglese con i significati visibili.",
         "setPlayInHintOff": "Solo menu e significati. La parola, i tuoi tentativi e Wick restano in inglese, così impari l'inglese giocando. Attiva per giocare il round in questa lingua.",
         // How to play
-        "meetKeeper": "Ecco il Custode",
-        "meetKeeperSub": "Custodisce la parola segreta — e si scalda quando ti avvicini.",
         "letsPlay": "Giochiamo!",
-        "howStep1Title": "Indovina per significato",
-        "howStep1Detail": "C'è una parola segreta. Scrivi una parola qualsiasi e vedrai quanto è vicina — per significato, non per ortografia.",
-        "howStep2Title": "Caldo o freddo",
-        "howStep2Detail": "I tentativi più vicini valgono di più e diventano rosso fuoco. Quelli lontani restano blu ghiaccio. Lo schermo si scalda mentre ti avvicini.",
-        "howStep3Title": "Chiedi a Wick",
-        "howStep3Detail": "Bloccato? Fai a Wick domande sì/no come «È vivo?» — funziona su ogni iPhone, risponde sinceramente e non rivela mai la parola.",
-        "howStep4Title": "Una parola nuova ogni giorno",
-        "howStep4Detail": "Tutti ricevono la stessa parola ogni giorno. Risolvila, costruisci una serie e condividi il risultato.",
+        "tutTitle": "Tutorial",
+        "tutSkip": "Salta",
+        "tutGuessAny": "Nascondo una parola segreta. Scrivi una parola qualsiasi e inviala!",
+        "tutNotAWord": "Non conosco questa parola. Provane una vera!",
+        "tutHeat": "%@! Ecco quanto sei vicino. Blu è lontano, rosso è vicinissimo. Ora prova una parola più calda!",
+        "tutColder": "Più freddo! Prova una parola dal significato molto diverso.",
+        "tutWarmer": "Più caldo! Ti stai avvicinando.",
+        "tutAsk": "Ora la mia mossa segreta: fammi una domanda da sì o no!",
+        "tutAskInstead": "Bel tentativo! Ma ora fammi una domanda. Tocca la nuvoletta!",
+        "tutAnswered": "Ho detto %@!",
+        "tutHint": "Chiedimi cose così tutte le volte che vuoi. Ora tocca Indizio gratis!",
+        "tutHintInstead": "Bene! Ora tocca il pulsante Indizio gratis per avere una parola indizio.",
+        "tutHintLanded": "Quell'indizio è più vicino alla parola segreta! Ora trovala. Indovina o chiedi!",
+        "tutFindIt": "Ora trova la parola segreta! Indovina parole o fammi domande.",
+        "tutItsAnAnimal": "Psst... è un animale!",
+        "tutAlreadyHot": "Sei già vicinissimo, niente indizio! Ora trova la parola segreta.",
+        "tutLucky": "Wow, l'hai già trovata! Ecco una nuova parola segreta.",
+        "tutDoneTitle": "Ce l'hai fatta!",
+        "tutDoneWord": "La parola segreta era %@.",
+        "tutDoneHeadline": "Sfida gli altri a svelare la Parola Segreta!",
+        "tutPlayDaily": "Gioca il puzzle di oggi",
+        "tutFreeHint": "Indizio gratis",
+        "tutCheerWarmer": "Più caldo!",
+        "tutCheerLucky": "Che fortuna!",
+        "tutCheerSolved": "Trovata!",
+        "tutBadgeGuess": "Indovina",
+        "tutBadgeWarmer": "Caldo",
+        "tutBadgeAsk": "Chiedi",
+        "tutBadgeHint": "Indizio",
+        "tutBadgeSolve": "Risolvi",
+        "tutStepOf": "Passo %d di %d",
+        "tutPlayTutorial": "Gioca il tutorial",
+        "tutPlayTutorialSub": "Impara giocando. Circa un minuto.",
+        "howGuessLine": "Indovina parole. Cerca il caldo.",
+        "howAskLine": "Fammi domande da sì o no.",
+        "howHintLine": "Bloccato? Un indizio ti dà una parola più vicina.",
+        "howDailyLine": "Una parola nuova ogni giorno. Sfida tutti a risolverla!",
         // Shop
         "getCoins": "Ottieni monete",
         "yourBalance": "Il tuo saldo",
@@ -2328,17 +2465,44 @@ struct Loc {
         "setPlayInHintOn": "Das Wort, deine Versuche und Wick sind in dieser Sprache. Ausschalten, um auf Englisch mit Bedeutungen zu spielen.",
         "setPlayInHintOff": "Nur Menüs und Wortbedeutungen. Das Wort, deine Versuche und Wick bleiben auf Englisch, damit du beim Spielen Englisch lernst. Einschalten, um die Runde in dieser Sprache zu spielen.",
         // How to play
-        "meetKeeper": "Das ist der Hüter",
-        "meetKeeperSub": "Er hütet das geheime Wort – und wird wärmer, je näher du kommst.",
         "letsPlay": "Los geht's!",
-        "howStep1Title": "Rate nach Bedeutung",
-        "howStep1Detail": "Es gibt ein geheimes Wort. Tippe irgendein Wort ein und du siehst, wie nah es ist – der Bedeutung nach, nicht der Schreibweise.",
-        "howStep2Title": "Heiß oder kalt",
-        "howStep2Detail": "Nähere Versuche zählen mehr und glühen rot. Weit entfernte bleiben eisblau. Der Bildschirm wird wärmer, je näher du kommst.",
-        "howStep3Title": "Frag Wick",
-        "howStep3Detail": "Festgefahren? Stell Wick Ja/Nein-Fragen wie „Lebt es?“ – funktioniert auf jedem iPhone, antwortet ehrlich und verrät das Wort nie.",
-        "howStep4Title": "Jeden Tag ein neues Wort",
-        "howStep4Detail": "Alle bekommen jeden Tag dasselbe Wort. Löse es, baue eine Serie auf und teile dein Ergebnis.",
+        "tutTitle": "Tutorial",
+        "tutSkip": "Überspringen",
+        "tutGuessAny": "Ich verstecke ein geheimes Wort. Tippe irgendein Wort und schick es ab!",
+        "tutNotAWord": "Das Wort kenne ich nicht. Versuch ein echtes!",
+        "tutHeat": "%@! So nah bist du dran. Blau ist weit weg, Rot ist ganz nah. Jetzt versuch ein wärmeres Wort!",
+        "tutColder": "Kälter! Versuch ein Wort mit ganz anderer Bedeutung.",
+        "tutWarmer": "Wärmer! Du kommst näher.",
+        "tutAsk": "Jetzt mein Geheimtrick: Stell mir eine Ja-oder-Nein-Frage!",
+        "tutAskInstead": "Guter Versuch! Aber jetzt stell mir eine Frage. Tippe auf die Sprechblase!",
+        "tutAnswered": "Ich habe %@ gesagt!",
+        "tutHint": "Frag mich so etwas, so oft du willst. Jetzt tippe auf Gratis-Tipp!",
+        "tutHintInstead": "Gut! Jetzt tippe auf Gratis-Tipp, dann bekommst du ein Hinweiswort.",
+        "tutHintLanded": "Dieser Tipp ist näher am geheimen Wort! Jetzt finde es. Rate oder frag!",
+        "tutFindIt": "Jetzt finde das geheime Wort! Rate Wörter oder stell mir Fragen.",
+        "tutItsAnAnimal": "Psst... es ist ein Tier!",
+        "tutAlreadyHot": "Du bist schon ganz nah, kein Tipp nötig! Jetzt finde das geheime Wort.",
+        "tutLucky": "Wow, du hast es schon gefunden! Hier ist ein neues geheimes Wort.",
+        "tutDoneTitle": "Geschafft!",
+        "tutDoneWord": "Das geheime Wort war %@.",
+        "tutDoneHeadline": "Tritt gegen andere an und enthülle das Geheime Wort!",
+        "tutPlayDaily": "Heutiges Rätsel spielen",
+        "tutFreeHint": "Gratis-Tipp",
+        "tutCheerWarmer": "Wärmer!",
+        "tutCheerLucky": "Glück gehabt!",
+        "tutCheerSolved": "Gefunden!",
+        "tutBadgeGuess": "Raten",
+        "tutBadgeWarmer": "Wärmer",
+        "tutBadgeAsk": "Fragen",
+        "tutBadgeHint": "Tipp",
+        "tutBadgeSolve": "Lösen",
+        "tutStepOf": "Schritt %d von %d",
+        "tutPlayTutorial": "Tutorial spielen",
+        "tutPlayTutorialSub": "Lerne beim Spielen. Etwa eine Minute.",
+        "howGuessLine": "Rate Wörter. Werde wärmer.",
+        "howAskLine": "Stell mir Ja-oder-Nein-Fragen.",
+        "howHintLine": "Kommst du nicht weiter? Ein Tipp gibt dir ein näheres Wort.",
+        "howDailyLine": "Jeden Tag ein neues Wort. Tritt gegen alle an!",
         // Shop
         "getCoins": "Münzen holen",
         "yourBalance": "Dein Guthaben",

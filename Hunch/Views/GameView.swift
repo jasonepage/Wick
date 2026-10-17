@@ -17,7 +17,6 @@ struct GameView: View {
     @State private var showShop = false
     @State private var showSettings = false
     @State private var wickEggScale: CGFloat = 1
-    @AppStorage("hunch.seenHowTo") private var seenHowTo = false
     @FocusState private var guessFocused: Bool
     /// Drives the guess-row reflow at accessibility text sizes — the fixed-width
     /// word column below cannot hold a word at AX5.
@@ -28,6 +27,9 @@ struct GameView: View {
     @State private var replayRequest: ReplayRequest?
     /// 3.6: today's race board.
     @State private var showBoard = false
+    /// 3.6 tutorial: Wick typing the step 3 question into the field. Kept so
+    /// sending or skipping mid-typing stops it.
+    @State private var typingTask: Task<Void, Never>?
 
     /// Cute one-liners Wick says when you poke him. Never reveal anything.
     private static let pokeQuips = [
@@ -57,82 +59,120 @@ struct GameView: View {
                     .ignoresSafeArea()
                     .animation(.easeInOut(duration: 0.6), value: game.bestScore)
 
-                ScrollView {
-                    VStack(spacing: HunchTheme.Spacing.l) {
-                        header
-                        if let run = game.ghost {
-                            GhostStripLive(
-                                run: run,
-                                startedAt: game.raceStartedAt,
-                                finished: game.solved || game.revealed,
-                                loc: game.loc
-                            )
-                        }
-                        if let last = game.lastSubmitted {
-                            heroCard(last)
-                        } else if !game.solved && !game.revealed {
-                            welcomeCard
-                        }
-                        if game.solved {
-                            solvedCard
-                        } else if game.revealed {
-                            revealedCard
-                        } else {
-                            // Order is deliberate: the thing you came to do
-                            // (type) sits directly under the board, help is
-                            // offered below it, and the paid escape hatch
-                            // (Hint) sits below that — and only once the
-                            // player has actually tried something.
-                            inputArea
-                            wickOfferCard
-                            hintButton
-                            if game.guessCount == 0 && game.questions.isEmpty {
-                                waysToPlayCard
+                ScrollViewReader { scroller in
+                    ScrollView {
+                        VStack(spacing: HunchTheme.Spacing.l) {
+                            if game.mode == .tutorial {
+                                tutorialContent
+                            } else {
+                                header
+                                if let run = game.ghost {
+                                    GhostStripLive(
+                                        run: run,
+                                        startedAt: game.raceStartedAt,
+                                        finished: game.solved || game.revealed,
+                                        loc: game.loc
+                                    )
+                                }
+                                if let last = game.lastSubmitted {
+                                    heroCard(last)
+                                } else if !game.solved && !game.revealed {
+                                    welcomeCard
+                                }
+                                if game.solved {
+                                    solvedCard
+                                } else if game.revealed {
+                                    revealedCard
+                                } else {
+                                    // Order is deliberate: the thing you came to do
+                                    // (type) sits directly under the board, help is
+                                    // offered below it, and the paid escape hatch
+                                    // (Hint) sits below that — and only once the
+                                    // player has actually tried something.
+                                    inputArea
+                                    wickOfferCard
+                                    hintButton
+                                    if game.guessCount == 0 && game.questions.isEmpty {
+                                        waysToPlayCard
+                                    }
+                                }
+                                feedSection
                             }
                         }
-                        feedSection
+                        .padding(HunchTheme.Spacing.l)
+                        .frame(maxWidth: 640)
+                        .frame(maxWidth: .infinity)
+                        .animation(.snappy(duration: 0.28), value: game.questionNudge)
+                        .animation(.snappy(duration: 0.28), value: game.guessCount)
+                        // 3.6 tutorial: dim the board and light up the control
+                        // being taught. Inside the scroll content, so the holes
+                        // scroll with what they point at.
+                        .overlayPreferenceValue(TutorialAnchorKey.self) { anchors in
+                            if game.mode == .tutorial, !tutorialLit.isEmpty {
+                                TutorialSpotlight(anchors: anchors, lit: tutorialLit, ring: tutorialRing)
+                                    .transition(.opacity)
+                            }
+                        }
+                        .animation(.easeInOut(duration: 0.3), value: game.tutorialStep)
                     }
-                    .padding(HunchTheme.Spacing.l)
-                    .frame(maxWidth: 640)
-                    .frame(maxWidth: .infinity)
-                    .animation(.snappy(duration: 0.28), value: game.questionNudge)
-                    .animation(.snappy(duration: 0.28), value: game.guessCount)
+                    .onChange(of: game.tutorialBeat) { _, _ in tutorialStepChanged(scroller) }
+                    .onChange(of: game.guessCount) { _, _ in
+                        if game.mode == .tutorial { refocusForTutorial() }
+                    }
+                    .onAppear { if game.mode == .tutorial { tutorialStepChanged(scroller) } }
                 }
             }
             .navigationTitle("Wick")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button { Feedback.play(.selection); game.goHome() } label: {
-                        Label(game.loc.home, systemImage: "house.fill")
+                    // The tutorial has one way out (Skip), so no Home here.
+                    if game.mode != .tutorial {
+                        Button { Feedback.play(.selection); game.goHome() } label: {
+                            Label(game.loc.home, systemImage: "house.fill")
+                        }
                     }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    // ONE icon. Give up used to sit in the bar as a permanent flag,
-                    // which offered surrender before the player had made a single
-                    // guess; tucking it in here keeps it one tap away without
-                    // putting it in front of them. Stats moved out entirely — it
-                    // lives on Home ("Your stats"), which is where you go to look
-                    // back, not mid-round.
-                    Menu {
-                        if !game.solved && !game.revealed {
-                            Button(role: .destructive) {
+                    if game.mode == .tutorial {
+                        if game.tutorialStep != .done {
+                            Button {
                                 Feedback.play(.selection)
-                                showGiveUpConfirm = true
+                                stopTypingQuestion()
+                                guessText = ""
+                                guessFocused = false
+                                game.skipTutorial()
                             } label: {
-                                Label(game.loc.giveUp, systemImage: "flag")
+                                Text(game.loc.tutSkip).font(.body.weight(.semibold))
                             }
                         }
-                        Button {
-                            Feedback.play(.selection)
-                            showSettings = true
+                    } else {
+                        // ONE icon. Give up used to sit in the bar as a permanent flag,
+                        // which offered surrender before the player had made a single
+                        // guess; tucking it in here keeps it one tap away without
+                        // putting it in front of them. Stats moved out entirely — it
+                        // lives on Home ("Your stats"), which is where you go to look
+                        // back, not mid-round.
+                        Menu {
+                            if !game.solved && !game.revealed {
+                                Button(role: .destructive) {
+                                    Feedback.play(.selection)
+                                    showGiveUpConfirm = true
+                                } label: {
+                                    Label(game.loc.giveUp, systemImage: "flag")
+                                }
+                            }
+                            Button {
+                                Feedback.play(.selection)
+                                showSettings = true
+                            } label: {
+                                Label(game.loc.settings, systemImage: "gearshape")
+                            }
                         } label: {
-                            Label(game.loc.settings, systemImage: "gearshape")
+                            Image(systemName: "gearshape.fill")
                         }
-                    } label: {
-                        Image(systemName: "gearshape.fill")
+                        .accessibilityLabel(game.loc.settings)
                     }
-                    .accessibilityLabel(game.loc.settings)
                 }
             }
             .sheet(isPresented: $showShop) { ShopView() }
@@ -147,9 +187,6 @@ struct GameView: View {
                            loc: game.loc,
                            solvedInGuesses: game.solved ? game.guessCount : nil)
             }
-            .fullScreenCover(isPresented: Binding(get: { !seenHowTo }, set: { _ in })) {
-                HowToPlayView { seenHowTo = true }
-            }
             .confirmationDialog(game.loc.giveUpTitle, isPresented: $showGiveUpConfirm, titleVisibility: .visible) {
                 Button(game.loc.giveUp, role: .destructive) { game.giveUp() }
                 Button(game.loc.keepTrying, role: .cancel) {}
@@ -158,6 +195,7 @@ struct GameView: View {
             }
             .overlay(alignment: .bottom) { toast }
             .overlay { celebration }
+            .overlay { if game.mode == .tutorial { TutorialCheerBurst() } }
             .onChange(of: game.reviewRequestID) { _, _ in
                 // Let the solve celebration land first, then ask.
                 Task { try? await Task.sleep(for: .seconds(1.2)); requestReview() }
@@ -210,35 +248,40 @@ struct GameView: View {
             Text(titleText)
                 .font(.headline)
                 .lineLimit(1)
-            HunchTag(text: game.loc.tier(game.targetTier), color: HunchTheme.Palette.keeper)
+            if game.mode != .tutorial {
+                HunchTag(text: game.loc.tier(game.targetTier), color: HunchTheme.Palette.keeper)
+            }
             Spacer(minLength: HunchTheme.Spacing.s)
-            if game.streak > 0 {
-                HunchChip(text: "\(game.streak)", systemImage: "flame.fill",
-                          color: HunchTheme.Palette.flame)
-                    .accessibilityElement(children: .ignore)
-                    .accessibilityLabel(game.loc.streakDays(game.streak))
-            }
-            Button { showShop = true } label: {
-                HunchChip(text: "\(game.coins)", systemImage: "circle.hexagongrid.fill",
-                          color: HunchTheme.Palette.coin)
-                    .scaleEffect(coinPop ? 1.22 : 1)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("\(game.coins) \(game.loc.coins)")
-            .accessibilityHint(game.loc.a11yShop)
-            .onChange(of: game.coins) { old, new in
-                guard new > old else { return }
-                withAnimation(.spring(response: 0.28, dampingFraction: 0.45)) { coinPop = true }
-                Task {
-                    try? await Task.sleep(for: .milliseconds(220))
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.6)) { coinPop = false }
+            // The tutorial is a sandbox: no streak or coins on show.
+            if game.mode != .tutorial {
+                if game.streak > 0 {
+                    HunchChip(text: "\(game.streak)", systemImage: "flame.fill",
+                              color: HunchTheme.Palette.flame)
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel(game.loc.streakDays(game.streak))
                 }
-            }
+                Button { showShop = true } label: {
+                    HunchChip(text: "\(game.coins)", systemImage: "circle.hexagongrid.fill",
+                              color: HunchTheme.Palette.coin)
+                        .scaleEffect(coinPop ? 1.22 : 1)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("\(game.coins) \(game.loc.coins)")
+                .accessibilityHint(game.loc.a11yShop)
+                .onChange(of: game.coins) { old, new in
+                    guard new > old else { return }
+                    withAnimation(.spring(response: 0.28, dampingFraction: 0.45)) { coinPop = true }
+                    Task {
+                        try? await Task.sleep(for: .milliseconds(220))
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.6)) { coinPop = false }
+                    }
+                }
 #if DEBUG
-            .simultaneousGesture(
-                LongPressGesture(minimumDuration: 0.5).onEnded { _ in game.debugAddCoins(10000) }
-            )
+                .simultaneousGesture(
+                    LongPressGesture(minimumDuration: 0.5).onEnded { _ in game.debugAddCoins(10000) }
+                )
 #endif
+            }
         }
     }
 
@@ -248,7 +291,122 @@ struct GameView: View {
         case .practice: return game.loc.practice
         case .archive: return game.loc.dailyTitle(game.puzzleNumber)
         case .duel: return game.loc.duel
+        case .tutorial: return game.loc.tutTitle
         }
+    }
+
+    // MARK: - Tutorial (3.6)
+
+    /// The tutorial board: the real hero card, input and hint button, with
+    /// Wick's coaching card slotted in right above the field, and the finish
+    /// card in place of the solved card. Economy and offers stay hidden.
+    @ViewBuilder
+    private var tutorialContent: some View {
+        header
+        if game.tutorialStep == .done {
+            TutorialDoneCard(onBoard: { showBoard = true })
+                .id(Self.tutorialDoneID)
+        } else {
+            if let last = game.lastSubmitted {
+                heroCard(last)
+                    .tutorialAnchor(.hero)
+            }
+            TutorialCoachCard(onFill: typeQuestion)
+                .tutorialAnchor(.coach)
+                .id(TutorialTarget.coach)
+            inputArea
+                .tutorialAnchor(.input)
+                .id(TutorialTarget.input)
+            if game.tutorialStep >= .hint {
+                hintButton
+                    .tutorialAnchor(.hint)
+                    .id(TutorialTarget.hint)
+                    .transition(.scale(scale: 0.6).combined(with: .opacity))
+            }
+        }
+        feedSection
+    }
+
+    private static let tutorialDoneID = "tutorialDone"
+
+    /// What the spotlight leaves undimmed on each step. From step 5 on the
+    /// board is all theirs, so nothing is dimmed.
+    private var tutorialLit: [TutorialTarget] {
+        switch game.tutorialStep {
+        case .firstGuess, .ask: return [.coach, .input]
+        case .warmer:           return [.coach, .hero, .input]
+        case .hint:             return [.coach, .hint]
+        case .solve, .done:     return []
+        }
+    }
+
+    /// The control to touch next gets the pulsing ring.
+    private var tutorialRing: TutorialTarget? {
+        switch game.tutorialStep {
+        case .firstGuess, .warmer, .ask: return .input
+        case .hint:                      return .hint
+        case .solve, .done:              return nil
+        }
+    }
+
+    /// A new step: put the keyboard where the step needs it and scroll the
+    /// lesson into view.
+    private func tutorialStepChanged(_ scroller: ScrollViewProxy) {
+        guard game.mode == .tutorial else { return }
+        let step = game.tutorialStep
+        switch step {
+        case .hint, .done:
+            // The hint button and the finish card sit under the keyboard.
+            guessFocused = false
+        case .firstGuess, .warmer, .solve:
+            refocusForTutorial()
+        case .ask:
+            break
+        }
+        Task {
+            try? await Task.sleep(for: .milliseconds(120))
+            withAnimation(.easeInOut(duration: 0.35)) {
+                switch step {
+                case .done: scroller.scrollTo(Self.tutorialDoneID, anchor: .top)
+                case .hint: scroller.scrollTo(TutorialTarget.hint, anchor: .bottom)
+                default:    scroller.scrollTo(TutorialTarget.input, anchor: .bottom)
+                }
+            }
+        }
+    }
+
+    /// Keyboard up again shortly after a guess, so the next try is one tap
+    /// away. Time to fun beats tidiness here.
+    private func refocusForTutorial() {
+        Task {
+            try? await Task.sleep(for: .milliseconds(450))
+            guard game.mode == .tutorial else { return }
+            switch game.tutorialStep {
+            case .firstGuess, .warmer, .solve: guessFocused = true
+            default: break
+            }
+        }
+    }
+
+    /// Step 3: Wick types his question into the real field, one letter at a
+    /// time, so the player sees where questions go. They press send.
+    private func typeQuestion(_ question: String) {
+        guard typingTask == nil else { return }
+        guessFocused = true
+        typingTask = Task {
+            guessText = ""
+            for ch in question {
+                if Task.isCancelled { break }
+                guessText.append(ch)
+                try? await Task.sleep(for: .milliseconds(28))
+            }
+            typingTask = nil
+        }
+    }
+
+    private func stopTypingQuestion() {
+        typingTask?.cancel()
+        typingTask = nil
     }
 
     // MARK: - Welcome (first guess of the round)
@@ -426,6 +584,9 @@ struct GameView: View {
                     Image(systemName: "arrow.up.circle.fill")
                         .font(.system(size: 34))
                         .foregroundStyle(draftTint)
+                        // Tutorial: the question is typed, now press this.
+                        .symbolEffect(.pulse, options: .repeating,
+                                      isActive: game.mode == .tutorial && game.tutorialStep == .ask && draftIsQuestion)
                 }
                 .disabled(guessText.trimmingCharacters(in: .whitespaces).isEmpty)
                 .animation(.easeInOut(duration: 0.18), value: draftIsQuestion)
@@ -454,15 +615,18 @@ struct GameView: View {
     /// looks stuck.
     @ViewBuilder
     private var hintButton: some View {
-        if game.guessCount >= 1 {
-            let urgent = game.coldStreak >= 3 || game.guessCount >= 6
+        if game.guessCount >= 1 || game.mode == .tutorial {
+            let tutorial = game.mode == .tutorial
+            let urgent = (tutorial && game.tutorialStep == .hint) || game.coldStreak >= 3 || game.guessCount >= 6
             Button {
                 guessFocused = false
                 game.revealHint()
             } label: {
-                Label(game.freeHintsLeft > 0
-                      ? game.loc.hintFreeLeft(game.freeHintsLeft)
-                      : game.loc.hintCoinPrice(GameViewModel.hintCoinCost),
+                Label(tutorial
+                      ? game.loc.tutFreeHint
+                      : (game.freeHintsLeft > 0
+                         ? game.loc.hintFreeLeft(game.freeHintsLeft)
+                         : game.loc.hintCoinPrice(GameViewModel.hintCoinCost)),
                       systemImage: "lightbulb.fill")
                     .font(urgent ? HunchTheme.Fonts.label : .subheadline)
                     .frame(maxWidth: .infinity)
@@ -644,6 +808,8 @@ struct GameView: View {
     /// space or a trailing "?" — or an explicit tap on "Ask Wick" — is sent to
     /// Wick as a yes/no question.
     private func submitInput() {
+        // Wick is still typing his question (a fraction of a second): let him finish.
+        guard typingTask == nil else { return }
         let raw = guessText
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }

@@ -36,6 +36,11 @@ const ALLOWED = new Set([
   "race_link_created",
   "race_link_opened",
   "race_finished",
+  // 3.6 tutorial funnel (iOS and web). tutorial_skip carries the step it was
+  // skipped on (1 to 5) in `n`; tutorial_done carries the guess count in `g`.
+  "tutorial_start",
+  "tutorial_done",
+  "tutorial_skip",
 ]);
 
 export function isTrackedEvent(name: unknown): name is string {

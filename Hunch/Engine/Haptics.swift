@@ -26,6 +26,7 @@ enum Haptics {
         case .gaveUp:                 soft()
         case .coinSpent:              coin()
         case .selection:              selection()
+        case .levelUp:                success()
         }
     }
 

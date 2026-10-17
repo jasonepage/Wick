@@ -27,6 +27,10 @@ enum WickEvent: String {
     case raceLinkCreated = "race_link_created"
     case raceLinkOpened = "race_link_opened"
     case raceFinished = "race_finished"
+    // 3.6 tutorial funnel. Skip sends the step it was skipped on as `n`.
+    case tutorialStart = "tutorial_start"
+    case tutorialDone = "tutorial_done"
+    case tutorialSkip = "tutorial_skip"
 }
 
 enum Events {

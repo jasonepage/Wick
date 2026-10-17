@@ -57,7 +57,12 @@ struct SettingsView: View {
                     Button(game.loc.done) { dismiss() }
                 }
             }
-            .sheet(isPresented: $showHowTo) { HowToPlayView() }
+            .sheet(isPresented: $showHowTo) {
+                HowToPlayView(onPlayTutorial: {
+                    showHowTo = false
+                    playTutorial()
+                })
+            }
         }
     }
 
@@ -323,6 +328,12 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: HunchTheme.Spacing.s) {
             sectionHeader(game.loc.about, system: "info.circle.fill", color: HunchTheme.Palette.freezing)
             VStack(spacing: 0) {
+                // 3.6: replay the hands-on tutorial level.
+                Button(action: playTutorial) {
+                    aboutRow(game.loc.tutPlayTutorial, system: "graduationcap.fill", trailing: "play.fill")
+                }
+                .buttonStyle(.plain)
+                Divider().padding(.leading, 60)
                 Button { showHowTo = true } label: {
                     aboutRow(game.loc.howToPlay, system: "questionmark.circle.fill", trailing: "chevron.right")
                 }
@@ -360,6 +371,17 @@ struct SettingsView: View {
     }
 
     // MARK: - Helpers
+
+    /// Close Settings and drop straight into the tutorial level.
+    private func playTutorial() {
+        Feedback.play(.selection)
+        dismiss()
+        // Let the sheet slide away first, so the board isn't swapped under it.
+        Task {
+            try? await Task.sleep(for: .milliseconds(350))
+            game.startTutorial()
+        }
+    }
 
     private func sectionHeader(_ title: String, system: String, color: Color) -> some View {
         Label(title, systemImage: system)

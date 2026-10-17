@@ -69,6 +69,10 @@ enum Sound {
         case .gaveUp:     playFile("gaveup")
         case .coinSpent:  playFile("coin")
         case .selection:  playFile("tap")   // soft UI click on menu / nav taps
+        case .levelUp:
+            // A bright rising pair: the top of the guess scale, then the sparkle.
+            playFile("guess_12")
+            playFile("sparkle")
         }
     }
 }

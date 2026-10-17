@@ -16,7 +16,7 @@ import { WickMatchClient } from "./net/client.ts";
 import type { MatchMode, OpponentKind, StateSnapshot, MatchResult } from "./net/protocol.ts";
 import { ringSVG, scoreLabel, scoreColor, scoreColorA } from "./game/wickface.ts";
 import { ensureWick, type WickOptions } from "./game/wick.ts";
-import { todaysDaily, randomPracticeAt, practiceAt, wordText, pastPuzzles } from "./game/daily.ts";
+import { todaysDaily, randomPracticeAt, practiceAt, wordText, pastPuzzles, POOL_SIZE } from "./game/daily.ts";
 import type { DailyWord, PastPuzzle } from "./game/daily.ts";
 import { fetchWarmth, httpBaseFrom, askKeeper, fetchReveal, fetchLiveCounts } from "./net/api.ts";
 import type { RevealPointDTO, WarmthResult } from "./net/api.ts";
@@ -31,7 +31,12 @@ import { initPwa, promptInstall } from "./pwa.ts";
 import { buildRun, encodeRun, decodeRun, runDuration, fmtDuration } from "./game/ghost.ts";
 import type { GhostRun } from "./game/ghost.ts";
 import { mountBackdrop, setBackdropHeat } from "./game/backdrop.ts";
-import { dailyStarters, starterText, type StarterItem } from "./game/starters.ts";
+import { dailyStarters, starterText, STARTER_CATEGORIES, type StarterItem } from "./game/starters.ts";
+import {
+  TUT_STEPS, TUTORIAL_DONE_KEY, afterAnswer, afterGuess, afterLucky, afterNotAWord, freshState,
+  pickAnimal, shouldAutoStart, stepNumber, tutorialLine, tutorialPool,
+  type TutChange, type TutState, type TutStep,
+} from "./game/tutorial.ts";
 import { play as playSound, playGuessTone, soundEnabled, setSoundEnabled, armAudioUnlock } from "./game/sound.ts";
 import { t, getLang, setLang, LANGS, LANG_LABEL } from "./i18n.ts";
 import { startRaceMusic, updateRaceMusic, stopRaceMusic, musicEnabled, setMusicEnabled } from "./game/music.ts";
@@ -417,7 +422,9 @@ function screenSettings(): void {
   children.push(
     el("p", { class: "hint" }, [t("setReminderHint")]),
     el("div", { class: "lbl" }, [t("setAbout")]),
-    el("button", { class: "btn secondary", onclick: () => toast('How to play: guess words to warm up to the hidden word. Blue = cold, red = boiling, green = solved! Type a question like "Is it alive?" to ask Wick.') }, [t("howToPlay")]),
+    // 3.6: replay the tutorial level, or glance at the rules.
+    el("button", { class: "btn secondary", onclick: () => { void playSound("tap"); startTutorial(); } }, ["🎓 " + t("tutPlayTutorial")]),
+    el("button", { class: "btn secondary", onclick: () => { void playSound("tap"); screenHowTo(); } }, [t("howToPlay")]),
     el("a", { class: "btn secondary linkbtn", href: APP_STORE_URL, target: "_blank", rel: "noopener" }, [t("setGetApp")]),
     el("p", { class: "hint" }, [`Server: ${serverBase} · You are "${live.kid}".`]),
   );
@@ -466,6 +473,7 @@ function clear(_hint?: "light" | "dark"): void {
     window.clearTimeout(searchFallbackTimer);
     searchFallbackTimer = null;
   }
+  stopTutorialTimers();
   applyTheme();
   // Every screen starts cold; the round renderers set it again immediately, so
   // only screens that aren't a round actually stay washed out.
@@ -610,7 +618,7 @@ function screenHome(): void {
 
       el("div", { class: "home-foot" }, [
         el("button", { class: "foot-btn", onclick: () => rerender(() => { cycleTheme(); screenHome(); }) }, [themeLabel()]),
-        el("button", { class: "foot-btn", onclick: () => toast("How to play: guess words to warm up to the hidden word. Blue = cold, red = boiling, green = solved!") }, [t("howToPlay")]),
+        el("button", { class: "foot-btn", onclick: () => { void playSound("tap"); screenHowTo(); } }, [t("howToPlay")]),
         // 3.5: on Android, Install replaces the App Store link (see pwa.ts).
         el("a", { class: "foot-btn get-app-btn", href: APP_STORE_URL, target: "_blank", rel: "noopener" }, [t("getApp")]),
         el("button", { class: "foot-btn install-btn", onclick: () => void promptInstall() }, [t("installApp")]),
@@ -718,15 +726,15 @@ function startPractice(): void {
   screenSolo();
 }
 
-function looksLikeQuestion(s: string): boolean {
+function looksLikeQuestion(s: string, lang: PlayLang = sp.lang): boolean {
   if (s.endsWith("?") || s.endsWith("？") || s.startsWith("¿")) return true;
   // Chinese has no spaces: a question particle, or anything longer than a
   // word, is a question. Guesses are one to four characters.
-  if (sp.lang === "zh" && (s.includes("吗") || s.includes("是不是") || s.includes("有没有") || s.length > 5)) return true;
+  if (lang === "zh" && (s.includes("吗") || s.includes("是不是") || s.includes("有没有") || s.length > 5)) return true;
   if (/\s/.test(s.trim())) {
     // More than one word in a round played in another language is a question,
     // never a guess: a guess is always a single word.
-    if (sp.lang !== "en") return true;
+    if (lang !== "en") return true;
   }
   return /^(is|are|does|do|can|could|will|would|has|have|had|was|were|should|am|whats|what|why|how|who|whom|where|when|which|any)\b/i.test(s);
 }
@@ -1816,6 +1824,496 @@ function renderLatestChip(latestEl: HTMLDivElement, latest: Guess | undefined): 
 }
 
 // ════════════════════════════════════════════════════════════════════════════
+//  TUTORIAL LEVEL (3.6)
+// ════════════════════════════════════════════════════════════════════════════
+//
+//  A hands-on first round with a secret animal. Four steps, each one waits for
+//  the player to actually do it: guess, guess warmer, ask Wick a question,
+//  solve. Wick coaches in one short line, everything else on the card dims, and
+//  the control to touch next pulses. The rules live in game/tutorial.ts.
+//
+//  Its own round state (`tut`), never `sp`: the tutorial cannot touch the
+//  daily, stats, the race board or anything else saved. Only the done flag is.
+
+const TUT_ANIMALS = tutorialPool(Array.from({ length: POOL_SIZE }, (_, i) => practiceAt(i)!));
+const TUT_ICONS: Record<TutStep, string> = { guess: "🎯", warmer: "🔥", ask: "💬", solve: "🏆", done: "✓" };
+const TUT_BADGE: Record<TutStep, string> = {
+  guess: "tutBadgeGuess", warmer: "tutBadgeWarmer", ask: "tutBadgeAsk", solve: "tutBadgeSolve", done: "tutDoneTitle",
+};
+/** What stays lit on each step. From the solve step on, the board is theirs. */
+const TUT_LIT: Record<TutStep, string[]> = {
+  guess: ["tut-coach", "tut-row"],
+  warmer: ["tut-coach", "tut-hero", "tut-row"],
+  ask: ["tut-coach", "tut-row"],
+  solve: [],
+  done: [],
+};
+
+const tut = {
+  word: null as DailyWord | null,
+  secret: "",
+  lang: "en" as PlayLang,
+  guesses: [] as Guess[],
+  replies: [] as SoloReply[],
+  state: freshState() as TutState,
+  used: new Set<string>(),
+  solved: false,
+  asking: false,
+  /** Bumped for every new animal, so a late server reply for the old one is dropped. */
+  round: 0,
+};
+let tutTypeTimer: number | null = null;
+let tutFillTimer: number | null = null;
+
+function tutorialDone(): boolean {
+  try { return localStorage.getItem(TUTORIAL_DONE_KEY) === "1"; } catch { return false; }
+}
+function markTutorialDone(): void {
+  try { localStorage.setItem(TUTORIAL_DONE_KEY, "1"); } catch { /* storage off */ }
+}
+function storageKeys(): string[] {
+  try { return Object.keys(localStorage); } catch { return []; }
+}
+/** A buzz on phones that support it (Android). Silent everywhere else. */
+function buzz(pattern: number | number[]): void {
+  try { navigator.vibrate?.(pattern); } catch { /* not supported */ }
+}
+function stopTutorialTimers(): void {
+  if (tutTypeTimer !== null) { window.clearInterval(tutTypeTimer); tutTypeTimer = null; }
+  if (tutFillTimer !== null) { window.clearInterval(tutFillTimer); tutFillTimer = null; }
+}
+
+/** Start (or replay) the tutorial from step 1 with a random animal. */
+function startTutorial(): void {
+  track("tutorial_start");
+  tut.used = new Set();
+  tut.state = freshState();
+  newTutorialAnimal();
+  screenTutorial();
+}
+
+function newTutorialAnimal(): void {
+  const w = pickAnimal(TUT_ANIMALS, tut.used);
+  tut.used.add(w.en);
+  tut.word = w;
+  tut.lang = playLang();
+  tut.secret = wordText(w, tut.lang);
+  tut.guesses = [];
+  tut.replies = [];
+  tut.solved = false;
+  tut.asking = false;
+  tut.round++;
+}
+
+function skipTutorial(): void {
+  if (tut.state.step !== "done") track("tutorial_skip", { n: stepNumber(tut.state.step) });
+  markTutorialDone();
+  goHome();
+}
+
+/** "Is it alive?" in the round's play language: what step 3 types for you. */
+function tutorialQuestionFor(lang: PlayLang): string {
+  const item = STARTER_CATEGORIES.flatMap((c) => c.items).find((i) => i.key === "alive");
+  if (!item) return "Is it alive?";
+  return lang === "en" ? item.full : starterText(item, lang);
+}
+
+function screenTutorial(): void {
+  clear("dark");
+  const input = el("input", {
+    id: "tut-input", class: "field", placeholder: t("guessOrAskPlaceholder"), autocomplete: "off", spellcheck: false,
+  });
+  const send = el("button", { id: "tut-send", class: "send", title: t("guessOrAskPlaceholder"), onclick: () => submitTutorial() }, ["↑"]);
+  input.addEventListener("keydown", (e) => { if (e.key === "Enter") submitTutorial(); });
+  input.addEventListener("input", renderTutorialSend);
+
+  app.append(
+    el("main", { id: "tut-card", class: "card tut-card" }, [
+      el("div", { class: "solo-head tut-head lit" }, [
+        el("div", { id: "tut-badges", class: "tut-badges" }),
+        el("span", { class: "solo-title" }, [t("tutTitle")]),
+        el("button", { id: "tut-skip", class: "tut-skip", onclick: () => { void playSound("tap"); skipTutorial(); } }, [t("tutSkip")]),
+      ]),
+      el("div", { id: "tut-hero", class: "hero" }),
+      el("div", { id: "tut-coach", class: "tut-coach" }),
+      el("div", { id: "tut-row", class: "guess-row" }, [input, send]),
+      el("div", { id: "tut-done" }),
+      el("ul", { id: "tut-log", class: "guesses" }),
+    ]),
+  );
+  renderTutorial(true);
+  window.setTimeout(() => input.focus(), 350);
+}
+
+/** Redraw the tutorial board. `beat` = a step was just cleared (hop + poke). */
+function renderTutorial(beat = false): void {
+  const card = document.querySelector<HTMLElement>("#tut-card");
+  if (!card) return;
+  const s = tut.state;
+  const done = s.step === "done";
+  const latest = tut.guesses[0];
+  setBackdropHeat(bestScore(tut.guesses));
+
+  // Step badges: a little level map.
+  const now = stepNumber(s.step);
+  const badges = document.querySelector<HTMLElement>("#tut-badges");
+  if (badges) {
+    badges.replaceChildren(...TUT_STEPS.map((st, i) => {
+      const n = i + 1;
+      return el("span", { class: n < now ? "tut-badge done" : n === now ? "tut-badge now" : "tut-badge" },
+        [n < now ? "✓" : TUT_ICONS[st]]);
+    }));
+    badges.setAttribute("role", "img");
+    badges.setAttribute("aria-label", t("tutStepOf", Math.min(now, TUT_STEPS.length), TUT_STEPS.length));
+  }
+
+  // The real heat reading, once there is a guess.
+  const hero = document.querySelector<HTMLElement>("#tut-hero");
+  if (hero) {
+    hero.style.display = latest && !done ? "" : "none";
+    if (latest && !done) renderHero("#tut-hero", "tut", latest);
+  }
+
+  renderTutorialCoach(beat);
+
+  const row = document.querySelector<HTMLElement>("#tut-row");
+  if (row) row.style.display = done ? "none" : "";
+  // Finished: the finish card has the ways out, so Skip goes.
+  const skip = document.querySelector<HTMLElement>("#tut-skip");
+  if (skip) skip.style.visibility = done ? "hidden" : "";
+  renderTutorialSend();
+  renderTutorialDone();
+
+  const log = document.querySelector<HTMLElement>("#tut-log");
+  if (log) log.replaceChildren(...tut.replies.map(questionRowEl), ...tut.guesses.map((g) => guessRowElFor(g, tut.lang)));
+
+  // Spotlight: dim everything but the lesson, ring the field to use next.
+  const lit = TUT_LIT[s.step];
+  card.classList.toggle("spot", lit.length > 0);
+  for (const id of ["tut-hero", "tut-coach", "tut-row", "tut-done", "tut-log"]) {
+    document.getElementById(id)?.classList.toggle("lit", lit.includes(id));
+  }
+  document.querySelector("#tut-input")?.classList.toggle("tut-ring", s.step === "guess" || s.step === "warmer" || s.step === "ask");
+}
+
+/** The coaching card: Wick, his line, and the step's one helper. Rebuilt only
+ *  when what it says changes, so the typewriter and the heat bar don't restart
+ *  every time a warmth reply lands. */
+function renderTutorialCoach(beat: boolean): void {
+  const box = document.querySelector<HTMLElement>("#tut-coach");
+  if (!box) return;
+  const s = tut.state;
+  if (s.step === "done") { box.replaceChildren(); box.style.display = "none"; return; }
+  box.style.display = "";
+
+  let wickHost = box.querySelector<HTMLElement>(".tut-wick");
+  let body = box.querySelector<HTMLElement>(".tut-body");
+  if (!wickHost || !body) {
+    wickHost = el("div", { class: "tut-wick" });
+    body = el("div", { class: "tut-body" });
+    box.replaceChildren(wickHost, body);
+  }
+  const wick = ensureWick(wickHost, { score: coachScore(), neutral: s.note === "notAWord", size: 64, id: "tutcoach" });
+  if (beat) {
+    wick.poke();
+    box.classList.remove("hop");
+    void box.offsetWidth;
+    box.classList.add("hop");
+  }
+
+  const latest = tut.guesses[0];
+  const heat = latest && latest.warmth !== null ? t("heat." + scoreLabel(latest.warmth * 100).label) : t("heat.Cold");
+  const line = tutorialLine(s, { t, heat, verdictLabel, secret: tut.secret });
+  const showBar = s.step === "warmer" && !!latest && latest.warmth !== null && s.note !== "notAWord";
+  const sig = `${s.step}|${line}|${showBar ? latest!.warmth : ""}|${tut.asking}`;
+  if (body.dataset.sig === sig) return;
+  body.dataset.sig = sig;
+
+  const lineEl = el("p", { class: "tut-line" });
+  typewrite(lineEl, line);
+  const kids: HTMLElement[] = [lineEl];
+  if (showBar) kids.push(heatBar(latest!.warmth));
+  if (s.step === "ask") kids.push(tut.asking ? el("div", { class: "tut-thinking" }, ["…"]) : askBubble());
+  body.replaceChildren(...kids);
+}
+
+/** Wick's face follows what just happened. */
+function coachScore(): number | null {
+  const s = tut.state;
+  if (tut.asking) return null;
+  if (s.note === "warmer" || s.note === "lucky") return 100;
+  if (s.note === "colder") return 12;
+  if (s.note === "answered") return 50;
+  const latest = tut.guesses[0];
+  if (s.step === "warmer" && latest && latest.warmth !== null) return latest.warmth * 100;
+  return null;
+}
+
+/** Text that types itself out. The part not typed yet is drawn clear, so the
+ *  lines wrap where they will end up and nothing jumps. Click to finish. */
+function typewrite(node: HTMLElement, text: string): void {
+  if (tutTypeTimer !== null) { window.clearInterval(tutTypeTimer); tutTypeTimer = null; }
+  node.setAttribute("aria-label", text);
+  node.setAttribute("role", "status");
+  const chars = [...text];
+  const shown = el("span");
+  const rest = el("span", { class: "tut-rest" });
+  shown.setAttribute("aria-hidden", "true");
+  rest.setAttribute("aria-hidden", "true");
+  node.replaceChildren(shown, rest);
+  if (prefersReducedMotion()) { shown.textContent = text; return; }
+  let n = 0;
+  rest.textContent = text;
+  const paint = () => {
+    shown.textContent = chars.slice(0, n).join("");
+    rest.textContent = chars.slice(n).join("");
+  };
+  node.onclick = () => { n = chars.length; paint(); };
+  tutTypeTimer = window.setInterval(() => {
+    n = Math.min(chars.length, n + 1);
+    paint();
+    if (n >= chars.length && tutTypeTimer !== null) { window.clearInterval(tutTypeTimer); tutTypeTimer = null; }
+  }, 16);
+}
+
+/** Freezing to Boiling as one bar. `fill` (0..1) drops a marker on it. */
+function heatBar(fill: number | null): HTMLElement {
+  const bar = el("div", { class: "tut-heat-bar" });
+  if (fill !== null) {
+    const marker = el("i", { class: "tut-heat-marker" });
+    bar.append(marker);
+    // Slide in from Freezing so the eye follows it.
+    const pct = `${Math.round(Math.max(0, Math.min(1, fill)) * 100)}%`;
+    requestAnimationFrame(() => requestAnimationFrame(() => { marker.style.left = pct; }));
+  }
+  return el("div", { class: "tut-heat" }, [
+    bar,
+    el("div", { class: "tut-heat-ends" }, [
+      el("span", { class: "cold" }, ["❄ " + t("heat.Freezing")]),
+      el("span", { class: "hot" }, ["🔥 " + t("heat.Boiling")]),
+    ]),
+  ]);
+}
+
+/** Step 3: "Is it alive?" as a speech bubble. Clicking types it into the real
+ *  field; the player still presses send, so they learn questions go there. */
+function askBubble(): HTMLElement {
+  const q = tutorialQuestionFor(tut.lang);
+  return el("button", { class: "tut-ask", onclick: () => { void playSound("tap"); typeIntoTutorialField(q); } }, [
+    el("span", { class: "tut-ask-icon" }, ["💬"]),
+    el("span", { class: "tut-ask-q" }, [q]),
+    el("span", { class: "tut-tap" }, ["👆"]),
+  ]);
+}
+
+function typeIntoTutorialField(q: string): void {
+  const input = document.querySelector<HTMLInputElement>("#tut-input");
+  if (!input || tutFillTimer !== null) return;
+  input.focus();
+  input.value = "";
+  const chars = [...q];
+  let n = 0;
+  tutFillTimer = window.setInterval(() => {
+    n++;
+    input.value = chars.slice(0, n).join("");
+    if (n >= chars.length && tutFillTimer !== null) {
+      window.clearInterval(tutFillTimer);
+      tutFillTimer = null;
+      renderTutorialSend();
+    }
+  }, 28);
+}
+
+/** The send button pulses once a question is typed in step 3. */
+function renderTutorialSend(): void {
+  const input = document.querySelector<HTMLInputElement>("#tut-input");
+  const send = document.querySelector<HTMLElement>("#tut-send");
+  if (!input || !send) return;
+  const q = input.value.trim();
+  send.classList.toggle("tut-pulse", tut.state.step === "ask" && q !== "" && looksLikeQuestion(q, tut.lang));
+}
+
+function submitTutorial(): void {
+  const input = document.querySelector<HTMLInputElement>("#tut-input");
+  if (!input || tutFillTimer !== null) return;
+  const text = input.value.trim();
+  if (!text || tut.solved || tut.state.step === "done") return;
+  input.value = "";
+  renderTutorialSend();
+
+  if (looksLikeQuestion(text, tut.lang) && !sameWord(text, tut.secret)) {
+    askTutorial(text);
+    return;
+  }
+  if (sameWord(text, tut.secret)) {
+    tutorialFound(text);
+    return;
+  }
+
+  const g: Guess = { word: text, warmth: null, correct: false };
+  tut.guesses.unshift(g);
+  renderTutorial();
+  const round = tut.round;
+  void fetchWarmth(httpBase, tut.secret, text, tut.lang).then((r) => {
+    if (round !== tut.round || !document.querySelector("#tut-card")) return;
+    if (r === "not_a_word") {
+      const i = tut.guesses.indexOf(g);
+      if (i >= 0) tut.guesses.splice(i, 1);
+      tut.state = afterNotAWord(tut.state);
+      buzz(30);
+      renderTutorial();
+      return;
+    }
+    g.warmth = r === null ? 0 : Math.max(0, Math.min(1, r.score / 100));
+    g.rank = r === null ? null : r.rank;
+    playGuessTone(g.warmth);
+    buzz(g.warmth > 0.45 ? 40 : 15);
+    // Warmer than every OTHER scored guess (the first one always is).
+    const others = bestScore(tut.guesses.filter((x) => x !== g));
+    applyTutorialChange(afterGuess(tut.state, others === null || g.warmth * 100 > others));
+  });
+}
+
+function askTutorial(q: string): void {
+  if (tut.asking) return;
+  const r: SoloReply = { question: q, verdict: "", reply: "…" };
+  tut.replies.unshift(r);
+  tut.asking = true;
+  renderTutorial();
+  const round = tut.round;
+  void askKeeper(httpBase, tut.secret, q, tut.lang, tut.word?.en).then((ans) => {
+    if (round !== tut.round || !document.querySelector("#tut-card")) return;
+    tut.asking = false;
+    if (!ans || !ans.verdict) {
+      // No answer: keep the question so they can see it, and let them try again.
+      r.reply = ans?.reply || t("tutWickQuiet");
+      renderTutorial();
+      return;
+    }
+    r.verdict = ans.verdict;
+    r.reply = ans.reply;
+    void playSound("tap");
+    applyTutorialChange(afterAnswer(tut.state, ans.verdict));
+  });
+}
+
+function applyTutorialChange(c: TutChange): void {
+  tut.state = c.state;
+  if (c.cheer) tutorialCheer("warmer");
+  if (c.advanced) {
+    // The level-up beat: a bright sparkle and a little buzz.
+    void playSound("sparkle");
+    buzz([20, 40, 30]);
+  }
+  renderTutorial(c.advanced);
+  if (c.advanced) {
+    window.setTimeout(() => document.querySelector<HTMLInputElement>("#tut-input")?.focus(), 250);
+  }
+}
+
+/** The animal was typed. In the solve step that's the win; before it, it's a
+ *  lucky early find, and a bonus animal carries the lessons on. */
+function tutorialFound(text: string): void {
+  if (tut.state.step !== "solve") {
+    void playSound("solved");
+    buzz([30, 50, 30]);
+    tutorialCheer("lucky");
+    launchConfetti(90);
+    tut.state = afterLucky(tut.state);
+    newTutorialAnimal();
+    renderTutorial(true);
+    return;
+  }
+  tut.guesses.unshift({ word: text, warmth: 1, correct: true });
+  tut.solved = true;
+  tut.state = { ...tut.state, step: "done", note: "none" };
+  markTutorialDone();
+  track("tutorial_done", { g: tut.guesses.length });
+  void playSound("solved");
+  buzz([40, 60, 40, 60, 90]);
+  tutorialCheer("solved");
+  launchConfetti();
+  renderTutorial(true);
+  document.querySelector("#tut-done")?.scrollIntoView({ behavior: prefersReducedMotion() ? "auto" : "smooth", block: "start" });
+}
+
+/** The big pop in the middle of the screen. */
+function tutorialCheer(kind: "warmer" | "lucky" | "solved"): void {
+  document.querySelector(".tut-cheer")?.remove();
+  const icon = kind === "warmer" ? "🔥" : kind === "lucky" ? "✨" : "🏆";
+  const text = t(kind === "warmer" ? "tutCheerWarmer" : kind === "lucky" ? "tutCheerLucky" : "tutCheerSolved");
+  const node = el("div", { class: `tut-cheer ${kind}` }, [
+    el("div", { class: "tut-cheer-icon" }, [icon]),
+    el("div", { class: "tut-cheer-text" }, [text]),
+  ]);
+  node.setAttribute("aria-hidden", "true");
+  document.body.append(node);
+  window.setTimeout(() => node.remove(), 1500);
+}
+
+/** The finish line: the four skills stamped, then the two real places to go,
+ *  Today's puzzle (the big button) and the race board. */
+function renderTutorialDone(): void {
+  const box = document.querySelector<HTMLElement>("#tut-done");
+  if (!box) return;
+  if (tut.state.step !== "done") { box.replaceChildren(); box.className = ""; return; }
+  if (box.childElementCount > 0) return;   // built once
+  box.className = "tut-done lit";
+  const stamps = TUT_STEPS.map((st, i) => {
+    const stamp = el("div", { class: "tut-stamp" }, [
+      el("span", { class: "tut-stamp-icon" }, [TUT_ICONS[st]]),
+      el("span", { class: "tut-stamp-lbl" }, [t(TUT_BADGE[st])]),
+    ]);
+    stamp.style.animationDelay = `${0.6 + i * 0.16}s`;
+    return stamp;
+  });
+  box.append(
+    wickBox("mascot-wrap", { score: 100, size: 110, id: "tutdone" }),
+    el("h2", { class: "tut-done-title" }, [t("tutDoneTitle")]),
+    el("p", { class: "center muted" }, [t("tutDoneWord", tut.secret.toLocaleUpperCase())]),
+    el("div", { class: "tut-stamps" }, stamps),
+    el("p", { class: "tut-headline" }, [t("tutDoneHeadline")]),
+    el("button", { class: "btn primary", onclick: () => { void playSound("tap"); startDaily(); } }, ["▶ " + t("tutPlayDaily")]),
+    el("button", { class: "btn secondary", onclick: () => { void playSound("tap"); void screenBoard(); } }, ["🏆 " + t("boardOpen")]),
+  );
+}
+
+/** How to play (3.6): a glance, not a read. The big button replays the
+ *  tutorial; under it, three rules of a few words each, shown, not told. */
+function screenHowTo(): void {
+  clear("light");
+  const rule = (icon: string, text: string, extra?: HTMLElement): HTMLElement =>
+    el("div", { class: "howto-rule" }, [
+      el("div", { class: "howto-top" }, [el("span", { class: "howto-icon" }, [icon]), el("span", { class: "howto-text" }, [text])]),
+      ...(extra ? [extra] : []),
+    ]);
+  app.append(
+    el("main", { class: "card howto" }, [
+      el("div", { class: "solo-head" }, [
+        el("button", { class: "icon-btn dark", onclick: goHome, title: t("back") }, ["←"]),
+        el("span", { class: "solo-title" }, [t("howToPlay")]),
+        el("span", {}, [""]),
+      ]),
+      el("button", { class: "tut-play", onclick: () => { void playSound("tap"); startTutorial(); } }, [
+        wickBox("tut-play-wick", { score: null, size: 60, id: "howto" }),
+        el("span", { class: "tut-play-text" }, [
+          el("b", {}, [t("tutPlayTutorial")]),
+          el("small", {}, [t("tutPlayTutorialSub")]),
+        ]),
+        el("span", { class: "tut-play-go" }, ["▶"]),
+      ]),
+      rule("🌡️", t("howGuessLine"), heatBar(null)),
+      rule("💬", t("howAskLine"), el("div", { class: "qtop" }, [
+        el("span", { class: "kbadge yes" }, [verdictLabel("Yes")]),
+        el("span", { class: "qtext" }, [tutorialQuestionFor(playLang())]),
+      ])),
+      rule("🏆", t("howDailyLine")),
+      el("button", { class: "btn primary", onclick: goHome }, [t("letsPlay")]),
+    ]),
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════════════
 //  LIVE MATCH
 // ════════════════════════════════════════════════════════════════════════════
 
@@ -2217,13 +2715,17 @@ function soloAnswerMeaning(): string | null {
 }
 
 function guessRowEl(g: Guess): HTMLElement {
+  return guessRowElFor(g, sp.lang);
+}
+/** A guess row for a round played in `lang` (the tutorial has its own round). */
+function guessRowElFor(g: Guess, lang: PlayLang): HTMLElement {
   const pending = g.warmth === null;
   const fill = el("i");
   fill.style.width = pending ? "0%" : `${Math.round(g.warmth! * 100)}%`;
   if (!pending) fill.style.background = scoreColor(g.warmth! * 100);
   // Meanings help a learner playing in English. In a round played in the
   // menu language the guesses already are that language, so nothing to add.
-  const meaning = sp.lang === "en" ? guessGloss(g.word, getLang()) : null;
+  const meaning = lang === "en" ? guessGloss(g.word, getLang()) : null;
   return el("li", { class: "guess-item" }, [
     el("span", { class: "gw" }, meaning ? [g.word, el("small", { class: "gm" }, [` · ${meaning}`])] : [g.word]),
     el("span", { class: "gb" }, [fill]),
@@ -2298,6 +2800,12 @@ function boot(): void {
       return;
     }
     startLive("casual", code, false);
+    return;
+  }
+  // 3.6: a brand-new player starts in the tutorial level, not on Home. Links
+  // above always win, and anyone who has played before is never forced.
+  if (shouldAutoStart(storageKeys(), tutorialDone())) {
+    startTutorial();
     return;
   }
   screenHome();

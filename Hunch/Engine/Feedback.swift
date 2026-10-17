@@ -18,6 +18,7 @@ enum FeedbackEvent {
     case gaveUp                            // the player revealed the answer
     case coinSpent                         // a hint / question / purchase debit
     case selection                         // a light UI tick (question asked, minor tap)
+    case levelUp                           // 3.6 tutorial: a step was completed
 }
 
 @MainActor

@@ -67,4 +67,8 @@ enum GameMode: Equatable {
     /// and ephemeral (never saved as today's board, never touches coins, streak,
     /// stats, or history), like archive. See `DuelCode` / `startDuel`.
     case duel(DuelPayload)
+    /// 3.6: the hands-on tutorial level (a random simple animal). A sandbox:
+    /// never saved, never touches coins, streak, stats, achievements, round
+    /// history, the weekly tally or the race board. See Game/Tutorial.swift.
+    case tutorial
 }
