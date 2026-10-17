@@ -16,7 +16,9 @@
 //  a reroll number the player can bump. Only the hash of the id is kept.
 //
 //  Trust: an iPhone solve happens on the phone, so the server takes the
-//  result on trust, with sanity checks: the puzzle must be today's, the time
+//  result on trust, with sanity checks: the puzzle must be today's or
+//  yesterday's (a phone that solved offline sends it when it is back online,
+//  which can be after midnight UTC), the time
 //  must be possible for that many guesses, and each id gets one entry a day
 //  (the first one counts, so replaying in another language changes nothing).
 //
@@ -34,8 +36,9 @@ import { type Lang, isLang } from "./lang.js";
 
 const REF_EPOCH_S = 978_307_200; // 2001-01-01T00:00:00Z, Apple's reference date
 const DAY_MS = 86_400_000;
-/** Late finishers: yesterday's puzzle still counts this long after midnight UTC. */
-export const GRACE_MS = 2 * 3_600_000;
+/** Late senders: yesterday's puzzle is still open for results for this long
+ *  after midnight UTC (all of today), for phones that solved offline. */
+export const GRACE_MS = DAY_MS;
 /** The fastest believable pace: at least this long per guess, and never under MIN_MS. */
 export const MIN_MS_PER_GUESS = 1_500;
 export const MIN_MS = 3_000;

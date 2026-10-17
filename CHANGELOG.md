@@ -19,7 +19,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   button. Nothing is typed, so there is nothing to moderate.
 - Server: `POST /board`, `POST /board/name`, `GET /board?n=&me=`. One entry
   per player per day (the first solve counts), impossible times rejected,
-  yesterday's puzzle accepted for two hours after midnight UTC, the last
+  yesterday's puzzle still accepted all of the next UTC day so offline solves count, the last
   week kept in `board.json` on the Render disk.
 - **Everyone's week on the Stats page.** iOS Stats now shows "Top guesses this
   week" and "Most asked questions" across all players, below your own stats.

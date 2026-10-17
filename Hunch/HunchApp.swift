@@ -39,6 +39,8 @@ struct HunchApp: App {
                         // The server keeps race alert registrations in memory,
                         // so tell it again what this phone wants.
                         RaceAlerts.shared.refresh(lang: game.uiLanguage.rawValue)
+                        // A daily solved offline goes onto the race board now.
+                        Task { await DailyBoard.shared.sendWaiting() }
                     @unknown default:
                         break
                     }

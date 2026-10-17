@@ -66,12 +66,13 @@ describe("RaceBoard", () => {
     expect(b.snapshot(N).top[0]!.g).toBe(9);
   });
 
-  it("only takes today's puzzle, plus yesterday's for a short grace", () => {
+  it("takes today's and yesterday's puzzle (offline solves sent late), nothing older or newer", () => {
     const b = new RaceBoard(() => NOW);
-    expect(b.submit(ok("a", 5, 60_000, 0, { n: N - 1 }))).toMatchObject({ ok: false, reason: "not_today" });
-    expect(b.submit(ok("a", 5, 60_000, 0, { n: N + 1 }))).toMatchObject({ ok: false, reason: "not_today" });
-    const early = new RaceBoard(() => puzzleStart(N) + GRACE_MS - 1000);
-    expect(early.submit(ok("a", 5, 60_000, 0, { n: N - 1 })).ok).toBe(true);
+    expect(b.submit(ok("a", 5, 60_000, 0, { n: N - 1 })).ok).toBe(true);
+    expect(b.submit(ok("b", 5, 60_000, 0, { n: N - 2 }))).toMatchObject({ ok: false, reason: "not_today" });
+    expect(b.submit(ok("c", 5, 60_000, 0, { n: N + 1 }))).toMatchObject({ ok: false, reason: "not_today" });
+    const lastMinute = new RaceBoard(() => puzzleStart(N) + GRACE_MS - 1000);
+    expect(lastMinute.submit(ok("d", 5, 60_000, 0, { n: N - 1 })).ok).toBe(true);
   });
 
   it("returns your own row by public id, never the full hash", () => {

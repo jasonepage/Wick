@@ -46,6 +46,12 @@ async function sendPending(httpBase: string, today: number): Promise<void> {
   } catch { /* offline: try again later */ }
 }
 
+/** Send a result that is waiting (solved offline). Called at page load and
+ *  when the browser comes back online. */
+export async function flushBoard(httpBase: string, today: number): Promise<void> {
+  await sendPending(httpBase, today);
+}
+
 /** Send a finished daily: a solve, or a give-up (`gu`). No hints on the web, so h is always 0. */
 export async function submitBoard(
   httpBase: string,

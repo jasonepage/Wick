@@ -14,11 +14,15 @@
 //  name like "Violet Otter" that the player can reroll. See
 //  wick-api/src/board.ts.
 //
-//  If the phone is offline at the solve, the result waits in UserDefaults
-//  and goes out the next time the board is opened that day.
+//  If the phone is offline at the solve, the result waits in UserDefaults and
+//  goes out as soon as it can: when the network comes back while the app is
+//  open, when the app comes back to the screen, or when the board is opened.
+//  The server takes today's puzzle and yesterday's, so a late-night offline
+//  solve still counts the next day.
 //
 
 import Foundation
+import Network
 
 /// One row on the board, as GET /board returns it.
 nonisolated struct BoardRow: Codable, Hashable, Sendable {
@@ -83,6 +87,9 @@ final class DailyBoard {
     private(set) var failed = false
     /// The auto name the server gave this phone. Nil until the first solve.
     private(set) var myName: String?
+    /// A send is in flight, so the network monitor and the foreground hook
+    /// cannot send the same result twice at once.
+    @ObservationIgnored private var sending = false
 
     @ObservationIgnored private let defaults = UserDefaults.standard
     private let nameKey = "wick.board.name"
@@ -93,8 +100,24 @@ final class DailyBoard {
     /// server ever loses it (a deploy without its data disk, say).
     private func sentKey(_ n: Int) -> String { "wick.board.sent.\(n)" }
 
+    @ObservationIgnored private let pathMonitor = NWPathMonitor()
+
     private init() {
         myName = defaults.string(forKey: nameKey)
+        // Signal came back while the app is open: send a waiting result.
+        pathMonitor.pathUpdateHandler = { path in
+            guard path.status == .satisfied else { return }
+            Task { @MainActor in await DailyBoard.shared.sendWaiting() }
+        }
+        pathMonitor.start(queue: DispatchQueue(label: "wick.board.path"))
+    }
+
+    /// Send a result that is waiting (solved offline), then refresh that
+    /// day's board. Cheap when nothing is waiting. Called when the app comes
+    /// to the foreground and when the network comes back.
+    func sendWaiting() async {
+        guard let n = defaults.dictionary(forKey: pendingKey)?["n"] as? Int else { return }
+        if await sendPending() { await refresh(n: n) }
     }
 
     /// This phone's public row id on puzzle `n`, once it is on the board.
@@ -118,31 +141,37 @@ final class DailyBoard {
         await refresh(n: n)
     }
 
-    /// Retry a result that could not be sent at the solve.
-    private func sendPending() async {
-        guard let body = defaults.dictionary(forKey: pendingKey),
-              let n = body["n"] as? Int, let base = LiveConfig.httpBase else { return }
+    /// Retry a result that could not be sent at the solve. True when it went
+    /// onto the board just now.
+    @discardableResult
+    private func sendPending() async -> Bool {
+        guard !sending, let body = defaults.dictionary(forKey: pendingKey),
+              let n = body["n"] as? Int, let base = LiveConfig.httpBase else { return false }
         if myId(n) != nil || n < WordBank.dailyNumber() - 1 {
             defaults.removeObject(forKey: pendingKey)   // already on, or too old to count
-            return
+            return false
         }
-        guard let data = try? JSONSerialization.data(withJSONObject: body) else { return }
+        guard let data = try? JSONSerialization.data(withJSONObject: body) else { return false }
+        sending = true
+        defer { sending = false }
         var req = URLRequest(url: base.appendingPathComponent("board"))
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.httpBody = data
         req.timeoutInterval = 10
         guard let result = try? await URLSession.shared.data(for: req),
-              let reply = try? JSONDecoder().decode(BoardSubmitReply.self, from: result.0) else { return }
+              let reply = try? JSONDecoder().decode(BoardSubmitReply.self, from: result.0) else { return false }
         let http = result.1
         if reply.ok, let id = reply.id {
             defaults.set(id, forKey: idKey(n))
             defaults.set(body, forKey: sentKey(n))
             if let name = reply.name { myName = name; defaults.set(name, forKey: nameKey) }
             defaults.removeObject(forKey: pendingKey)
+            return true
         } else if let code = (http as? HTTPURLResponse)?.statusCode, (400..<500).contains(code), code != 429 {
-            defaults.removeObject(forKey: pendingKey)   // the server said no (too fast, not today): drop it
+            defaults.removeObject(forKey: pendingKey)   // the server said no (too fast, too old): drop it
         }
+        return false
     }
 
     // MARK: - Read

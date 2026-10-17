@@ -26,7 +26,7 @@ import { buildTimeline, bandToken, toneFor, HIDE_ANSWER, STANDARD_PACING, type R
 import { ReplayScene, W as REPLAY_W, H as REPLAY_H, type ReplayCopy } from "./game/replay/scene.ts";
 import { canRecord, canShareFile, downloadVideo, recordReplay, shareVideo, type Recording } from "./game/replay/record.ts";
 import { initEvents, track } from "./net/events.ts";
-import { submitBoard, fetchBoard, rerollBoardName, myBoardId, myBoardName, fmtBoardTime, BOARD_FLAG, type BoardSnapshot } from "./net/board.ts";
+import { submitBoard, fetchBoard, flushBoard, rerollBoardName, myBoardId, myBoardName, fmtBoardTime, BOARD_FLAG, type BoardSnapshot } from "./net/board.ts";
 import { initPwa, promptInstall } from "./pwa.ts";
 import { buildRun, encodeRun, decodeRun, runDuration, fmtDuration } from "./game/ghost.ts";
 import type { GhostRun } from "./game/ghost.ts";
@@ -2216,6 +2216,9 @@ function boot(): void {
   applyLang();
   mountBackdrop();
   initEvents(httpBase, live.kid);
+  // A daily solved offline goes onto the race board once we can reach the server.
+  void flushBoard(httpBase, todaysDaily().puzzleNumber);
+  window.addEventListener("online", () => { void flushBoard(httpBase, todaysDaily().puzzleNumber); });
   // Browsers refuse to start audio outside a user gesture, so the AudioContext
   // is only built on the first real tap or keypress.
   armAudioUnlock(musicEnabled);
