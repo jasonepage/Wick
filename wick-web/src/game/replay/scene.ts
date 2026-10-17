@@ -64,7 +64,7 @@ function verdictColor(tone: VerdictTone): string {
 /** Every piece of on-video text, already localized. */
 export interface ReplayCopy {
   title: string;        // "Wick #1359"
-  tagline: string;      // "Guess the word by meaning"
+  tagline: string;      // "Ask 20 questions, race to reveal the secret word"
   stats: string;        // "solved in 12"
   best: string;         // "Best"
   guessOf: (n: number, total: number) => string;

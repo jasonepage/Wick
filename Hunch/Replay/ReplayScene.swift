@@ -107,7 +107,7 @@ nonisolated struct ReplayStyle: Equatable, Sendable {
 nonisolated struct ReplayCopy: Equatable, Sendable {
     /// "Wick #1359", same header as the text share.
     var title: String
-    /// "Guess the word by meaning"
+    /// "Ask 20 questions, race to reveal the secret word"
     var tagline: String
     /// "solved in 12 · 2 questions", same as the text share.
     var stats: String

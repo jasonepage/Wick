@@ -1,8 +1,8 @@
 {
   "id": "./",
-  "name": "Wick: Guess by meaning",
+  "name": "Wick: Race to reveal the Secret Word",
   "short_name": "Wick",
-  "description": "A daily word game: guess the secret word by meaning.",
+  "description": "Race against others to reveal the Secret Word! Ask Wick 20 questions or guess by the meaning.",
   "icons": [
     {
       "src": "./icon-192.png",

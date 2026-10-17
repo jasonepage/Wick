@@ -4,7 +4,7 @@
 
 <h1 align="center">Wick</h1>
 
-<p align="center"><b>A daily word game where you guess by meaning, not spelling.</b></p>
+<p align="center"><b>Race against others to reveal the Secret Word! Ask Wick 20 questions or guess by the meaning.</b></p>
 
 <p align="center">
   <a href="https://github.com/jasonepage/Wick/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/jasonepage/Wick/actions/workflows/ci.yml/badge.svg"></a>
