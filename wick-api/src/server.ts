@@ -564,6 +564,14 @@ const noStore = (_path: string, c: Context): void => {
 
 app.get("/", serveStatic({ path: "./public/index.html", onFound: noStore }));
 app.use("/*", serveStatic({ root: "./public", onFound: staticCache }));
+// Clean page links: /marketing/support serves /marketing/support.html. Only for
+// a path with no file extension and no trailing slash; when no such .html file
+// exists it falls through to the SPA fallback below, as before.
+app.use("/*", serveStatic({
+  root: "./public",
+  rewriteRequestPath: (path) => (/\.[^/]*$/.test(path) || path.endsWith("/") ? path : `${path}.html`),
+  onFound: staticCache,
+}));
 app.get("/*", serveStatic({ path: "./public/index.html", onFound: noStore })); // SPA fallback
 
 // ── Hub (real clock) ───────────────────────────────────────────────────────────
