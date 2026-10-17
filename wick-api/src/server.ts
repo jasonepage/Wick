@@ -145,6 +145,13 @@ app.get("/healthz", (c) => {
     // Race alerts: phones registered for push, pushes sent and dropped, and
     // the traffic monitor's reading (active players now and the surge bar).
     alerts: { phones: pushRegistry?.size ?? 0, ...alertHub.stats, active: traffic.activeNow(), surgeAt: traffic.threshold() },
+    // Is the race board (and the weekly lists) being saved to the Render disk?
+    // dataDir false means WICK_DATA_DIR is not set, so every deploy wipes them.
+    storage: {
+      dataDir: Boolean(process.env.WICK_DATA_DIR?.trim()),
+      boardToday: board.snapshot(puzzleNumber(Date.now()), 0).total,
+      boardSaveError: board.saveError,
+    },
   }, status);
 });
 

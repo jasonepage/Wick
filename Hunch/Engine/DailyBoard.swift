@@ -89,6 +89,9 @@ final class DailyBoard {
     private let rerollKey = "wick.board.r"
     private let pendingKey = "wick.board.pending"
     private func idKey(_ n: Int) -> String { "wick.board.id.\(n)" }
+    /// The result as sent, kept for the day so it can be sent again if the
+    /// server ever loses it (a deploy without its data disk, say).
+    private func sentKey(_ n: Int) -> String { "wick.board.sent.\(n)" }
 
     private init() {
         myName = defaults.string(forKey: nameKey)
@@ -134,6 +137,7 @@ final class DailyBoard {
         let http = result.1
         if reply.ok, let id = reply.id {
             defaults.set(id, forKey: idKey(n))
+            defaults.set(body, forKey: sentKey(n))
             if let name = reply.name { myName = name; defaults.set(name, forKey: nameKey) }
             defaults.removeObject(forKey: pendingKey)
         } else if let code = (http as? HTTPURLResponse)?.statusCode, (400..<500).contains(code), code != 429 {
@@ -143,7 +147,7 @@ final class DailyBoard {
 
     // MARK: - Read
 
-    func refresh(n: Int) async {
+    func refresh(n: Int, retried: Bool = false) async {
         await sendPending()
         guard !loading, let base = LiveConfig.httpBase,
               var parts = URLComponents(url: base.appendingPathComponent("board"), resolvingAgainstBaseURL: false)
@@ -159,8 +163,18 @@ final class DailyBoard {
         req.cachePolicy = .reloadIgnoringLocalCacheData
         do {
             let (data, _) = try await URLSession.shared.data(for: req)
-            snapshot = try JSONDecoder().decode(BoardSnapshot.self, from: data)
+            let snap = try JSONDecoder().decode(BoardSnapshot.self, from: data)
+            snapshot = snap
             failed = false
+            // We were on today's board but the server no longer has us: send
+            // the same result again, once.
+            if !retried, snap.me == nil, myId(n) != nil, let sent = defaults.dictionary(forKey: sentKey(n)) {
+                defaults.removeObject(forKey: idKey(n))
+                defaults.removeObject(forKey: sentKey(n))
+                defaults.set(sent, forKey: pendingKey)
+                loading = false
+                await refresh(n: n, retried: true)
+            }
         } catch {
             failed = snapshot == nil
         }

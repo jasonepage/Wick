@@ -13,6 +13,8 @@ const NAME_KEY = "wick.board.name";
 const REROLL_KEY = "wick.board.r";
 const PENDING_KEY = "wick.board.pending";
 const idKey = (n: number) => `wick.board.id.${n}`;
+/** The result as sent, kept so it can be sent again if the server loses it. */
+const sentKey = (n: number) => `wick.board.sent.${n}`;
 
 function get(k: string): string | null { try { return localStorage.getItem(k); } catch { return null; } }
 function put(k: string, v: string): void { try { localStorage.setItem(k, v); } catch { /* private mode */ } }
@@ -35,6 +37,7 @@ async function sendPending(httpBase: string, today: number): Promise<void> {
     const json = (await res.json()) as { ok?: boolean; id?: string; name?: string };
     if (json.ok && json.id) {
       put(idKey(body.n), json.id);
+      put(sentKey(body.n), raw);
       if (json.name) put(NAME_KEY, json.name);
       drop(PENDING_KEY);
     } else if (res.status >= 400 && res.status < 500 && res.status !== 429) {
@@ -53,13 +56,21 @@ export async function submitBoard(
   await sendPending(httpBase, r.n);
 }
 
-export async function fetchBoard(httpBase: string, n: number): Promise<BoardSnapshot | null> {
+export async function fetchBoard(httpBase: string, n: number, retried = false): Promise<BoardSnapshot | null> {
   await sendPending(httpBase, n);
   const me = myBoardId(n);
   try {
     const res = await fetch(`${httpBase}/board?n=${n}${me ? `&me=${me}` : ""}`, { cache: "no-store" });
     if (!res.ok) return null;
-    return (await res.json()) as BoardSnapshot;
+    const snap = (await res.json()) as BoardSnapshot;
+    // We were on today's board but the server no longer has us: send the
+    // same result again, once.
+    const sent = get(sentKey(n));
+    if (!retried && me && !snap.me && sent) {
+      drop(idKey(n)); drop(sentKey(n)); put(PENDING_KEY, sent);
+      return fetchBoard(httpBase, n, true);
+    }
+    return snap;
   } catch {
     return null;
   }

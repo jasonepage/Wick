@@ -124,6 +124,8 @@ export class RaceBoard {
   private readonly sorted = new Map<number, Entry[]>();
   private file: string | null = null;
   private saveTimer: ReturnType<typeof setTimeout> | null = null;
+  /** The last failed save, for /healthz. Null when saving works (or is off). */
+  saveError: string | null = null;
 
   constructor(private readonly now: () => number) {}
 
@@ -249,7 +251,9 @@ export class RaceBoard {
       const tmp = `${this.file}.tmp`;
       writeFileSync(tmp, JSON.stringify(out));
       renameSync(tmp, this.file);
+      this.saveError = null;
     } catch (e) {
+      this.saveError = String(e);
       console.warn(`[wick-api] could not save the race board: ${String(e)}`);
     }
   }
