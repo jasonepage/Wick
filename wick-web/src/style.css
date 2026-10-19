@@ -244,6 +244,28 @@ a.btn { display: block; box-sizing: border-box; text-align: center; text-decorat
 .theme-light .home-title { background-image: linear-gradient(100deg, #3a2f5c 10%, #b4522a 42%, #5a3fb0 72%, #3a2f5c 95%); }
 @keyframes title-sheen { 0%, 100% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } }
 
+/* ── landing header: what this is, who made it, where the app is ── */
+.landing { display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; margin-top: -8px; }
+.landing-tag { margin: 0; font-weight: 700; font-size: 1.02rem; line-height: 1.3; text-wrap: balance; }
+.landing-sub { margin: 0; font-size: 0.9rem; opacity: 0.72; line-height: 1.35; text-wrap: balance; }
+.landing-row { display: flex; align-items: center; justify-content: center; gap: 14px; margin-top: 8px; flex-wrap: wrap; }
+.appstore-link { display: inline-flex; line-height: 0; border-radius: 9px; transition: transform 0.18s ease; }
+.appstore-link:hover { transform: translateY(-2px); }
+.appstore-badge { width: 135px; height: 45px; display: block; }
+.appstore-fallback { line-height: 1; font-weight: 700; font-size: 0.85rem; padding: 10px 14px; border-radius: 9px; background: #000; color: #fff; }
+.landing-by { font-size: 0.85rem; opacity: 0.7; color: inherit; text-decoration: none; border-bottom: 1px dotted currentColor; }
+.landing-by:hover { opacity: 1; }
+.theme-light .landing { color: var(--ink-light); }
+.theme-dark .landing { color: var(--ink-dark); }
+
+/* ── first-visit how-to strip ── */
+.howto-strip { display: flex; flex-direction: column; gap: 8px; padding: 14px 16px; border-radius: 20px; }
+.theme-light .howto-strip { color: var(--ink-light); background: rgba(255,255,255,0.6); border: 1px solid rgba(255,255,255,0.8); }
+.theme-dark .howto-strip { color: var(--ink-dark); background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); }
+.strip-step { display: flex; align-items: center; gap: 10px; font-size: 0.92rem; font-weight: 600; }
+.strip-icon { font-size: 1.15rem; width: 1.6rem; text-align: center; flex: 0 0 auto; }
+.strip-tut { margin-top: 4px; }
+
 /* ── today's puzzle hero ── */
 .today-card {
   display: flex; align-items: center; gap: 12px; text-align: left; cursor: pointer;

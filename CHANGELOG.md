@@ -10,6 +10,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Web landing header.** guesswick.com now says what it is before anything
+  starts: under the Wick title, a one-line description, Apple's "Download on
+  the App Store" badge (a plain black button if the badge can't load) and
+  "made by Jason Page". A browser that has never played also sees a three-line
+  how to play and a "Try the 1-minute tutorial" button. On the web a first
+  visit lands on this Home screen instead of auto-starting the tutorial, from
+  streamer feedback that dropping a cold visitor straight into a game read as
+  sketchy. All six languages.
 - **Tutorial level.** A brand-new player opens straight into a hands-on
   level instead of a How to play sheet. The secret word is one of ten simple
   animals, and every step waits for the player to do the thing: guess any

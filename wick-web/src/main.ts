@@ -595,6 +595,8 @@ function screenHome(): void {
   app.append(
     el("main", { class: "home-wrap" }, [
       el("h1", { class: "home-title" }, ["Wick"]),
+      landingHeader(),
+      ...(shouldAutoStart(storageKeys(), tutorialDone()) ? [howToStrip()] : []),
 
       // Today's puzzle hero card
       el("button", { class: "today-card", onclick: () => { void playSound("tap"); startDaily(); } }, [
@@ -627,6 +629,42 @@ function screenHome(): void {
       ]),
     ]),
   );
+}
+
+/** The landing header: what Wick is, who made it, and where to get the app.
+ *  Always on Home, so a cold visitor (a stream's chat, a shared link) knows
+ *  what they landed on before anything starts. */
+function landingHeader(): HTMLElement {
+  const badgeLang: Record<string, string> = { en: "en-us", es: "es-es", fr: "fr-fr", it: "it-it", de: "de-de", zh: "zh-cn" };
+  const badge = el("img", {
+    class: "appstore-badge",
+    src: `https://tools.applemarketingtools.com/api/badges/download-on-the-app-store/black/${badgeLang[getLang()] ?? "en-us"}?size=250x83`,
+    alt: t("appStoreAlt"),
+    width: 135,
+    height: 45,
+  });
+  // If Apple's badge can't load, the link still reads as text.
+  badge.addEventListener("error", () => { badge.replaceWith(el("span", { class: "appstore-fallback" }, [" " + t("appStoreAlt")])); });
+  return el("header", { class: "landing" }, [
+    el("p", { class: "landing-tag" }, [t("landingTagline")]),
+    el("p", { class: "landing-sub" }, [t("landingSub")]),
+    el("div", { class: "landing-row" }, [
+      el("a", { class: "appstore-link", href: APP_STORE_URL, target: "_blank", rel: "noopener" }, [badge]),
+      el("a", { class: "landing-by", href: "https://jasonepage.github.io", target: "_blank", rel: "noopener" }, [t("madeBy", "Jason Page")]),
+    ]),
+  ]);
+}
+
+/** Three steps and the tutorial, for a browser that has never played. */
+function howToStrip(): HTMLElement {
+  const step = (icon: string, text: string): HTMLElement =>
+    el("div", { class: "strip-step" }, [el("span", { class: "strip-icon" }, [icon]), el("span", {}, [text])]);
+  return el("section", { class: "howto-strip" }, [
+    step("🎯", t("stripGuess")),
+    step("💬", t("stripAsk")),
+    step("🏆", t("stripWin")),
+    el("button", { class: "btn primary strip-tut", onclick: () => { void playSound("tap"); startTutorial(); } }, ["🎓 " + t("tutTryShort")]),
+  ]);
 }
 
 function toast(msg: string): void {
@@ -2852,12 +2890,9 @@ function boot(): void {
     startLive("casual", code, false);
     return;
   }
-  // 3.6: a brand-new player starts in the tutorial level, not on Home. Links
-  // above always win, and anyone who has played before is never forced.
-  if (shouldAutoStart(storageKeys(), tutorialDone())) {
-    startTutorial();
-    return;
-  }
+  // A first visit lands on Home, whose landing header says what Wick is and
+  // who made it, with the tutorial one tap away (streamer feedback: a cold
+  // visitor dropped straight into a game read as sketchy).
   screenHome();
 }
 initPwa();
