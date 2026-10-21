@@ -1,5 +1,24 @@
 # Bugs to fix in 3.7
 
+## Status (October 21, 2026)
+
+- Keeper wrong answers: fixed in code, not yet checked against the live
+  Gemini. The automatic answers are gone; Gemini answers everything with a
+  small thinking budget, the round's earlier answers, and "answer for the
+  typical case". Answers are saved per word. Tests use the park questions
+  below with a fake model, so they check the wiring, not Gemini itself.
+  After the deploy, check the real answers with /debug/keeper (see below).
+- "swings" read Cold: fixed. The server now scores "swing" for "swings",
+  like the iOS app does. "bench" reading Cool is just how close the
+  embedding puts it; not changed.
+- Item 5 below ("touchable" trigger) no longer matters: the automatic engine
+  it was for is gone.
+
+Check after deploy (needs the debug token):
+`/debug/keeper?secret=park&q=does it have grass and trees?&fresh=1`
+`/debug/keeper-cache?secret=park` lists saved answers; `&forget=<question>`
+or `&forget=all` removes a wrong one.
+
 ## Daily #1421 ("park"), web, Oct 17 2026
 
 Reported from a recorded round (video: wick-park-daily-storycut.mp4).

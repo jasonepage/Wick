@@ -55,7 +55,33 @@ latest ones.
 - Jason built iOS once and it ran (the faces showed). Keep an eye out for any
   build errors he reports.
 
-## The next job: replace the automatic Keeper answers with Gemini plus saved answers
+## Done in the second session (October 21, 2026, evening)
+
+The Keeper job below is DONE (commits `0570235`, `9b309b4`, `d97830b`).
+Jason chose "Server Gemini" for iPhone solo.
+
+- Server: no automatic answers; thinking budget 512 (WICK_KEEPER_THINKING);
+  typical-case prompt; round history from the web (`/keeper` body `history`)
+  and from races (kept per player in the hub); saved answers in
+  `answercache.ts` (`keeper-answers.json` on the Render disk, common ones
+  only); daily warm-up in `keeperwarm.ts` (about 55 calls a day, English
+  only; WICK_KEEPER_WARM_LANGS adds languages); debug routes
+  `/debug/keeper?...&fresh=1` and `/debug/keeper-cache`.
+  `offlinekeeper.ts` and the server's `worddata.json` were removed.
+- "swings" fix in `warmthservice.ts` (`scoringForm`).
+- iOS: `Hunch/Engine/KeeperClient.swift` (new). `QuestionService` asks the
+  server first, then Apple's on-device model, else fails with Retry. Chips are
+  all shown and sent in English. The tutorial still uses the tags. The offline
+  banner is gone. NOT BUILT YET: Jason needs to build in Xcode.
+- Privacy policy, PRIVACY.md and the support FAQ say questions go to the
+  server and Gemini.
+- Still to do: Jason updates the App Store privacy label (questions are sent
+  to the server, not linked to identity); deploy; check park answers with
+  `/debug/keeper` after deploy.
+- Prompt changes: bump `KEEPER_PROMPT_VERSION` in `keeper.ts`, or old saved
+  answers stay.
+
+## (Done) The job: replace the automatic Keeper answers with Gemini plus saved answers
 
 Jason's call: the automatic (deterministic) answers are wrong far too often
 and fixing them word by word is endless. Example he hit: for "chair" it said
