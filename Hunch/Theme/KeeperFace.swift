@@ -770,12 +770,16 @@ final class KeeperFaceAnimator {
     private var colorFrom = KeeperRGB.body(for: .idle)
     private var colorTo = KeeperRGB.body(for: .idle)
     private var colorAt: Double = -100
+    /// When the showcase started (the first frame), so it always opens on Sly.
+    private var showcaseStart: Double? = nil
+    /// Seconds on each face in the showcase.
+    static let showcaseSeconds: Double = 5
 
     private func color(at t: Double) -> KeeperRGB {
         KeeperRGB.mix(colorFrom, colorTo, max(0, min(1, (t - colorAt) / 0.5)))
     }
 
-    func frame(t: Double, mood: KeeperMood, race: Bool, reduceMotion: Bool) -> Frame {
+    func frame(t: Double, mood: KeeperMood, race: Bool, reduceMotion: Bool, showcase: Bool = false) -> Frame {
         if mood != lastMood {
             let target = KeeperRGB.body(for: mood)
             if lastMood == nil {
@@ -785,7 +789,16 @@ final class KeeperFaceAnimator {
             }
             lastMood = mood
         }
-        let want = KeeperFaces.faceFor(mood: mood, race: race)
+        var want: KeeperFaceName = KeeperFaces.faceFor(mood: mood, race: race)
+        // Showcase: walk through every face in order, one every few seconds.
+        // Not with Reduce Motion on (the swaps would be instant jumps).
+        if showcase && !reduceMotion {
+            let start: Double = showcaseStart ?? t
+            showcaseStart = start
+            let all: [KeeperFaceName] = KeeperFaceName.allCases
+            let step: Int = Int((t - start) / Self.showcaseSeconds)
+            want = all[step % all.count]
+        }
         if name == nil {
             name = want
             from = KeeperFaces.face(want)

@@ -117,7 +117,7 @@ struct HomeView: View {
     private var heroCard: some View {
         Button { Feedback.play(.selection); game.playDaily() } label: {
             HStack(spacing: HunchTheme.Spacing.m) {
-                KeeperView(mood: .idle, size: 68)
+                KeeperView(mood: .idle, size: 68, showcase: true)
                     .frame(width: 68)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(game.loc.dailyTitle(WordBank.dailyNumber()))

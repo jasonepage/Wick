@@ -124,6 +124,9 @@ struct KeeperView: View {
     var dances: Bool = false
     /// Race mode: the Serious face. Defaults to on whenever he dances (the live race).
     var race: Bool? = nil
+    /// Show off every face: a new one every few seconds, with the usual blink
+    /// between them (3.7). The Home screen and the round's welcome card use it.
+    var showcase: Bool = false
 
     /// Picks his face from the mood and runs the blink-and-morph between faces.
     @State private var animator = KeeperFaceAnimator()
@@ -159,7 +162,7 @@ struct KeeperView: View {
 
             // The face for this frame, and the pop as he opens on a new one
             // (squash and stretch, plus a little hop for Shocked).
-            let face = animator.frame(t: t, mood: mood, race: race ?? dances, reduceMotion: reduceMotion)
+            let face = animator.frame(t: t, mood: mood, race: race ?? dances, reduceMotion: reduceMotion, showcase: showcase)
             let popX: Double = 1 - 0.06 * face.pop
             let popY: Double = 1 + 0.10 * face.pop
             let hop: CGFloat = face.name == .shocked ? -size * 0.04 * CGFloat(face.pop) : 0

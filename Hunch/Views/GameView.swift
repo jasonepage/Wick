@@ -387,7 +387,7 @@ struct GameView: View {
 
     private var welcomeCard: some View {
         VStack(spacing: HunchTheme.Spacing.s) {
-            KeeperView(mood: .idle, size: 84, onPoke: pokeWick)
+            KeeperView(mood: .idle, size: 84, onPoke: pokeWick, showcase: true)
             KeeperSpeech(
                 text: game.loc.welcome(KeeperView.name)
             )

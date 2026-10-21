@@ -280,6 +280,9 @@ export interface WickOptions {
   race?: boolean;
   /** An Ask Wick question is being answered: the Focus face. */
   focus?: boolean;
+  /** Show off every face: a new one every SHOWCASE_SECONDS, with the usual
+   *  blink between them (3.7). Home and the round's welcome use it. */
+  showcase?: boolean;
   /** Where to read the music from; defaults to music.ts. The clip exporter passes its own. */
   pulse?: () => WickPulse | null;
   /** Called when the player pokes him. */
@@ -296,7 +299,7 @@ export interface Wick {
   poke(): void;
   setDance(on: boolean): void;
   /** Race mode and Ask Wick focus, which pick his face along with the mood. */
-  setFlags(flags: { race?: boolean; focus?: boolean }): void;
+  setFlags(flags: { race?: boolean; focus?: boolean; showcase?: boolean }): void;
   /** The face he is wearing. */
   readonly face: FaceName;
   /** Stop animating and remove the SVG. */
@@ -369,6 +372,8 @@ interface Inst {
   faceAt: number;             // when the last face change began
   race: boolean;
   focus: boolean;
+  showcase: boolean;          // walking through every face (Home, the welcome)
+  showStart: number | null;   // when the showcase began, set on its first frame
   faceKey: string;            // what was last painted, to skip repaints
   sparkles: SVGPathElement[];
   pokeAt: number | null;
@@ -436,8 +441,23 @@ function tick(): void {
   if (anyVisible) rafId = requestAnimationFrame(tick);
 }
 
-/** The face the game state calls for right now. */
-function wantFace(i: Inst): FaceName {
+/** Seconds on each face in the showcase, and the order he shows them in. */
+export const SHOWCASE_SECONDS = 5;
+export const SHOWCASE_ORDER: readonly FaceName[] = ["sly", "flustered", "shocked", "calm", "serious", "focus"];
+
+/** The showcase face `elapsed` seconds after it started. */
+export function showcaseFace(elapsed: number): FaceName {
+  const step = Math.max(0, Math.floor(elapsed / SHOWCASE_SECONDS));
+  return SHOWCASE_ORDER[step % SHOWCASE_ORDER.length]!;
+}
+
+/** The face the game state calls for right now (or the showcase's next one).
+ *  No showcase with reduced motion: the swaps would be instant jumps. */
+function wantFace(i: Inst, t: number, rm: boolean): FaceName {
+  if (i.showcase && !rm) {
+    if (i.showStart === null) i.showStart = t;
+    return showcaseFace(t - i.showStart);
+  }
   return faceFor({ mood: i.mood, race: i.race, focus: i.focus });
 }
 
@@ -453,7 +473,7 @@ function changeFace(i: Inst, to: FaceName, t: number): void {
 }
 
 function frame(i: Inst, t: number, rm: boolean): void {
-  const want = wantFace(i);
+  const want = wantFace(i, t, rm);
   if (want !== i.face) changeFace(i, want, t);
   const e = t - i.faceAt;
   const u = rm ? 1 : swapMorph(e);
@@ -578,7 +598,7 @@ export function mountWick(host: HTMLElement, opts: WickOptions): Wick {
   const inst: Inst = {
     el, host, mood, rgbFrom: color, rgbTo: color, colorAt: t0 - MOOD_EASE, colorDone: false, stops, glow, body, rig,
     plate, id, faceSlots: face.slots, face: startFace, faceFrom: FACES[startFace], faceTo: FACES[startFace],
-    faceAt: t0 - 10, race, focus, faceKey: "",
+    faceAt: t0 - 10, race, focus, showcase: !!opts.showcase, showStart: null, faceKey: "",
     sparkles: [], pokeAt: null,
     nextBlinkAt: t0 + nextBlinkDelay(), blinkAt: null, visible: true, dance: !!opts.dance,
     pulse: opts.pulse ?? musicPulse, io: null, lastFlicker: 0.5, lastPath: d0,
@@ -633,6 +653,10 @@ export function mountWick(host: HTMLElement, opts: WickOptions): Wick {
     setFlags(flags) {
       if (flags.race !== undefined) inst.race = flags.race;
       if (flags.focus !== undefined) inst.focus = flags.focus;
+      if (flags.showcase !== undefined && flags.showcase !== inst.showcase) {
+        inst.showcase = flags.showcase;
+        inst.showStart = null;   // a fresh showcase always opens on Sly
+      }
       wake();
     },
     get face() { return inst.face; },
@@ -652,7 +676,7 @@ export function ensureWick(host: HTMLElement, opts: WickOptions): Wick {
   const have = mounted.get(host);
   if (have && have.el.isConnected && have.el.parentElement === host) {
     have.setScore(opts.score, opts.neutral);
-    have.setFlags({ race: !!opts.race, focus: !!opts.focus });
+    have.setFlags({ race: !!opts.race, focus: !!opts.focus, showcase: !!opts.showcase });
     if (opts.dance !== undefined) have.setDance(opts.dance);
     return have;
   }

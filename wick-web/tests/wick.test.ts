@@ -152,3 +152,15 @@ test("no music means no dance", () => {
   const q = poseAt({ t: 4.25, mood: "idle", pokeAt: null, reduceMotion: false, pulse: pulseAt(4.25, null, null) });
   assert.notEqual(p.y, q.y);
 });
+
+// 3.7: the Home and welcome Wick show off every face, one every 5 seconds.
+test("showcase walks through all six faces in order, then starts over", async () => {
+  const { showcaseFace, SHOWCASE_SECONDS, SHOWCASE_ORDER } = await import("../src/game/wick.ts");
+  assert.equal(SHOWCASE_SECONDS, 5);
+  assert.deepEqual([...SHOWCASE_ORDER], ["sly", "flustered", "shocked", "calm", "serious", "focus"]);
+  assert.equal(showcaseFace(0), "sly");
+  assert.equal(showcaseFace(4.9), "sly");
+  assert.equal(showcaseFace(5), "flustered");
+  assert.equal(showcaseFace(27), "focus");
+  assert.equal(showcaseFace(30), "sly");
+});

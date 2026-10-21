@@ -600,7 +600,7 @@ function screenHome(): void {
 
       // Today's puzzle hero card
       el("button", { class: "today-card", onclick: () => { void playSound("tap"); startDaily(); } }, [
-        wickBox("today-mascot", { score: null, size: 92, id: "today" }),
+        wickBox("today-mascot", { score: null, size: 92, id: "today", showcase: true }),
         el("div", { class: "today-text" }, [
           el("div", { class: "today-num" }, [`#${today.puzzleNumber}`]),
           el("div", { class: "today-h" }, [t("todaysPuzzle")]),
@@ -1811,7 +1811,9 @@ function renderHero(sel: string, id: string, latest: Guess | undefined, revealed
   setGauge(w ?? 0, scoreColor(score), big, small);
   // Faces: Sly when cold, Flustered when close, Shocked when cracked,
   // Serious in a live race, Focus while an Ask Wick question is being answered.
-  ensureWick(wrap, { score, size: 116, id, dance, race: dance, focus: thinking });
+  // Before the first guess of a solo round he shows off every face (3.7).
+  const showcase = !latest && !dance && !thinking;
+  ensureWick(wrap, { score, size: 116, id, dance, race: dance, focus: thinking, showcase });
 }
 
 function renderLatestChip(latestEl: HTMLDivElement, latest: Guess | undefined): void {
