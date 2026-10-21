@@ -777,6 +777,14 @@ function looksLikeQuestion(s: string, lang: PlayLang = sp.lang): boolean {
   return /^(is|are|does|do|can|could|will|would|has|have|had|was|were|should|am|whats|what|why|how|who|whom|where|when|which|any)\b/i.test(s);
 }
 
+/** The placeholder reply while Wick works out an answer. */
+const THINKING = "Wick is thinking…";
+/** True while the newest Ask Wick question in the solo round is waiting for its answer. */
+function soloThinking(): boolean {
+  const r = sp.replies[0];
+  return !!r && !r.verdict && r.reply === THINKING;
+}
+
 function showKeeper(verdict: string, reply: string): void {
   const box = document.querySelector<HTMLDivElement>("#keeper");
   if (!box) return;
@@ -784,12 +792,13 @@ function showKeeper(verdict: string, reply: string): void {
   const children: (Node | string)[] = [];
   if (verdict) children.push(el("span", { class: `kbadge ${kind}` }, [verdictLabel(verdict)]));
   if (reply) children.push(el("span", { class: "kreply" }, [reply]));
-  // A rejected / invalid input ("Won't say") gets the unimpressed grey "-_-" Wick;
-  // anything else gets the normal resting Wick.
+  // A rejected / invalid input ("Won't say") gets the grey Wick (Calm face);
+  // while the answer is on its way he wears Focus, studying the question.
   const neutral = kind === "wontsay";
+  const focus = !verdict && reply === THINKING;
   // Reuse the Wick already in the box, so he doesn't snap when the screen re-renders.
   const wick = box.querySelector<HTMLDivElement>(".kwick") ?? el("div", { class: "kwick" });
-  ensureWick(wick, { score: null, neutral, size: 40, id: "kw" });
+  ensureWick(wick, { score: null, neutral, focus, size: 40, id: "kw" });
   box.replaceChildren(wick, el("span", { class: "kbody" }, children));
   box.classList.add("show");
 }
@@ -1008,9 +1017,9 @@ function starterSeed(): number {
 function askSolo(text: string): void {
   const q = text.trim();
   if (!q || sp.solved || sp.revealed) return;
-  const r: SoloReply = { question: q, verdict: "", reply: "Wick is thinking…", ...stampAction() };
+  const r: SoloReply = { question: q, verdict: "", reply: THINKING, ...stampAction() };
   sp.replies.unshift(r);
-  showKeeper("", "Wick is thinking…");
+  showKeeper("", THINKING);
   renderSolo();
   askKeeper(httpBase, sp.secret, q, sp.lang, sp.secretWord?.en).then((ans) => {
     if (ans) { r.verdict = ans.verdict; r.reply = ans.reply; showKeeper(ans.verdict, ans.reply); }
@@ -1549,7 +1558,7 @@ function renderSolo(): void {
   const latest = sp.guesses[0];
   const over = sp.solved || sp.revealed;
   setBackdropHeat(sp.revealed ? null : bestScore(sp.guesses));
-  renderHero("#hero", "solo", latest, sp.revealed);
+  renderHero("#hero", "solo", latest, sp.revealed, false, soloThinking());
   const latestEl = document.querySelector<HTMLDivElement>("#latest");
   if (latestEl) {
     if (sp.solved) {
@@ -1762,7 +1771,7 @@ function questionRowEl(r: SoloReply): HTMLElement {
  *  Wick is built once per screen and only told his new mood here, so a
  *  re-render every second (live races) never restarts his motion. `dance` is
  *  on for the live race, where he moves to the race music. */
-function renderHero(sel: string, id: string, latest: Guess | undefined, revealed = false, dance = false): void {
+function renderHero(sel: string, id: string, latest: Guess | undefined, revealed = false, dance = false, thinking = false): void {
   const hero = document.querySelector<HTMLDivElement>(sel);
   if (!hero) return;
   let gauge = hero.querySelector<HTMLDivElement>(".gauge");
@@ -1784,7 +1793,7 @@ function renderHero(sel: string, id: string, latest: Guess | undefined, revealed
   if (revealed) {
     // Gave up: a defeated, unimpressed grey Wick, and no warmth ring reading.
     setGauge(0, scoreColor(null), "Revealed", "the word is below");
-    ensureWick(wrap, { score: null, neutral: true, size: 116, id, dance });
+    ensureWick(wrap, { score: null, neutral: true, size: 116, id, dance, race: dance });
     return;
   }
   const pending = !!latest && latest.warmth === null;
@@ -1794,7 +1803,9 @@ function renderHero(sel: string, id: string, latest: Guess | undefined, revealed
   const big = !latest ? t("ready") : pending ? t("scoringBig") : latest.correct ? t("heat.Solved!") : rankBig ?? t("heat." + scoreLabel(score!).label);
   const small = !latest ? t("makeGuess") : pending ? t("oneSec") : t("heatHint." + scoreLabel(score!).label);
   setGauge(w ?? 0, scoreColor(score), big, small);
-  ensureWick(wrap, { score, size: 116, id, dance });
+  // Faces: Sly when cold, Flustered when close, Shocked then Calm when cracked,
+  // Serious in a live race, Focus while an Ask Wick question is being answered.
+  ensureWick(wrap, { score, size: 116, id, dance, race: dance, focus: thinking });
 }
 
 function renderLatestChip(latestEl: HTMLDivElement, latest: Guess | undefined): void {
@@ -2003,7 +2014,7 @@ function renderTutorialCoach(beat: boolean): void {
     body = el("div", { class: "tut-body" });
     box.replaceChildren(wickHost, body);
   }
-  const wick = ensureWick(wickHost, { score: coachScore(), neutral: s.note === "notAWord", size: 64, id: "tutcoach" });
+  const wick = ensureWick(wickHost, { score: coachScore(), neutral: s.note === "notAWord", focus: tut.asking, size: 64, id: "tutcoach" });
   if (beat) {
     wick.poke();
     box.classList.remove("hop");
@@ -2611,7 +2622,7 @@ function screenMatch(): void {
     // A question (space or "?") → ask Wick; the server answers on the room
     // secret and replies via `answer`. A single bare word → a guess.
     if (looksLikeQuestion(text)) {
-      live.replies.unshift({ question: text, verdict: "", reply: "Wick is thinking…", pending: true });
+      live.replies.unshift({ question: text, verdict: "", reply: THINKING, pending: true });
       live.client?.ask(text);
       input.value = "";
       renderMatch();
@@ -2664,7 +2675,7 @@ function renderMatch(): void {
     bar.style.width = `${Math.round(oppW * 100)}%`;
     bar.style.background = scoreColor(oppScore);
     const mini = strip.querySelector<HTMLDivElement>(".mini") ?? el("div", { class: "mini" });
-    ensureWick(mini, { score: oppScore, size: 46, id: "opp" });
+    ensureWick(mini, { score: oppScore, size: 46, id: "opp", race: true });
     strip.replaceChildren(
       mini,
       el("div", { class: "opp-info" }, [
@@ -2678,7 +2689,7 @@ function renderMatch(): void {
   }
   const latest = live.guesses[0];
   setBackdropHeat(bestScore(live.guesses));
-  renderHero("#hero", "you", latest, false, true);
+  renderHero("#hero", "you", latest, false, true, !!live.replies[0]?.pending);
   const latestEl = document.querySelector<HTMLDivElement>("#latest");
   if (latestEl) renderLatestChip(latestEl, latest);
   // Wick's most recent in-match answer (if any).

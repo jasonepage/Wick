@@ -6,22 +6,27 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { poseAt, danceAt, boilingShake, pokeEnvelope, flamePath, faceSpec, blinkAmount, bobPeriod, SIZE } from "../src/game/wick.ts";
+import { poseAt, danceAt, boilingShake, pokeEnvelope, flamePath, blinkAmount, bobPeriod, SIZE } from "../src/game/wick.ts";
+import { FACES, faceFor, faceDrawList, eyeShapes, lerpFace, swapBlink, swapMorph, SHOCK_HOLD, PALETTE } from "../src/game/wickface.ts";
 import { pulseAt } from "../src/game/music.ts";
 
 const still = { pokeAt: null, reduceMotion: false, pulse: null };
 
-test("the flame path at rest matches the old hand-drawn silhouette", () => {
-  assert.equal(flamePath(0.5),
-    "M60 124 C25.3 121.6 16.1 97.6 16.1 66.4 C16.1 30.4 41.6 16 60 4 C78.4 16 103.9 30.4 103.9 66.4 C103.9 97.6 94.7 121.6 60 124 Z");
+test("the chunky flame is symmetric at rest, tip at the top, feet at the base", () => {
+  const d = flamePath(0.5);
+  assert.ok(d.startsWith("M60 124") && d.endsWith("60 124 Z"));
+  assert.ok(d.includes(" 60 4 "), "the tip sits at (60, 4)");
+  assert.ok(d.includes("16 67.2") && d.includes("104 67.2"), "widest at 16 and 104");
 });
 
-test("the tip leans with the flicker and the base stays put", () => {
+test("the tip leans with the flicker and reacts to the face; the base stays put", () => {
   const left = flamePath(0);
   const right = flamePath(1);
   assert.notEqual(left, right);
-  assert.ok(left.startsWith("M60 124") && right.startsWith("M60 124"));
-  assert.ok(left.endsWith("60 124 Z") && right.endsWith("60 124 Z"));
+  for (const d of [left, right, flamePath(0.5, FACES.shocked.tip), flamePath(0.5, FACES.flustered.tip)]) {
+    assert.ok(d.startsWith("M60 124") && d.endsWith("60 124 Z"));
+  }
+  assert.ok(flamePath(0.5, FACES.shocked.tip).includes(" 60 1 "), "Shocked spikes the tip up");
 });
 
 test("the bob uses the iOS periods and amplitudes", () => {
@@ -64,15 +69,54 @@ test("Reduce Motion leaves only an opacity breath", () => {
   }
 });
 
-test("every mood has two eyes and a mouth; only some blink", () => {
-  for (const mood of ["idle", "freezing", "cold", "warm", "hot", "boiling", "celebrating", "unamused"] as const) {
-    const f = faceSpec(mood);
-    assert.equal(f.filter((s) => s.eye).length, 2, mood);
-    assert.equal(f.filter((s) => !s.eye).length, 1, mood);
+test("each game state wears its face", () => {
+  assert.equal(faceFor({ mood: "idle" }), "sly");
+  assert.equal(faceFor({ mood: "freezing" }), "sly");
+  assert.equal(faceFor({ mood: "cold" }), "sly");
+  for (const mood of ["warm", "hot", "boiling"] as const) assert.equal(faceFor({ mood }), "flustered");
+  assert.equal(faceFor({ mood: "celebrating", sinceSolved: 0.2 }), "shocked");
+  assert.equal(faceFor({ mood: "celebrating", sinceSolved: SHOCK_HOLD + 0.1 }), "calm");
+  assert.equal(faceFor({ mood: "cold", race: true }), "serious");
+  assert.equal(faceFor({ mood: "boiling", race: true }), "serious");
+  assert.equal(faceFor({ mood: "celebrating", race: true, sinceSolved: 0 }), "shocked");
+  assert.equal(faceFor({ mood: "warm", focus: true }), "focus");
+  assert.equal(faceFor({ mood: "cold", race: true, focus: true }), "focus");
+  assert.equal(faceFor({ mood: "unamused" }), "calm");
+});
+
+test("every face draws the same 18 slots; Calm's eyes are shut, the others open", () => {
+  for (const [name, f] of Object.entries(FACES)) {
+    const items = faceDrawList(f, f.eyes.map((e) => e.closed), PALETTE.keeper);
+    assert.equal(items.length, 18, name);
+    const whites = [items[8]!, items[11]!];
+    if (name === "calm") assert.ok(whites.every((w) => w.d === ""), "shut eyes show no white");
+    else assert.ok(whites.every((w) => w.d.length > 20), `${name} has open eyes`);
+    assert.ok(items[14]!.d.length > 100, `${name} has brows`);
   }
+  assert.ok(faceDrawList(FACES.flustered, [0, 0], PALETTE.keeper)[17]!.d.length > 0, "Flustered sweats");
+  assert.equal(faceDrawList(FACES.sly, [0, 0], PALETTE.keeper)[17]!.d, "", "Sly does not");
+});
+
+test("a blink shuts the eye fully and the lash line shows only when shut", () => {
+  const e = FACES.sly.eyes[0]!;
+  assert.ok(eyeShapes(e, 0).white.length > 20);
+  assert.equal(eyeShapes(e, 1).white, "");
+  assert.equal(eyeShapes(e, 0).lashOpacity, 0);
+  assert.equal(eyeShapes(e, 1).lashOpacity, 1);
   assert.equal(blinkAmount(0), 0);
   assert.equal(blinkAmount(0.1), 1);
   assert.equal(blinkAmount(0.3), 0);
+});
+
+test("changing faces: eyes shut first, the face morphs behind them, then they open", () => {
+  assert.equal(swapBlink(0), 0);
+  assert.equal(swapBlink(0.15), 1);
+  assert.equal(swapBlink(0.5), 0);
+  assert.equal(swapMorph(0), 0);
+  assert.equal(swapMorph(0.5), 1);
+  const mid = lerpFace(FACES.sly, FACES.serious, 0.5);
+  const a = FACES.sly.brows[0]!.c[0]![1]!, b = FACES.serious.brows[0]!.c[0]![1]!;
+  assert.ok(Math.abs(mid.brows[0]!.c[0]![1]! - (a + b) / 2) < 1e-9);
 });
 
 test("the dance lands on the beat and is in the air between beats", () => {

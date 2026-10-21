@@ -11,7 +11,8 @@
 //  How it is put together:
 //
 //  1. Pure math (no browser needed, so it is unit tested in tests/wick.test.ts):
-//     `flamePath`, `faceSpec`, `boilingShake`, `danceAt` and `poseAt`. Given a
+//     `flamePath`, `boilingShake`, `danceAt` and `poseAt` (the faces live in
+//     wickface.ts). Given a
 //     time and a mood they say where Wick is and what shape he is.
 //  2. The DOM component: `mountWick` builds the SVG once and then only moves
 //     it. One requestAnimationFrame loop drives every mounted Wick, and it
@@ -26,11 +27,20 @@
 //  and the flame's base sits at (60, 124), so a 120 px Wick is one unit per
 //  pixel. `SIZE` (120) plays the part of `size` in KeeperView's formulas.
 //
+//  4. The face. Wick wears one of the Keeper's six faces from wickface.ts
+//     (Sly, Flustered, Shocked, Calm, Serious, Focus), picked from the game's
+//     state. He changes faces with a blink: the eyes shut, the brows, mouth and
+//     flame tip morph while they are shut, and he opens on the new face with a
+//     small squash and stretch.
+//
 //  KEEP IN LOCKSTEP with KeeperView.swift and WickDance.swift: when a number
 //  changes on one platform, change it on the other.
 //
 
-import { type Mood, type RGB, moodFor, moodRGB, lighten, rgb, starPath, PALETTE } from "./wickface.ts";
+import {
+  type Mood, type RGB, type FaceName, type FaceP, type TipP, moodFor, moodRGB, lighten, rgb, starPath, PALETTE,
+  FACES, FACE_TRANSFORM, PLATE_ART, PLATE_PATH, chunkyFlamePath, faceDrawList, faceFor, lerpFace, swapBlink, swapMorph,
+} from "./wickface.ts";
 import { musicPulse } from "./music.ts";
 
 export type WickMood = Mood;
@@ -50,16 +60,9 @@ export const SIZE = 120;
 /** Where the flame's feet are. Every transform pivots here. */
 export const BASE_X = 60;
 export const BASE_Y = 124;
-/** The flame's box inside the viewBox: 102 wide and 120 tall, like the iOS
- *  frame of size x 1.18 size. */
-const FLAME_RECT = { x: 9, y: 4, w: 102, h: 120 };
-
-const EYE_Y = 72;
-const EYE_LX = 43.6;
-const EYE_RX = 76.4;
-const MOUTH_Y = 92;
-const EYE_R = 6.9;
-const STROKE = 3.4;
+/** How far the tip leans across the full flicker, in viewBox units. Gentler than
+ *  the old thin flame (0.22 x 102) so the chunky silhouette stays true to the art. */
+const LEAN = 0.09 * 102;
 const WHITE = "#ffffff";
 
 // ── pure math ───────────────────────────────────────────────────────────────
@@ -83,55 +86,12 @@ export function bobAmplitude(mood: WickMood, size = SIZE): number {
 }
 
 /**
- * The flame outline, point for point the same as KeeperFlameShape.path(in:).
- * `flicker` is 0..1; the tip leans by (flicker - 0.5) * 0.22 * width.
+ * The flame outline: the chunky flame from the approved icon art (see
+ * chunkyFlamePath in wickface.ts). `flicker` is 0..1; the tip leans by
+ * (flicker - 0.5) * LEAN. `tip` is the face's tip reaction.
  */
-export function flamePath(flicker: number, r = FLAME_RECT): string {
-  const { x, y, w, h } = r;
-  const lean = (flicker - 0.5) * 0.22 * w;
-  const f = (v: number): string => (Math.round(v * 10) / 10).toString();
-  const pt = (px: number, py: number): string => `${f(x + px)} ${f(y + py)}`;
-  return `M${pt(w * 0.5, h)} ` +
-    `C${pt(w * 0.16, h * 0.98)} ${pt(w * 0.07, h * 0.78)} ${pt(w * 0.07, h * 0.52)} ` +
-    `C${pt(w * 0.07, h * 0.22)} ${pt(w * 0.32 + lean * 0.6, h * 0.10)} ${pt(w * 0.5 + lean, 0)} ` +
-    `C${pt(w * 0.68 + lean * 0.6, h * 0.10)} ${pt(w * 0.93, h * 0.22)} ${pt(w * 0.93, h * 0.52)} ` +
-    `C${pt(w * 0.93, h * 0.78)} ${pt(w * 0.84, h * 0.98)} ${pt(w * 0.5, h)} Z`;
-}
-
-/** A shape in Wick's face. `eye` marks the parts that blink. */
-export type Shape =
-  | { kind: "circle"; cx: number; cy: number; r: number; fill: string; opacity: number; eye?: boolean }
-  | { kind: "rect"; x: number; y: number; w: number; h: number; rx: number; fill: string; opacity: number; eye?: boolean }
-  | { kind: "path"; d: string; fill?: string; stroke?: string; width?: number; opacity: number; eye?: boolean };
-
-/** Eyes and mouth for a mood. Mirrors KeeperView.moodEye and KeeperView.mouth. */
-export function faceSpec(mood: WickMood): Shape[] {
-  const out: Shape[] = [];
-  const W = WHITE;
-  // Eyes.
-  if (mood === "celebrating") {
-    out.push({ kind: "path", d: starPath(EYE_LX, EYE_Y, 10), fill: W, opacity: 1, eye: true });
-    out.push({ kind: "path", d: starPath(EYE_RX, EYE_Y, 10), fill: W, opacity: 1, eye: true });
-  } else if (mood === "unamused") {
-    for (const cx of [EYE_LX, EYE_RX]) out.push({ kind: "rect", x: cx - 7, y: EYE_Y - 1.5, w: 14, h: 3, rx: 1.5, fill: W, opacity: 0.85, eye: true });
-  } else if (mood === "freezing") {
-    for (const cx of [EYE_LX, EYE_RX]) out.push({ kind: "rect", x: cx - 6.9, y: EYE_Y - 3.1, w: 13.8, h: 6.2, rx: 3.1, fill: W, opacity: 0.9, eye: true });
-  } else {
-    const r = mood === "boiling" || mood === "hot" ? EYE_R * 1.18 : EYE_R;
-    for (const cx of [EYE_LX, EYE_RX]) out.push({ kind: "circle", cx, cy: EYE_Y, r, fill: W, opacity: 0.9, eye: true });
-  }
-  // Mouth.
-  const my = MOUTH_Y;
-  if (mood === "celebrating" || mood === "boiling") {
-    out.push({ kind: "path", d: `M51 ${my} A9 9 0 0 0 69 ${my} Z`, fill: W, opacity: 0.9 });
-  } else if (mood === "hot" || mood === "warm" || mood === "idle") {
-    out.push({ kind: "path", d: `M51 ${my} Q60 ${my + 7} 69 ${my}`, stroke: W, width: STROKE, opacity: 0.9 });
-  } else if (mood === "unamused") {
-    out.push({ kind: "path", d: `M53 ${my + 1} L67 ${my + 1}`, stroke: W, width: STROKE, opacity: 0.8 });
-  } else {
-    out.push({ kind: "path", d: `M51 ${my + 4} Q60 ${my - 3} 69 ${my + 4}`, stroke: W, width: STROKE, opacity: 0.9 });
-  }
-  return out;
+export function flamePath(flicker: number, tip?: TipP): string {
+  return chunkyFlamePath((flicker - 0.5) * LEAN, tip);
 }
 
 /** The four sparkles around a celebrating Wick: where they sit and how big. */
@@ -316,6 +276,10 @@ export interface WickOptions {
   id?: string;
   /** Dance to the race music when it plays. Only the live race screen sets this. */
   dance?: boolean;
+  /** Race mode: the Serious face (unless the word is cracked). */
+  race?: boolean;
+  /** An Ask Wick question is being answered: the Focus face. */
+  focus?: boolean;
   /** Where to read the music from; defaults to music.ts. The clip exporter passes its own. */
   pulse?: () => WickPulse | null;
   /** Called when the player pokes him. */
@@ -331,6 +295,10 @@ export interface Wick {
   /** Squash, stretch and wiggle, like a tap on iOS Wick. */
   poke(): void;
   setDance(on: boolean): void;
+  /** Race mode and Ask Wick focus, which pick his face along with the mood. */
+  setFlags(flags: { race?: boolean; focus?: boolean }): void;
+  /** The face he is wearing. */
+  readonly face: FaceName;
   /** Stop animating and remove the SVG. */
   destroy(): void;
 }
@@ -344,36 +312,40 @@ function svgEl<K extends keyof SVGElementTagNameMap>(tag: K, attrs: Record<strin
   return e;
 }
 
-/** Build one face shape as an SVG element. */
-function shapeEl(s: Shape): SVGElement {
-  switch (s.kind) {
-    case "circle":
-      return svgEl("circle", { cx: s.cx, cy: s.cy, r: s.r, fill: s.fill, opacity: s.opacity });
-    case "rect":
-      return svgEl("rect", { x: s.x, y: s.y, width: s.w, height: s.h, rx: s.rx, fill: s.fill, opacity: s.opacity });
-    case "path": {
-      const attrs: Record<string, string | number> = { d: s.d, opacity: s.opacity };
-      if (s.fill) attrs.fill = s.fill;
-      if (s.stroke) {
-        attrs.stroke = s.stroke;
-        attrs["stroke-width"] = s.width ?? STROKE;
-        attrs.fill = "none";
-        attrs["stroke-linecap"] = "round";
-      }
-      return svgEl("path", attrs);
-    }
+/** The face group: 18 path slots, always in the same order (see faceDrawList). */
+function buildFace(id: string): { g: SVGGElement; slots: SVGPathElement[] } {
+  const g = svgEl("g", { class: "face", transform: FACE_TRANSFORM });
+  const clip = svgEl("clipPath", { id: `plate-${id}` });
+  clip.append(svgEl("path", { d: PLATE_ART }));
+  g.append(clip);
+  const slots: SVGPathElement[] = [];
+  for (let k = 0; k < 18; k++) {
+    const p = svgEl("path", { d: "" });
+    g.append(p);
+    slots.push(p);
   }
+  return { g, slots };
 }
 
-/** A face group: eyes (which blink) and the mouth. */
-function buildFace(mood: WickMood): { g: SVGGElement; eyes: SVGGElement; blinks: boolean } {
-  const g = svgEl("g", { class: "face" });
-  const eyes = svgEl("g", { class: "eyes" });
-  g.append(eyes);
-  for (const s of faceSpec(mood)) (s.eye ? eyes : g).append(shapeEl(s));
-  // Star eyes twinkle instead of blinking; dashes have nothing to shut.
-  const blinks = mood !== "celebrating" && mood !== "unamused";
-  return { g, eyes, blinks };
+/** Paint a face into its slots. Only touches attributes that changed. */
+function paintFace(slots: SVGPathElement[], id: string, p: FaceP, closure: number[], color: RGB): void {
+  const items = faceDrawList(p, closure, color);
+  items.forEach((it, k) => {
+    const el = slots[k];
+    if (!el) return;
+    const set = (name: string, v: string | null): void => {
+      if (v === null) { if (el.hasAttribute(name)) el.removeAttribute(name); return; }
+      if (el.getAttribute(name) !== v) el.setAttribute(name, v);
+    };
+    set("d", it.d);
+    set("fill", it.stroke ? "none" : it.fill ?? null);
+    set("stroke", it.stroke ?? null);
+    set("stroke-width", it.stroke ? String(it.width ?? 24) : null);
+    set("stroke-linecap", it.stroke ? "round" : null);
+    set("stroke-linejoin", it.stroke ? "round" : null);
+    set("opacity", it.opacity < 0.999 ? it.opacity.toFixed(3) : null);
+    set("clip-path", it.plate ? `url(#plate-${id})` : null);
+  });
 }
 
 interface Inst {
@@ -387,11 +359,18 @@ interface Inst {
   stops: SVGStopElement[];
   glow: SVGPathElement;
   body: SVGPathElement;
-  sheen: SVGPathElement;
   rig: SVGGElement;
-  faceIn: ReturnType<typeof buildFace>;
-  faceOut: ReturnType<typeof buildFace> | null;
-  faceAt: number;             // when the face crossfade began
+  plate: SVGPathElement;
+  id: string;
+  faceSlots: SVGPathElement[];
+  face: FaceName;             // the face he is wearing (or changing into)
+  faceFrom: FaceP;            // where the morph started
+  faceTo: FaceP;
+  faceAt: number;             // when the last face change began
+  solvedAt: number;           // when he went to celebrating (Shocked, then Calm)
+  race: boolean;
+  focus: boolean;
+  faceKey: string;            // what was last painted, to skip repaints
   sparkles: SVGPathElement[];
   pokeAt: number | null;
   nextBlinkAt: number;
@@ -458,35 +437,68 @@ function tick(): void {
   if (anyVisible) rafId = requestAnimationFrame(tick);
 }
 
+/** The face the game state calls for right now. */
+function wantFace(i: Inst, t: number): FaceName {
+  return faceFor({ mood: i.mood, race: i.race, focus: i.focus, sinceSolved: t - i.solvedAt });
+}
+
+/** Start changing faces: blink, morph behind the lids, pop open. */
+function changeFace(i: Inst, to: FaceName, t: number): void {
+  const e = t - i.faceAt;
+  i.faceFrom = lerpFace(i.faceFrom, i.faceTo, swapMorph(e));   // from wherever he is now
+  i.faceTo = FACES[to];
+  i.face = to;
+  i.faceAt = t;
+  i.blinkAt = null;
+  i.nextBlinkAt = t + 1.2 + nextBlinkDelay();
+}
+
 function frame(i: Inst, t: number, rm: boolean): void {
-  // Blink timing: a random wait, then a quick shut and open.
+  const want = wantFace(i, t);
+  if (want !== i.face) changeFace(i, want, t);
+  const e = t - i.faceAt;
+  const u = rm ? 1 : swapMorph(e);
+  const face = u >= 1 ? i.faceTo : lerpFace(i.faceFrom, i.faceTo, u);
+  const shut = face.eyes.every((ey) => ey.closed > 0.99);
+
+  // Idle blinks: a random wait, then a quick shut and open (not while shut or changing faces).
   let blink = 0;
-  if (i.faceIn.blinks && !rm) {
+  if (!rm && !shut && e > 0.6) {
     if (i.blinkAt === null && t >= i.nextBlinkAt) i.blinkAt = t;
     if (i.blinkAt !== null) {
-      const e = t - i.blinkAt;
-      blink = blinkAmount(e);
-      if (e >= BLINK_LENGTH) { i.blinkAt = null; i.nextBlinkAt = t + nextBlinkDelay(); }
+      const be = t - i.blinkAt;
+      blink = blinkAmount(be);
+      if (be >= BLINK_LENGTH) { i.blinkAt = null; i.nextBlinkAt = t + nextBlinkDelay(); }
     }
   }
+  const swap = rm ? 0 : swapBlink(e);
+  const closure = face.eyes.map((ey) => Math.max(ey.closed, blink, swap));
+
   const pulse = i.dance ? i.pulse() : null;
   const pose = poseAt({ t, mood: i.mood, pokeAt: i.pokeAt, reduceMotion: rm, pulse });
+  // The pop as he opens on a new face: squash and stretch, a hop for Shocked.
+  if (!rm) {
+    const pop = pokeEnvelope(e - 0.3) * (i.face === "shocked" ? 1.6 : 1);
+    pose.sy *= 1 + 0.10 * pop;
+    pose.sx *= 1 - 0.06 * pop;
+    if (i.face === "shocked") pose.y -= 5 * pop;
+  }
   i.rig.setAttribute("transform", poseTransform(pose));
   i.el.style.opacity = pose.opacity < 1 ? pose.opacity.toFixed(3) : "";
 
-  // The silhouette: only rewrite the path when the lean actually changed.
-  if (Math.abs(pose.flicker - i.lastFlicker) > 0.002) {
+  // The silhouette: only rewrite the path when the lean or the tip changed.
+  const tipChanging = e < 0.5;
+  if (Math.abs(pose.flicker - i.lastFlicker) > 0.002 || tipChanging) {
     i.lastFlicker = pose.flicker;
-    i.lastPath = flamePath(pose.flicker);
+    i.lastPath = flamePath(pose.flicker, face.tip);
     i.body.setAttribute("d", i.lastPath);
     i.glow.setAttribute("d", i.lastPath);
-    i.sheen.setAttribute("d", i.lastPath);
   }
 
   // Colour ease.
   const cf = Math.min(1, (t - i.colorAt) / MOOD_EASE);
+  const c = mixRGB(i.rgbFrom, i.rgbTo, cf);
   if (!i.colorDone) {
-    const c = mixRGB(i.rgbFrom, i.rgbTo, cf);
     const top = lighten(c, 0.12);
     const bot = rgb(c);
     i.stops[0]?.setAttribute("stop-color", top);
@@ -496,15 +508,12 @@ function frame(i: Inst, t: number, rm: boolean): void {
     i.colorDone = cf >= 1;
   }
 
-  // Face crossfade.
-  if (i.faceOut) {
-    const ff = Math.min(1, (t - i.faceAt) / MOOD_EASE);
-    i.faceIn.g.setAttribute("opacity", ff.toFixed(3));
-    i.faceOut.g.setAttribute("opacity", (1 - ff).toFixed(3));
-    if (ff >= 1) { i.faceOut.g.remove(); i.faceOut = null; i.faceIn.g.removeAttribute("opacity"); }
+  // The face: repaint only when something in it moved.
+  const key = `${i.face}|${u.toFixed(3)}|${closure.map((v) => v.toFixed(3)).join(",")}|${c.join(",")}`;
+  if (key !== i.faceKey) {
+    i.faceKey = key;
+    paintFace(i.faceSlots, i.id, face, closure, c);
   }
-  const bs = blinkScale(blink);
-  i.faceIn.eyes.setAttribute("transform", bs < 1 ? `translate(0 ${EYE_Y}) scale(1 ${bs.toFixed(3)}) translate(0 ${-EYE_Y})` : "");
 
   // Sparkles twinkle (celebrating only; the group is empty otherwise).
   for (let k = 0; k < i.sparkles.length; k++) {
@@ -550,25 +559,28 @@ export function mountWick(host: HTMLElement, opts: WickOptions): Wick {
   defs.append(grad, filter);
 
   const rig = svgEl("g", { class: "wick-rig" });
-  const d0 = flamePath(0.5);
+  const t0 = now();
+  const race = !!opts.race, focus = !!opts.focus;
+  const startFace = faceFor({ mood, race, focus, sinceSolved: 0 });
+  const d0 = flamePath(0.5, FACES[startFace].tip);
   const glow = svgEl("path", {
     class: "flame-glow", d: d0, fill: rgb(color), opacity: 0.30, filter: `url(#soft-${id})`,
     transform: `translate(${BASE_X} ${BASE_Y}) scale(1.12) translate(${-BASE_X} ${-BASE_Y})`,
   });
   const body = svgEl("path", { class: "flame-body", d: d0, fill: `url(#body-${id})` });
-  const sheenG = svgEl("g", { class: "flame-sheen", opacity: 0.22 });
-  const sheen = svgEl("path", { d: d0, fill: WHITE, transform: `translate(60 119) scale(0.55) translate(-60 -124)` });
-  sheenG.append(sheen);
+  // The inner flame: one tone step lighter than the body (white at 22%).
+  const plate = svgEl("path", { class: "flame-core", d: PLATE_PATH, fill: WHITE, opacity: 0.22 });
   const sparkG = svgEl("g", { class: "sparkles", fill: SPARKLE_COLOR });
-  const face = buildFace(mood);
-  rig.append(glow, body, sheenG, sparkG, face.g);
+  const face = buildFace(id);
+  rig.append(glow, body, plate, sparkG, face.g);
   el.append(defs, rig);
   host.append(el);
 
-  const t0 = now();
   const inst: Inst = {
-    el, host, mood, rgbFrom: color, rgbTo: color, colorAt: t0 - MOOD_EASE, colorDone: false, stops, glow, body, sheen, rig,
-    faceIn: face, faceOut: null, faceAt: t0, sparkles: [], pokeAt: null,
+    el, host, mood, rgbFrom: color, rgbTo: color, colorAt: t0 - MOOD_EASE, colorDone: false, stops, glow, body, rig,
+    plate, id, faceSlots: face.slots, face: startFace, faceFrom: FACES[startFace], faceTo: FACES[startFace],
+    faceAt: t0 - 10, solvedAt: mood === "celebrating" ? t0 : -1e9, race, focus, faceKey: "",
+    sparkles: [], pokeAt: null,
     nextBlinkAt: t0 + nextBlinkDelay(), blinkAt: null, visible: true, dance: !!opts.dance,
     pulse: opts.pulse ?? musicPulse, io: null, lastFlicker: 0.5, lastPath: d0,
   };
@@ -609,16 +621,8 @@ export function mountWick(host: HTMLElement, opts: WickOptions): Wick {
       inst.rgbTo = moodRGB(m);
       inst.colorAt = t;
       inst.colorDone = false;
-      // Crossfade the face. If one is still fading out, drop it and fade from the current one.
-      inst.faceOut?.g.remove();
-      inst.faceOut = inst.faceIn;
-      inst.faceIn = buildFace(m);
-      inst.faceIn.g.setAttribute("opacity", "0");
-      inst.faceOut.eyes.removeAttribute("transform");
-      rig.append(inst.faceIn.g);
-      inst.faceAt = t;
-      inst.blinkAt = null;
-      inst.nextBlinkAt = t + nextBlinkDelay();
+      // The face follows on the next frame (wantFace), with a blink and a morph.
+      if (m === "celebrating") inst.solvedAt = t;
       el.classList.remove(`mood-${inst.mood}`);
       el.classList.add(`mood-${m}`);
       inst.mood = m;
@@ -628,6 +632,12 @@ export function mountWick(host: HTMLElement, opts: WickOptions): Wick {
     setScore(score, neutral) { handle.setMood(moodFor({ score, neutral })); },
     poke() { inst.pokeAt = now(); wake(); },
     setDance(on) { inst.dance = on; },
+    setFlags(flags) {
+      if (flags.race !== undefined) inst.race = flags.race;
+      if (flags.focus !== undefined) inst.focus = flags.focus;
+      wake();
+    },
+    get face() { return inst.face; },
     destroy() { teardown(inst); el.remove(); },
   };
   return handle;
@@ -644,6 +654,7 @@ export function ensureWick(host: HTMLElement, opts: WickOptions): Wick {
   const have = mounted.get(host);
   if (have && have.el.isConnected && have.el.parentElement === host) {
     have.setScore(opts.score, opts.neutral);
+    have.setFlags({ race: !!opts.race, focus: !!opts.focus });
     if (opts.dance !== undefined) have.setDance(opts.dance);
     return have;
   }

@@ -9,12 +9,11 @@
 //
 
 import {
-  type Pose, type WickMood, BASE_X, BASE_Y, SPARKLES, SPARKLE_COLOR, blinkScale,
-  faceSpec, flamePath, sparklePhase,
+  type Pose, type WickMood, BASE_X, BASE_Y, SPARKLES, SPARKLE_COLOR, flamePath, sparklePhase,
 } from "./wick.ts";
-import { type RGB, lighten, rgb } from "./wickface.ts";
-
-const EYE_Y = 72;
+import {
+  type FaceName, type RGB, FACES, FACE_K, FACE_TX, FACE_TY, PLATE_ART, PLATE_PATH, faceDrawList, faceFor, lighten, rgb,
+} from "./wickface.ts";
 
 export interface DrawWickArgs {
   /** Where Wick's feet go, in canvas pixels. */
@@ -27,6 +26,8 @@ export interface DrawWickArgs {
   pose: Pose;
   /** 0 open ... 1 shut. */
   blink: number;
+  /** Which of the Keeper's faces; picked from the mood when left out. */
+  face?: FaceName;
   /** Seconds, for the sparkles. */
   t: number;
 }
@@ -44,7 +45,9 @@ export function drawWick(ctx: CanvasRenderingContext2D, a: DrawWickArgs): void {
   ctx.scale(pose.sx, pose.sy);
   ctx.translate(-BASE_X, -BASE_Y);
 
-  const flame = new Path2D(flamePath(pose.flicker));
+  const faceName = a.face ?? faceFor({ mood: a.mood, sinceSolved: 99 });
+  const face = FACES[faceName];
+  const flame = new Path2D(flamePath(pose.flicker, face.tip));
   const body = rgb(a.color);
 
   // Glow: the flame again, a little bigger, blurred and faint.
@@ -66,14 +69,11 @@ export function drawWick(ctx: CanvasRenderingContext2D, a: DrawWickArgs): void {
   ctx.fillStyle = g;
   ctx.fill(flame);
 
-  // Sheen: a small white flame inside.
+  // The inner flame: one tone step lighter (white at 22%).
   ctx.save();
-  ctx.translate(60, 119);
-  ctx.scale(0.55, 0.55);
-  ctx.translate(-60, -124);
   ctx.globalAlpha *= 0.22;
   ctx.fillStyle = "#ffffff";
-  ctx.fill(flame);
+  ctx.fill(new Path2D(PLATE_PATH));
   ctx.restore();
 
   // Sparkles (celebrating only).
@@ -93,45 +93,31 @@ export function drawWick(ctx: CanvasRenderingContext2D, a: DrawWickArgs): void {
     });
   }
 
-  // Face. The eyes squeeze toward their centre line when blinking.
-  const bs = blinkScale(a.blink);
-  for (const s of faceSpec(a.mood)) {
+  // Face: the same draw list the SVG uses, in the art's units.
+  ctx.save();
+  ctx.translate(FACE_TX, FACE_TY);
+  ctx.scale(FACE_K, FACE_K);
+  const closure = face.eyes.map((e) => Math.max(e.closed, a.blink));
+  const plate = new Path2D(PLATE_ART);
+  for (const it of faceDrawList(face, closure, a.color)) {
+    if (!it.d || it.opacity <= 0.001) continue;
     ctx.save();
-    if (s.eye && bs < 1) {
-      ctx.translate(0, EYE_Y);
-      ctx.scale(1, bs);
-      ctx.translate(0, -EYE_Y);
-    }
-    ctx.globalAlpha *= s.opacity;
-    switch (s.kind) {
-      case "circle":
-        ctx.fillStyle = s.fill;
-        ctx.beginPath();
-        ctx.arc(s.cx, s.cy, s.r, 0, Math.PI * 2);
-        ctx.fill();
-        break;
-      case "rect":
-        ctx.fillStyle = s.fill;
-        ctx.beginPath();
-        ctx.roundRect(s.x, s.y, s.w, s.h, s.rx);
-        ctx.fill();
-        break;
-      case "path": {
-        const p = new Path2D(s.d);
-        if (s.stroke) {
-          ctx.strokeStyle = s.stroke;
-          ctx.lineWidth = s.width ?? 3.4;
-          ctx.lineCap = "round";
-          ctx.stroke(p);
-        } else {
-          ctx.fillStyle = s.fill ?? "#ffffff";
-          ctx.fill(p);
-        }
-        break;
-      }
+    if (it.plate) ctx.clip(plate);
+    ctx.globalAlpha *= it.opacity;
+    const p = new Path2D(it.d);
+    if (it.stroke) {
+      ctx.strokeStyle = it.stroke;
+      ctx.lineWidth = it.width ?? 24;
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      ctx.stroke(p);
+    } else {
+      ctx.fillStyle = it.fill ?? "#ffffff";
+      ctx.fill(p);
     }
     ctx.restore();
   }
+  ctx.restore();
   ctx.restore();
 }
 
