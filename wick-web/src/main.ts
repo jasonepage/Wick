@@ -1017,11 +1017,17 @@ function starterSeed(): number {
 function askSolo(text: string): void {
   const q = text.trim();
   if (!q || sp.solved || sp.revealed) return;
+  // The round's earlier answers, oldest first (sp.replies is newest first).
+  const history = sp.replies
+    .filter((x) => x.verdict && x.verdict !== "Won't say")
+    .slice(0, 12)
+    .reverse()
+    .map((x) => ({ q: x.question, v: x.verdict }));
   const r: SoloReply = { question: q, verdict: "", reply: THINKING, ...stampAction() };
   sp.replies.unshift(r);
   showKeeper("", THINKING);
   renderSolo();
-  askKeeper(httpBase, sp.secret, q, sp.lang, sp.secretWord?.en).then((ans) => {
+  askKeeper(httpBase, sp.secret, q, sp.lang, sp.secretWord?.en, history).then((ans) => {
     if (ans) { r.verdict = ans.verdict; r.reply = ans.reply; showKeeper(ans.verdict, ans.reply); }
     else { r.reply = "Wick is quiet right now."; showKeeper("", "Wick is quiet right now."); }
     saveDaily();

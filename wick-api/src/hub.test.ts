@@ -460,6 +460,38 @@ describe("in-match Keeper (ask/answer, FR-19)", () => {
     expect(b.last("state")!.state.opponent.bestWarmth).toBe(0);
   });
 
+  it("sends the asker's own earlier questions and verdicts, never the opponent's (3.7)", async () => {
+    const seen: Array<{ who: string; history: unknown }> = [];
+    clock = { t: T0 };
+    const hub = new MatchHub({
+      now: () => clock.t,
+      answerKeeper: async (_s, q, _l, _e, history) => {
+        seen.push({ who: q, history: (history ?? []).map((h) => `${h.q}=${h.v}`) });
+        return { verdict: q.includes("place") ? "Yes" : "No", reply: "" };
+      },
+      matchmaker: {
+        wordProvider: () => "ember",
+        roomIdProvider: (() => { let n = 0; return () => `room-${++n}`; })(),
+        botSeedProvider: () => solvingSeed(),
+      },
+    });
+    const a = new Fake("A");
+    const b = new Fake("B");
+    hub.connect(a);
+    hub.connect(b);
+    hub.receive(a, { t: "queue", mode: "casual" });
+    hub.receive(b, { t: "queue", mode: "casual" });
+    hub.receive(a, { t: "ask", question: "is it a place?" });
+    await flush();
+    hub.receive(b, { t: "ask", question: "B asks: is it alive?" });
+    await flush();
+    hub.receive(a, { t: "ask", question: "is it alive?" });
+    await flush();
+    expect(seen[0]!.history).toEqual([]);
+    expect(seen[1]!.history).toEqual([]); // B never sees A's questions
+    expect(seen[2]!.history).toEqual(["is it a place?=Yes"]);
+  });
+
   it("rejects an ask when not in a match", () => {
     const hub = hubWithKeeper(async () => ({ verdict: "No", reply: "" }));
     const a = new Fake("A");

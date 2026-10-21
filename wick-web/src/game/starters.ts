@@ -11,10 +11,11 @@
 //  "spell", "rhyme", "define", "synonym"). Keep that true when adding one.
 //
 //  WHAT IS SENT vs WHAT IS SHOWN. The player sees the question in their own
-//  language; the ENGLISH text is what goes to the server. The Keeper's
-//  deterministic path (wick-api/src/offlinekeeper.ts) maps English question text
-//  to a property, so translating what we send would push every suggested question
-//  onto the paid model for no benefit. Show localised, send English.
+//  language; the ENGLISH text is what goes to the server. The server answers
+//  these exact English questions about the daily word ahead of time and saves
+//  the answers (wick-api/src/keeperwarm.ts), so a tapped suggestion is instant.
+//  Translating what we send would miss those saved answers. Show localised,
+//  send English.
 //
 //  NOT bit-identical to iOS in its SELECTION. Both platforms use this bank and
 //  the same day seed, but reproducing Swift's `shuffled(using:)` exactly is not

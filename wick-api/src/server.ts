@@ -21,9 +21,11 @@ import { parseClientFrame, type ServerFrame } from "./protocol.js";
 import { makeWordProvider } from "./words.js";
 import { warmthScore, validateSecret } from "./warmthservice.js";
 import { isRealWord, dictionarySize } from "./dictionary.js";
-import { keeperAnswer } from "./keeper.js";
+import { keeperAnswer, KEEPER_PROMPT_VERSION } from "./keeper.js";
+import { AnswerCache } from "./answercache.js";
+import { DailyWarmer } from "./keeperwarm.js";
 import { hasEmbeddings, lastEmbedError, activeEmbedModel, activeEmbedMode, selfCheck, rankVocabExpected, rankVocabProgress, rankVocabStatus, prewarm, cacheStats, warmRankVocab, ensureRankVocab, rankVocabVectors, batchEmbed } from "./embeddings.js";
-import { langOf, rankVocabFor, type Lang } from "./lang.js";
+import { langOf, isLang, rankVocabFor, type Lang } from "./lang.js";
 import { layout as revealLayout } from "./revealmap.js";
 import { COMMON_WORDS } from "./commonwords.js";
 import { RANK_VOCAB } from "./rankvocab.js";
@@ -152,6 +154,9 @@ app.get("/healthz", (c) => {
       boardToday: board.snapshot(puzzleNumber(Date.now()), 0).total,
       boardSaveError: board.saveError,
     },
+    // 3.7 saved Keeper answers: words, answers, and how often a question was
+    // answered from them (hits) instead of asking Gemini (misses).
+    keeperAnswers: keeperCache.stats(),
   }, status);
 });
 
@@ -247,6 +252,18 @@ app.get("/stats/weekly", (c) => {
   c.header("Cache-Control", "public, max-age=300");
   return c.json(tally.snapshot(langOf(c.req.query("lang"))));
 });
+
+// 3.7: saved Keeper answers (see answercache.ts). The same question about the
+// same word gets the same answer for everyone, straight away. The common ones
+// are kept on the Render disk so a deploy does not lose them.
+const keeperCache = new AnswerCache(Date.now, { version: KEEPER_PROMPT_VERSION });
+{
+  const dir = process.env.WICK_DATA_DIR?.trim();
+  if (dir) {
+    const n = keeperCache.persistTo(`${dir}/keeper-answers.json`);
+    console.log(`[wick-api] Keeper answers kept in ${dir} (${n} answers loaded)`);
+  }
+}
 
 // 3.6: today's race board. Every daily solver is ranked against everyone else
 // (fewest guesses, hints counting one extra each, then time). See board.ts.
@@ -392,13 +409,30 @@ app.get("/debug/warmth", async (c) => {
 // One-click Keeper diagnostic (open in a browser). Shows the verdict/reply and,
 // on failure, the exact Gemini error (e.g. which chat model 404'd).
 //   /debug/keeper?secret=library&q=is it alive
+// A saved answer comes back as source "cache". Add &fresh=1 to ask Gemini
+// again; the new answer replaces the saved one.
 app.get("/debug/keeper", async (c) => {
   if (!DEBUG_TOKEN || c.req.query("token") !== DEBUG_TOKEN) return c.json({ error: "forbidden" }, 403);
   const secret = c.req.query("secret") ?? "library";
   const q = c.req.query("q") ?? "is it alive?";
   const lang = langOf(c.req.query("lang"));
-  const result = await keeperAnswer(secret, q, undefined, lang, c.req.query("secretEn"));
+  const fresh = c.req.query("fresh") === "1";
+  const result = await keeperAnswer(secret, q, undefined, lang, c.req.query("secretEn"), { cache: keeperCache, fresh });
   return c.json({ secret, lang, question: q, ...result });
+});
+
+// A word's saved Keeper answers, most asked first. A wrong saved answer is
+// wrong for everyone, so this is also how to fix one:
+//   /debug/keeper-cache?secret=park                     list them
+//   /debug/keeper-cache?secret=park&forget=is it alive   forget one question
+//   /debug/keeper-cache?secret=park&forget=all           forget every answer
+app.get("/debug/keeper-cache", (c) => {
+  if (!DEBUG_TOKEN || c.req.query("token") !== DEBUG_TOKEN) return c.json({ error: "forbidden" }, 403);
+  const secret = c.req.query("secret") ?? "";
+  const lang = langOf(c.req.query("lang"));
+  const forget = c.req.query("forget");
+  const forgot = forget === undefined ? 0 : keeperCache.forget(secret, lang, forget === "all" ? undefined : forget);
+  return c.json({ secret, lang, forgot, stats: keeperCache.stats(), answers: keeperCache.list(secret, lang) });
 });
 
 // The Keeper: answer a yes/no question about the secret without revealing it
@@ -473,12 +507,14 @@ app.post("/keeper", async (c) => {
     return c.json({ error: "too_long" }, 400);
   }
   // A round in another language sends { lang, secretEn }: the secret in that
-  // language plus its English form, so the deterministic engine (keyed by
-  // English words) can still answer the suggested questions.
+  // language plus its English form, so neither form can leak.
   const lang = langOf((body as { lang?: unknown }).lang);
   const secretEnRaw = (body as { secretEn?: unknown }).secretEn;
   const secretEn = typeof secretEnRaw === "string" && secretEnRaw.length <= 64 ? secretEnRaw : undefined;
-  const result = await keeperAnswer(secret, question, undefined, lang, secretEn);
+  // 3.7: the round's earlier questions and verdicts, oldest first, as
+  // [{ q, v }]. Optional; keeper.ts cleans it and keeps the newest 12.
+  const history = (body as { history?: unknown }).history;
+  const result = await keeperAnswer(secret, question, undefined, lang, secretEn, { history, cache: keeperCache });
   // Weekly Stats (3.6): never a question that names the answer.
   if (!mentionsSecret(question, [secret, secretEn])) {
     tally.add("question", question, lang, { source: ipFromXff(c.req.header("x-forwarded-for")) });
@@ -627,8 +663,8 @@ const hub = new MatchHub({
   // which the client calls while the setter is still typing.
   isPlayableSecret: (word) => isRealWord(word),
   // In-match Keeper: leak-proof yes/no answers on the room secret (FR-19).
-  answerKeeper: async (secret, question, lang = "en", secretEn) => {
-    const r = await keeperAnswer(secret, question, undefined, lang, secretEn);
+  answerKeeper: async (secret, question, lang = "en", secretEn, history) => {
+    const r = await keeperAnswer(secret, question, undefined, lang, secretEn, { history, cache: keeperCache });
     return { verdict: r.verdict, reply: r.reply };
   },
   // Practice flame: never solves — it warms up and applies light pressure, but
@@ -759,6 +795,29 @@ wss.on("connection", (socket: WebSocket, req) => {
 // The authoritative tick: advances cap, grace, bot-fill, and bot play.
 const ticker = setInterval(() => hub.tick(), TICK_MS);
 
+// 3.7: answer the daily word's common questions before players arrive (see
+// keeperwarm.ts). Checks every 10 minutes; tomorrow's word is warmed in the
+// two hours before midnight UTC. Off without a Gemini key or with
+// WICK_KEEPER_WARM=0. WICK_KEEPER_WARM_LANGS adds languages (default "en").
+const warmLangs = (process.env.WICK_KEEPER_WARM_LANGS ?? "en")
+  .split(",")
+  .map((s) => s.trim())
+  .filter(isLang);
+const warmer = process.env.GEMINI_API_KEY && process.env.WICK_KEEPER_WARM !== "0" && warmLangs.length > 0
+  ? new DailyWarmer({
+      now: Date.now,
+      cache: keeperCache,
+      answer: (secret, question, lang, secretEn, opts) => keeperAnswer(secret, question, undefined, lang, secretEn, opts),
+      mostAsked: (lang) => tally.snapshot(lang).questions.map((r) => r.text),
+      langs: warmLangs,
+      gapMs: 400,
+      log: (m) => console.log(m),
+    })
+  : null;
+const runWarmer = () => { void warmer?.tick().catch((e) => console.warn(`[keeper-warm] ${String(e)}`)); };
+const warmBoot = warmer ? setTimeout(runWarmer, 60_000) : null;
+const warmTicker = warmer ? setInterval(runWarmer, 600_000) : null;
+
 // Once a minute: file the hour's player peak and check for unusual traffic.
 const trafficTicker = setInterval(() => {
   traffic.tick();
@@ -779,6 +838,9 @@ function shutdown() {
   clearInterval(ticker);
   clearInterval(trafficTicker);
   clearInterval(sweeper);
+  if (warmBoot) clearTimeout(warmBoot);
+  if (warmTicker) clearInterval(warmTicker);
+  keeperCache.saveNow();
   pushRegistry?.saveNow();
   tally.saveNow();
   board.saveNow();

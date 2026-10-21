@@ -155,10 +155,12 @@ describe("keeper in another language", () => {
     expect(echo.verdict).toBe("Yes");
     expect(echo.reply).not.toContain("río");
   });
-  it("uses the deterministic engine through the English form, verdict only", async () => {
-    const r = await keeperAnswer("río", "Is it alive?", async () => { throw new Error("should not call the model"); }, "es", "river");
-    expect(r.source).toBe("deterministic");
-    expect(r.reply).toBe("");
-    expect(["Yes", "No", "Sort of"]).toContain(r.verdict);
+  it("asks the model about the Spanish word for an English suggested question (3.7)", async () => {
+    let system = "";
+    const r = await keeperAnswer("río", "Is it alive?", async (sys) => { system = sys; return { text: "No, no está vivo." }; }, "es", "river");
+    expect(system).toContain('"río"');
+    expect(r.source).toBe("llm");
+    expect(r.verdict).toBe("No");
+    expect(r.reply).toBe("No está vivo");
   });
 });

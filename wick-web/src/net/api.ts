@@ -76,21 +76,30 @@ export interface KeeperReply {
   reply: string;
 }
 
+/** One earlier question this round and the verdict Wick gave it. */
+export interface AskedTurn {
+  q: string;
+  v: string;
+}
+
 /** Ask the Keeper a question about the secret. Returns null on failure. */
 export async function askKeeper(
   httpBase: string,
   secret: string,
   question: string,
-  /** The round's play language, plus the English form of the secret so the
-   *  server's deterministic engine can still answer the suggested questions. */
+  /** The round's play language, plus the English form of the secret (the
+   *  server leak-checks both forms). */
   lang: string = "en",
   secretEn?: string,
+  /** 3.7: the round's earlier questions and verdicts, oldest first, so Wick
+   *  stays consistent ("a place" then "touchable" is Yes). */
+  history: AskedTurn[] = [],
 ): Promise<KeeperReply | null> {
   try {
     const res = await fetch(`${httpBase}/keeper`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ secret, question, lang, secretEn }),
+      body: JSON.stringify({ secret, question, lang, secretEn, history }),
     });
     if (!res.ok) return null;
     const json = (await res.json()) as { verdict?: unknown; reply?: unknown };

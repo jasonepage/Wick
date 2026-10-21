@@ -61,8 +61,9 @@ request.
 | `src/lang.ts` | The languages a round can be scored in |
 | `src/dictionary.ts` | The real-word check, so a typo is bounced instead of scored |
 | `src/commonwords.ts` | Common first guesses, embedded at startup so they score instantly |
-| `src/keeper.ts` | The Keeper: answers yes or no questions with Gemini and scrubs the secret from the reply |
-| `src/offlinekeeper.ts` | The Keeper's rule table, used before any model is asked |
+| `src/keeper.ts` | The Keeper: answers every yes or no question with Gemini (with a small thinking budget and the round's earlier answers) and scrubs the secret from the reply |
+| `src/answercache.ts` | Saved Keeper answers per word, so a repeat question is instant and the same for everyone. Common ones are kept on the Render disk |
+| `src/keeperwarm.ts`, `src/daily.ts`, `src/starterquestions.ts` | Once a day, asks the common questions about the daily word before players arrive |
 | `src/moderation.ts` | A small content filter for words players choose |
 | `src/hub.ts` | Connects players, the matchmaker, match rooms and bots |
 | `src/matchmaker.ts` | Pairs waiting players, handles friend codes, and adds a bot when the queue is empty |

@@ -53,9 +53,10 @@ export interface HubDeps {
    *  decoupled from the dictionary (and testable without one). */
   isPlayableSecret?: (word: string) => boolean;
   /** In-match Keeper: answer a yes/no question about the room secret without
-   *  leaking it (server wires the Gemini/deterministic Keeper; tests inject a
-   *  fake). Default: a polite "unavailable". */
-  answerKeeper?: (secret: string, question: string, lang?: Lang, secretEn?: string) => Promise<{ verdict: string; reply: string }>;
+   *  leaking it (server wires the Gemini Keeper; tests inject a fake). The
+   *  last argument is the asker's earlier questions and verdicts this match,
+   *  oldest first, so Wick stays consistent. Default: a polite "unavailable". */
+  answerKeeper?: (secret: string, question: string, lang?: Lang, secretEn?: string, history?: AskedTurn[]) => Promise<{ verdict: string; reply: string }>;
   /** Difficulty knobs for the bot fill-in (FR-13). The server tunes the practice
    *  flame to be beatable; omitted → the bot's own DEFAULT_BOT_CONFIG. */
   botConfig?: Partial<BotConfig>;
@@ -96,6 +97,14 @@ interface ActiveRoom {
   langs: Map<string, Lang>;
   /** The match mode, kept so a resuming/reconnecting client can be re-`paired`. */
   mode: MatchMode;
+  /** Each player's questions this match and Wick's verdicts, oldest first. */
+  asked?: Map<string, AskedTurn[]>;
+}
+
+/** One question a player asked Wick and the verdict it got. */
+export interface AskedTurn {
+  q: string;
+  v: string;
 }
 
 export class MatchHub {
@@ -109,6 +118,7 @@ export class MatchHub {
     question: string,
     lang?: Lang,
     secretEn?: string,
+    history?: AskedTurn[],
   ) => Promise<{ verdict: string; reply: string }>;
   /** The language each connected client last queued with. */
   private readonly clientLang = new Map<string, Lang>();
@@ -466,7 +476,12 @@ export class MatchHub {
     const playerId = client.id;
     const lang = ar.langs.get(playerId) ?? "en";
     const secret = ar.room.secretFor(playerId);
-    void this.answerKeeper(secret, question, lang, ar.secret).then(({ verdict, reply }) => {
+    if (!ar.asked) ar.asked = new Map();
+    const asked = ar.asked.get(playerId) ?? [];
+    ar.asked.set(playerId, asked);
+    const history = asked.slice(-12);
+    void this.answerKeeper(secret, question, lang, ar.secret, history).then(({ verdict, reply }) => {
+      if (verdict) asked.push({ q: question, v: verdict });
       this.onPlayed({ kind: "question", text: question, lang, playerId, secrets: [secret, ar.secret] });
       // The player may have finished/left while the Keeper was thinking.
       this.clients.get(playerId)?.send({ t: "answer", question, verdict, reply });
