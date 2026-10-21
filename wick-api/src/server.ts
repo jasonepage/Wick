@@ -160,10 +160,11 @@ app.get("/healthz", (c) => {
   }, status);
 });
 
-// The link preview picture (1200 x 630) for shared links. Bump ?v= when the
-// picture changes, so chat apps and search engines fetch the new one instead
-// of their saved copy (3.7: the Sly icon). index.html uses the same address.
-const OG_IMAGE_URL = `${APP_LINK_BASE}/og-image.jpg?v=2`;
+// The link preview picture (1200 x 630 PNG) for shared links. When the picture
+// changes, give it a new file name (or add ?v=2), so chat apps and search
+// engines fetch the new one instead of their saved copy. index.html and the
+// marketing pages use the same address.
+const OG_IMAGE_URL = `${APP_LINK_BASE}/og-image.png`;
 
 app.get("/d/:code", (c) => {
   const code = c.req.param("code");
