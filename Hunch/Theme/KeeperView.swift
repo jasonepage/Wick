@@ -6,7 +6,8 @@
 //  SwiftUI. His colour tracks the temperature of the game (icy blue when
 //  you're freezing, blazing orange when you're hot, green when you solve it),
 //  and he wears one of the Keeper's six faces (KeeperFace.swift): Sly when
-//  cold, Flustered when close, Shocked when the word is cracked then Calm,
+//  cold, Flustered when close, Shocked when the word is cracked (he stays
+//  Shocked and keeps blinking), Calm for the grey Wick,
 //  Serious in a race, Focus while he answers a question. He changes faces with
 //  a blink: the brows, mouth and flame tip morph while his eyes are shut.
 //

@@ -367,7 +367,6 @@ interface Inst {
   faceFrom: FaceP;            // where the morph started
   faceTo: FaceP;
   faceAt: number;             // when the last face change began
-  solvedAt: number;           // when he went to celebrating (Shocked, then Calm)
   race: boolean;
   focus: boolean;
   faceKey: string;            // what was last painted, to skip repaints
@@ -438,8 +437,8 @@ function tick(): void {
 }
 
 /** The face the game state calls for right now. */
-function wantFace(i: Inst, t: number): FaceName {
-  return faceFor({ mood: i.mood, race: i.race, focus: i.focus, sinceSolved: t - i.solvedAt });
+function wantFace(i: Inst): FaceName {
+  return faceFor({ mood: i.mood, race: i.race, focus: i.focus });
 }
 
 /** Start changing faces: blink, morph behind the lids, pop open. */
@@ -454,7 +453,7 @@ function changeFace(i: Inst, to: FaceName, t: number): void {
 }
 
 function frame(i: Inst, t: number, rm: boolean): void {
-  const want = wantFace(i, t);
+  const want = wantFace(i);
   if (want !== i.face) changeFace(i, want, t);
   const e = t - i.faceAt;
   const u = rm ? 1 : swapMorph(e);
@@ -561,7 +560,7 @@ export function mountWick(host: HTMLElement, opts: WickOptions): Wick {
   const rig = svgEl("g", { class: "wick-rig" });
   const t0 = now();
   const race = !!opts.race, focus = !!opts.focus;
-  const startFace = faceFor({ mood, race, focus, sinceSolved: 0 });
+  const startFace = faceFor({ mood, race, focus });
   const d0 = flamePath(0.5, FACES[startFace].tip);
   const glow = svgEl("path", {
     class: "flame-glow", d: d0, fill: rgb(color), opacity: 0.30, filter: `url(#soft-${id})`,
@@ -579,7 +578,7 @@ export function mountWick(host: HTMLElement, opts: WickOptions): Wick {
   const inst: Inst = {
     el, host, mood, rgbFrom: color, rgbTo: color, colorAt: t0 - MOOD_EASE, colorDone: false, stops, glow, body, rig,
     plate, id, faceSlots: face.slots, face: startFace, faceFrom: FACES[startFace], faceTo: FACES[startFace],
-    faceAt: t0 - 10, solvedAt: mood === "celebrating" ? t0 : -1e9, race, focus, faceKey: "",
+    faceAt: t0 - 10, race, focus, faceKey: "",
     sparkles: [], pokeAt: null,
     nextBlinkAt: t0 + nextBlinkDelay(), blinkAt: null, visible: true, dance: !!opts.dance,
     pulse: opts.pulse ?? musicPulse, io: null, lastFlicker: 0.5, lastPath: d0,
@@ -622,7 +621,6 @@ export function mountWick(host: HTMLElement, opts: WickOptions): Wick {
       inst.colorAt = t;
       inst.colorDone = false;
       // The face follows on the next frame (wantFace), with a blink and a morph.
-      if (m === "celebrating") inst.solvedAt = t;
       el.classList.remove(`mood-${inst.mood}`);
       el.classList.add(`mood-${m}`);
       inst.mood = m;

@@ -1803,7 +1803,7 @@ function renderHero(sel: string, id: string, latest: Guess | undefined, revealed
   const big = !latest ? t("ready") : pending ? t("scoringBig") : latest.correct ? t("heat.Solved!") : rankBig ?? t("heat." + scoreLabel(score!).label);
   const small = !latest ? t("makeGuess") : pending ? t("oneSec") : t("heatHint." + scoreLabel(score!).label);
   setGauge(w ?? 0, scoreColor(score), big, small);
-  // Faces: Sly when cold, Flustered when close, Shocked then Calm when cracked,
+  // Faces: Sly when cold, Flustered when close, Shocked when cracked,
   // Serious in a live race, Focus while an Ask Wick question is being answered.
   ensureWick(wrap, { score, size: 116, id, dance, race: dance, focus: thinking });
 }

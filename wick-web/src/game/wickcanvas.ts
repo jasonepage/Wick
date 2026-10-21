@@ -45,7 +45,7 @@ export function drawWick(ctx: CanvasRenderingContext2D, a: DrawWickArgs): void {
   ctx.scale(pose.sx, pose.sy);
   ctx.translate(-BASE_X, -BASE_Y);
 
-  const faceName = a.face ?? faceFor({ mood: a.mood, sinceSolved: 99 });
+  const faceName = a.face ?? faceFor({ mood: a.mood });
   const face = FACES[faceName];
   const flame = new Path2D(flamePath(pose.flicker, face.tip));
   const body = rgb(a.color);

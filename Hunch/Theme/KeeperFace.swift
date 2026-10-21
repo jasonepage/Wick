@@ -249,8 +249,6 @@ enum KeeperFaces {
     static let k: Double = 120.0 / 718.0
     /// How far the flame tip leans across the full flicker, in viewBox units.
     static let lean: Double = 0.09 * 102.0
-    /// Seconds Shocked holds after the word is cracked before settling to Calm.
-    static let shockHold: Double = 1.5
 
     static let eyeWhite = KeeperRGB(r: 245, g: 243, b: 254)
     static let pupil = KeeperRGB(r: 31, g: 23, b: 59)
@@ -258,13 +256,13 @@ enum KeeperFaces {
 
     // MARK: State to face
 
-    /// Which face for the game's state. Solved shows Shocked, then settles to Calm.
+    /// Which face for the game's state. Solved stays Shocked (he keeps blinking).
     /// Thinking (an Ask Wick answer on its way) is Focus, except in a race,
     /// where a pending guess keeps the Serious race face.
-    static func faceFor(mood: KeeperMood, race: Bool, sinceSolved: Double) -> KeeperFaceName {
+    static func faceFor(mood: KeeperMood, race: Bool) -> KeeperFaceName {
         switch mood {
         case .celebrating:
-            return sinceSolved < shockHold ? .shocked : .calm
+            return .shocked
         case .defeated, .unamused:
             return .calm
         case .thinking:
@@ -766,7 +764,6 @@ final class KeeperFaceAnimator {
     private var from: KeeperFace = KeeperFaces.sly
     private var to: KeeperFace = KeeperFaces.sly
     private var faceAt: Double = -100
-    private var solvedAt: Double = -1e9
     private var lastMood: KeeperMood? = nil
     private var blinkAt: Double? = nil
     private var nextBlinkAt: Double = 0
@@ -780,7 +777,6 @@ final class KeeperFaceAnimator {
 
     func frame(t: Double, mood: KeeperMood, race: Bool, reduceMotion: Bool) -> Frame {
         if mood != lastMood {
-            if mood == .celebrating { solvedAt = t }
             let target = KeeperRGB.body(for: mood)
             if lastMood == nil {
                 colorFrom = target; colorTo = target; colorAt = t - 1
@@ -789,7 +785,7 @@ final class KeeperFaceAnimator {
             }
             lastMood = mood
         }
-        let want = KeeperFaces.faceFor(mood: mood, race: race, sinceSolved: t - solvedAt)
+        let want = KeeperFaces.faceFor(mood: mood, race: race)
         if name == nil {
             name = want
             from = KeeperFaces.face(want)

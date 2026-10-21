@@ -7,7 +7,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { poseAt, danceAt, boilingShake, pokeEnvelope, flamePath, blinkAmount, bobPeriod, SIZE } from "../src/game/wick.ts";
-import { FACES, faceFor, faceDrawList, eyeShapes, lerpFace, swapBlink, swapMorph, SHOCK_HOLD, PALETTE } from "../src/game/wickface.ts";
+import { FACES, faceFor, faceDrawList, eyeShapes, lerpFace, swapBlink, swapMorph, PALETTE } from "../src/game/wickface.ts";
 import { pulseAt } from "../src/game/music.ts";
 
 const still = { pokeAt: null, reduceMotion: false, pulse: null };
@@ -74,11 +74,10 @@ test("each game state wears its face", () => {
   assert.equal(faceFor({ mood: "freezing" }), "sly");
   assert.equal(faceFor({ mood: "cold" }), "sly");
   for (const mood of ["warm", "hot", "boiling"] as const) assert.equal(faceFor({ mood }), "flustered");
-  assert.equal(faceFor({ mood: "celebrating", sinceSolved: 0.2 }), "shocked");
-  assert.equal(faceFor({ mood: "celebrating", sinceSolved: SHOCK_HOLD + 0.1 }), "calm");
+  assert.equal(faceFor({ mood: "celebrating" }), "shocked", "solved stays Shocked");
   assert.equal(faceFor({ mood: "cold", race: true }), "serious");
   assert.equal(faceFor({ mood: "boiling", race: true }), "serious");
-  assert.equal(faceFor({ mood: "celebrating", race: true, sinceSolved: 0 }), "shocked");
+  assert.equal(faceFor({ mood: "celebrating", race: true }), "shocked");
   assert.equal(faceFor({ mood: "warm", focus: true }), "focus");
   assert.equal(faceFor({ mood: "cold", race: true, focus: true }), "focus");
   assert.equal(faceFor({ mood: "unamused" }), "calm");

@@ -281,17 +281,15 @@ export function chunkyFlamePath(lean = 0, tip: TipP = { dx: 0, dy: 0, sharp: 1 }
 /** The inner flame (lighter core) in viewBox units. */
 export const PLATE_PATH = "M60 53.5 C72.2 60.6 84 68.8 84 88.5 C84 108.4 74.5 119.2 60 119.2 C45.5 119.2 36 108.4 36 88.5 C36 68.8 47.8 60.6 60 53.5 Z";
 
-/** Which face for the game's state. Solved shows Shocked, then settles to Calm. */
-export function faceFor(o: { mood: Mood; race?: boolean; focus?: boolean; sinceSolved?: number }): FaceName {
-  if (o.mood === "celebrating") return (o.sinceSolved ?? 0) < SHOCK_HOLD ? "shocked" : "calm";
+/** Which face for the game's state. Solved stays Shocked (he keeps blinking). */
+export function faceFor(o: { mood: Mood; race?: boolean; focus?: boolean }): FaceName {
+  if (o.mood === "celebrating") return "shocked";
   if (o.focus) return "focus";
   if (o.mood === "unamused") return "calm";
   if (o.race) return "serious";
   if (o.mood === "warm" || o.mood === "hot" || o.mood === "boiling") return "flustered";
   return "sly";
 }
-/** Seconds Shocked holds after the word is cracked before settling to Calm. */
-export const SHOCK_HOLD = 1.5;
 
 /** Blend two faces (u 0 gives a, 1 gives b), number by number. */
 export function lerpFace(a: FaceP, b: FaceP, u: number): FaceP {
