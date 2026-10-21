@@ -160,9 +160,14 @@ app.get("/healthz", (c) => {
   }, status);
 });
 
+// The link preview picture (1200 x 630) for shared links. Bump ?v= when the
+// picture changes, so chat apps and search engines fetch the new one instead
+// of their saved copy (3.7: the Sly icon). index.html uses the same address.
+const OG_IMAGE_URL = `${APP_LINK_BASE}/og-image.jpg?v=2`;
+
 app.get("/d/:code", (c) => {
   const code = c.req.param("code");
-  const html = renderPreviewHtml({ code, appLink: `${APP_LINK_BASE}/d/${encodeURIComponent(code)}` });
+  const html = renderPreviewHtml({ code, appLink: `${APP_LINK_BASE}/d/${encodeURIComponent(code)}`, imageUrl: OG_IMAGE_URL });
   return c.html(html);
 });
 
@@ -182,6 +187,7 @@ app.get("/p/:code", (c) => {
     // The web client (served at "/") reads ?p= / ?m= at boot and auto-joins.
     playLink: `/?p=${enc}${modeQ}`,
     appLink: `${APP_LINK_BASE}/p/${enc}${mode ? `?m=${mode}` : ""}`,
+    imageUrl: OG_IMAGE_URL,
   });
   return c.html(html);
 });
@@ -203,7 +209,7 @@ app.get("/r/:run", (c) => {
     code: run,
     playLink: `/?r=${enc}`,
     appLink: `${APP_LINK_BASE}/r/${enc}`,
-    imageUrl: `${APP_LINK_BASE}/og-image.jpg`,
+    imageUrl: OG_IMAGE_URL,
   });
   return c.html(html);
 });
