@@ -9,12 +9,21 @@ both described below.
 
 ## iOS single-player (Daily and Practice): on your device
 
-- Your guesses, questions, stats, streaks, and coins are stored **only on your device**.
+- Your guesses, stats, and streaks are stored **only on your device**. Your
+  questions are kept on your device too, and are also sent to be answered
+  (see below).
 - Closeness ("warmth") scoring uses word models that run on your device:
   Apple's built-in Natural Language model for English, and models bundled
   with the app for Spanish, French, Italian and German.
-- "Ask the Keeper" runs on your device using Apple Intelligence (Foundation Models).
-- Your words are never sent to any third party. Since version 3.6, some of
+- **Since version 3.7, questions you ask the Keeper are answered by Wick's
+  server**, the same way as on the web. The app sends the question, the secret
+  word, the round's language, and your earlier questions and answers in that
+  round, with no id of any kind. To answer, the server may pass that text to
+  **Google's Gemini API**. The server saves the answer to a question about a
+  word, but not who asked it, so the same question gets the same answer for
+  everyone. If the server can't be reached, Apple Intelligence (Foundation
+  Models) answers on your device instead, when your iPhone has it.
+- Your guesses are never sent to any third party. Since version 3.6, some of
   them may be sent to Wick's own server for the weekly word counts described
   below, unless you turn that off in Settings.
 
@@ -28,6 +37,10 @@ round on Wick's server, including the daily puzzle and practice:
   Gemini API**. It is used only to play the round and, as anonymous counts,
   for the weekly word counts below. It is not linked to your identity, not
   stored in a profile, and not sold.
+- Since version 3.7, the server saves the answer to a question about a word,
+  but not who asked it, so the same question gets the same answer for
+  everyone. Your earlier questions and answers in the round are sent along
+  with each new question so the Keeper stays consistent.
 - Your stats and streaks on the web are saved **only in your browser**.
 
 ## Live Race
@@ -51,8 +64,9 @@ play a live Race, on iOS or on the web:
   can come race you. It contains nothing else about you.
 
 On iOS, if you never play a live mode and turn off "Add my words to weekly
-stats" in Settings, nothing you type ever leaves your device. Only the
-anonymous play counts below do.
+stats" in Settings, no guess you type ever leaves your device. Questions you
+ask the Keeper are sent to be answered (see above), and the anonymous play
+counts below are sent too.
 
 ## Play counts (since version 3.3)
 

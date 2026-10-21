@@ -223,6 +223,8 @@ final class GameViewModel {
     private(set) var failedQuestion: String?
     /// Whether the failed question was typed (true) or a starter chip (false).
     private var failedQuestionTyped = true
+    /// The English text a failed suggestion was sent as (3.7), so Retry sends it the same way.
+    private var failedServerQuestion: String?
     /// True while a hint plays its word, so that word is not counted as typed.
     @ObservationIgnored private var submittingHint = false
     private(set) var openingClue: String?
@@ -1851,15 +1853,14 @@ final class GameViewModel {
     /// Kept as a property so existing call sites read naturally.
     var canAffordQuestion: Bool { true }
 
-    /// Typed questions work on every device: with Apple Intelligence the Keeper
-    /// uses the on-device model; without it, Wick answers offline from the word's
-    /// category tags (QuestionService.offlineAnswer).
+    /// Typed questions work on every device: the Wick server answers them (3.7),
+    /// and Apple's on-device model answers when the server can't be reached.
     var canAsk: Bool {
         !solved && !revealed && canAffordQuestion
     }
 
-    /// Tapped starter questions work on EVERY device — answers come from the
-    /// on-device category tags, not the LLM — so this does not require AI.
+    /// Tapped starter questions work on every device, answered like any other
+    /// question (3.7: by the server, which saved the daily word's answers early).
     var canUseStarters: Bool {
         !solved && !revealed && canAffordQuestion
     }
@@ -1869,20 +1870,12 @@ final class GameViewModel {
     /// Tappable starter questions for this round. Seeded by the shared day index
     /// (never the secret word), so the set is identical for every player and
     /// leaks nothing. Already-asked questions are filtered out so chips retire
-    /// as the player uses them. On devices without Apple Intelligence, only
-    /// questions we can answer deterministically from the tags are shown, so
-    /// every visible chip works.
+    /// as the player uses them. 3.7: every chip is shown on every iPhone, since
+    /// the server answers them all.
     var starterQuestions: [StarterQuestions.Item] {
         let alreadyAsked = Set(questions.map { $0.question.lowercased() })
-        let category = WordAttributes.category(for: target, language: language)
         return StarterQuestions.daily(dayIndex: WordBank.dayIndex()).filter { item in
-            guard !alreadyAsked.contains(StarterQuestions.localizedFull(item, language).lowercased()) else { return false }
-            if aiAvailable { return true }
-            // No AI: only keep chips with a confident deterministic answer.
-            guard let category,
-                  WordAttributes.deterministicVerdict(word: target, language: language, category: category, property: item.key) != nil
-            else { return false }
-            return true
+            !alreadyAsked.contains(StarterQuestions.localizedFull(item, language).lowercased())
         }
     }
 
@@ -1946,15 +1939,16 @@ final class GameViewModel {
         nudgeSnoozeUntilGuess = max(nudgeSnoozeUntilGuess, guessCount + 2)
     }
 
-    /// Handles a tapped starter chip. If the word's category gives a confident
-    /// answer, we record it instantly — no model call, always correct, no
-    /// variance. Otherwise we fall back to the on-device Keeper (which still
-    /// receives the category facts).
+    /// Handles a tapped starter chip. 3.7: asked like any other question, sent
+    /// to the server as its English text so it matches the answers saved early
+    /// for the daily word. Only the tutorial still answers from the word's tags:
+    /// its words are hand-picked, and it must work offline on a first launch.
     func askStarter(_ item: StarterQuestions.Item) async {
         guard !solved, !revealed, !isAsking else { return }
         let full = StarterQuestions.localizedFull(item, language)
 
-        if let category = WordAttributes.category(for: target, language: language),
+        if mode == .tutorial,
+           let category = WordAttributes.category(for: target, language: language),
            let verdict = WordAttributes.deterministicVerdict(word: target, language: language, category: category, property: item.key) {
             // Questions are free, so no gate — just record it, with a
             // short in-character flavor line so tapped chips feel like Wick too.
@@ -1968,14 +1962,14 @@ final class GameViewModel {
             return
         }
 
-        // No deterministic answer: hand it to ask(), which uses the on-device
-        // model when available and the offline answerer otherwise.
-        await ask(full, typed: false)
+        // Shown in the round's language, sent to the server in English.
+        await ask(full, typed: false, serverQuestion: item.full)
     }
 
     /// `typed` is false for a tapped starter chip, which stays out of the
-    /// weekly Stats list (everyone is offered the same chips).
-    func ask(_ raw: String, typed: Bool = true) async {
+    /// weekly Stats list (everyone is offered the same chips). `serverQuestion`
+    /// is the English text of a chip (see QuestionService.answer).
+    func ask(_ raw: String, typed: Bool = true, serverQuestion: String? = nil) async {
         let q = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !q.isEmpty, !solved, !revealed, !isAsking else { return }
         // Tutorial: Wick's own "Is it alive?" gets the sure answer from the
@@ -1990,11 +1984,13 @@ final class GameViewModel {
 
         failedQuestion = nil   // new attempt — clear any prior failure
         failedQuestionTyped = typed
+        failedServerQuestion = serverQuestion
         isAsking = true
         // Pass the round's prior exchanges (memory). Wick wears nothing now.
         let result = await keeper.answer(question: q, secret: target,
                                          facts: WordAttributes.facts(for: target, language: language),
-                                         history: questions, wearing: [])
+                                         history: questions, wearing: [],
+                                         serverQuestion: serverQuestion)
         isAsking = false
 
         switch result {
@@ -2021,7 +2017,7 @@ final class GameViewModel {
     /// Re-asks the last question the Keeper failed to answer.
     func retryFailedQuestion() async {
         guard let q = failedQuestion, !isAsking else { return }
-        await ask(q, typed: failedQuestionTyped)
+        await ask(q, typed: failedQuestionTyped, serverQuestion: failedServerQuestion)
     }
 
     // MARK: - Sharing

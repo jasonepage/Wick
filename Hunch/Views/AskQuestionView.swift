@@ -22,9 +22,6 @@ struct AskQuestionView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                if !game.aiAvailable {
-                    banner(game.loc.offlineBanner, system: "sparkles")
-                }
                 if game.scoringUnavailable {
                     // Persistent (not a 2.5s toast): the language's dictionary is
                     // still downloading, so guesses can't be scored yet. Show the
@@ -270,10 +267,8 @@ struct AskQuestionView: View {
     }
 
     private var footnoteText: String {
-        if mode == .ask && !game.aiAvailable {
-            return game.loc.offlineFootnote
-        }
-        // Questions are free.
+        // Questions are free. (3.7: the "offline mode" note is gone; the
+        // server answers on every iPhone.)
         return game.loc.questionsFree
     }
 

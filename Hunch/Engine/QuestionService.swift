@@ -2,9 +2,14 @@
 //  QuestionService.swift
 //  Hunch
 //
-//  Uses Apple Intelligence's on-device model (Foundation Models) to answer the
-//  player's questions about the secret word WITHOUT revealing it. Fully local,
-//  no cloud, no API key, no per-use cost.
+//  Answers the player's questions about the secret word WITHOUT revealing it.
+//
+//  3.7: the Wick server's Gemini Keeper answers first (KeeperClient), the same
+//  one the web game and live races use, with saved answers shared by everyone.
+//  The old automatic answers from the word's category tags are gone from solo
+//  play; they guessed at the group, not the word, and were wrong too often.
+//  When the server can't be reached, Apple Intelligence's on-device model
+//  (Foundation Models) answers instead, as it did before.
 //
 //  A small on-device model is unreliable at output formatting, so we:
 //   1) let it answer in one natural sentence,
@@ -69,31 +74,34 @@ struct QuestionService {
         }
     }
 
+    /// `serverQuestion` is the text to send the server when it differs from
+    /// what the player sees: a tapped suggestion goes as its English text, so
+    /// it matches the answers the server saved ahead of time for the daily word.
     func answer(question: String, secret: String, facts: String? = nil,
-                history: [AskedQuestion] = [], wearing: [String] = []) async -> Result {
+                history: [AskedQuestion] = [], wearing: [String] = [],
+                serverQuestion: String? = nil) async -> Result {
         // Leak protection applies on every device, model-backed or offline.
         if isLeakAttempt(question: question, secret: secret) {
             return .answered(verdict: "Won't say", reply: Self.niceTry[language] ?? "Nice try.")
         }
 
-        // Ground truth first: if a typed question maps to a known property that
-        // the word's category decides confidently, answer from facts and skip the
-        // model entirely — identical on every device, immune to model variance
-        // (this is the same source the tappable chips use). Reply left blank so
-        // the localized verdict badge speaks for itself.
-        if let category = WordAttributes.category(for: secret, language: language),
-           let property = OfflineKeeper.property(for: question, language: language),
-           let verdict  = WordAttributes.deterministicVerdict(word: secret, language: language, category: category, property: property) {
-            // A short in-character flavor line so even instant, ground-truth
-            // answers feel like Wick talking (stable per question, never leaks).
-            return .answered(verdict: verdict, reply: OfflineKeeper.reply(verdict: verdict, seed: question, language: language))
+        // 3.7: the server's Gemini Keeper first. It leak-checks and scrubs the
+        // word too; redact again here anyway so the word can never show.
+        let secretEnglish: String? = DailyWords.english(of: secret, in: language)
+        let sent: String = serverQuestion ?? question
+        if let remote = await KeeperClient.ask(question: sent, secret: secret, secretEnglish: secretEnglish,
+                                               language: language, history: history) {
+            let safeReply: String = redact(remote.reply, secret: secret)
+            return .answered(verdict: remote.verdict, reply: safeReply)
         }
 
-        // No Apple Intelligence (older iOS, ineligible hardware, or AI turned
-        // off)? Answer offline. The #available check also narrows scope below so
-        // the Foundation Models calls compile against the iOS 17 deployment target.
+        // The server can't be reached. Use Apple's on-device model when this
+        // iPhone has it. Without it there is nothing reliable to answer with, so
+        // report a failure: the player keeps the question and taps Retry once
+        // back online. The #available check also narrows scope below so the
+        // Foundation Models calls compile against the iOS 17 deployment target.
         guard #available(iOS 26, *), isAvailable else {
-            return offlineAnswer(question: question, secret: secret)
+            return .failed
         }
 
         // Authoritative ground-truth facts about the word (from WordAttributes).
