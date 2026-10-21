@@ -11,6 +11,7 @@ import {
   MAX_HISTORY,
   inferVerdict,
   cleanReply,
+  noDashes,
   stripLeadingVerdict,
   trimmedReply,
   leaksSecret,
@@ -368,5 +369,21 @@ describe("saved answers (answercache.ts)", () => {
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+});
+
+describe("Wick never says an em dash", () => {
+  it("turns an em dash or a spaced en dash into a comma, keeps hyphens and ranges", () => {
+    expect(noDashes("Yes, mostly — in the city")).toBe("Yes, mostly, in the city");
+    expect(noDashes("No—it stays put.")).toBe("No, it stays put.");
+    expect(noDashes("Sort of – it depends")).toBe("Sort of, it depends");
+    expect(noDashes("It's man-made, 3–5 of them")).toBe("It's man-made, 3–5 of them");
+    expect(noDashes("Yes —.")).toBe("Yes.");
+  });
+  it("applies to every model reply", async () => {
+    const r = await keeperAnswer("park", "is it big?", async () => ({ text: "Yes — most are huge." }));
+    expect(r.reply).toBe("Most are huge");
+    const r2 = await keeperAnswer("park", "is it green?", async () => ({ text: "Mostly — grass and trees." }));
+    expect(r2.reply).not.toMatch(/—/);
   });
 });

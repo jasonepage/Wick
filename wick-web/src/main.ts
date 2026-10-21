@@ -565,9 +565,9 @@ async function shareInvite(url: string, text: string): Promise<void> {
   }
   try {
     await navigator.clipboard.writeText(url);
-    toast("Invite link copied — send it to your friend!");
+    toast("Invite link copied. Send it to your friend!");
   } catch {
-    toast("Couldn't copy — long-press the link to copy it.");
+    toast("Couldn't copy. Long-press the link to copy it.");
   }
 }
 
@@ -1466,9 +1466,9 @@ function raceBanner(): HTMLElement | null {
   return el("div", { class: `race-result ${won ? "win" : drew ? "draw" : "loss"}` }, [
     el("div", { class: "race-head" }, [headline]),
     el("div", { class: "race-times" }, [
-      el("span", {}, [`${t("raceYou")} ${sp.solved ? fmtDuration(mine) : "—"}`]),
+      el("span", {}, [`${t("raceYou")} ${sp.solved ? fmtDuration(mine) : "-"}`]),
       el("span", { class: "race-vs" }, ["vs"]),
-      el("span", {}, [`${t("raceThem")} ${run.solved ? fmtDuration(theirs) : "—"}`]),
+      el("span", {}, [`${t("raceThem")} ${run.solved ? fmtDuration(theirs) : "-"}`]),
     ]),
   ]);
 }
@@ -1727,7 +1727,7 @@ function dailyShareText(): string {
   for (let i = 0; i < squares.length; i += 10) grid.push(squares.slice(i, i + 10).join(""));
   let stats = sp.solved ? `solved in ${sp.guesses.length}` : "unsolved";
   if (sp.replies.length > 0) stats += ` · ${sp.replies.length} question${sp.replies.length === 1 ? "" : "s"}`;
-  return `${title} — ${stats}\n${grid.join("\n")}\nPlay at ${location.origin}`;
+  return `${title}: ${stats}\n${grid.join("\n")}\nPlay at ${location.origin}`;
 }
 
 async function shareDaily(): Promise<void> {
@@ -1739,9 +1739,9 @@ async function shareDaily(): Promise<void> {
   }
   try {
     await navigator.clipboard.writeText(text);
-    toast("Result copied — paste it anywhere!");
+    toast("Result copied. Paste it anywhere!");
   } catch {
-    toast("Couldn't copy automatically — long-press to select the result.");
+    toast("Couldn't copy automatically. Long-press to select the result.");
   }
 }
 
@@ -2890,7 +2890,7 @@ function boot(): void {
       screenChallenge(pendingGhost);
       return;
     } else {
-      console.warn("[wick] ghost link was malformed — ignored");
+      console.warn("[wick] ghost link was malformed, ignored");
     }
   }
 

@@ -715,7 +715,7 @@ const server = serve({ fetch: app.fetch, port: PORT }, (info) => {
         console.log(`[wick-api] embed mode ${chk.mode}, self-check cos=${chk.cos}`);
         if (!chk.ok) {
           console.error(
-            `[wick-api] EMBEDDING SELF-CHECK FAILED — cos(${"tomato"}, vegetable)=${chk.cos} is implausibly low. ` +
+            `[wick-api] EMBEDDING SELF-CHECK FAILED: cos(${"tomato"}, vegetable)=${chk.cos} is implausibly low. ` +
             "Vectors are probably not comparable; warmth ranks will be noise.",
           );
         }
@@ -787,7 +787,7 @@ wss.on("connection", (socket: WebSocket, req) => {
     // enough to sit under the bucket.
     if (frame.t === "queue" || frame.t === "dare") {
       if (!createLimiter.take(ip)) {
-        client.send({ t: "error", code: "rate_limited", message: "Too many matches too fast — take a breath." });
+        client.send({ t: "error", code: "rate_limited", message: "Too many matches too fast. Take a breath." });
         return;
       }
     }

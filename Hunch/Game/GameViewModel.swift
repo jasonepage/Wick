@@ -1822,7 +1822,7 @@ final class GameViewModel {
         print("RISKY (\(risky.count)): \(risky.joined(separator: ", "))")
         print("=== end audit ===")
 
-        return "Audit: \(rows.count) words · \(risky.count) risky · \(oov.count) OOV — see console"
+        return "Audit: \(rows.count) words · \(risky.count) risky · \(oov.count) OOV; see console"
     }
 #endif
 
@@ -2056,7 +2056,7 @@ final class GameViewModel {
             .map { squares[$0..<min($0 + 10, squares.count)].joined() }
             .joined(separator: "\n")
 
-        return "\(shareTitle) — \(shareStats)\n\(grid)\n\(loc.shareTagline)"
+        return "\(shareTitle): \(shareStats)\n\(grid)\n\(loc.shareTagline)"
     }
 
     /// The semantic map as a flat image, for the share sheet.

@@ -580,7 +580,7 @@ export async function warmRankVocab(words: string[], concurrency = 4, lang = "en
   if (shortfall > 0) {
     console.warn(
       `[wick-api] rank vocab ${lang} INCOMPLETE: ${got.size}/${uniq.length} (${shortfall} missing). ` +
-      "Ranks will read warmer than iOS for the same guess — see WICK_EMBED_RETRIES.",
+      "Ranks will read warmer than iOS for the same guess; see WICK_EMBED_RETRIES.",
     );
   }
 

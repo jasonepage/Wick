@@ -198,7 +198,7 @@ export function previewCopyFor(code: string): PreviewCopy {
     // Legacy/garbled — friendly generic card, never a 404 (FR-30/OD-7).
     return {
       title: "You've been challenged in Wick",
-      description: "Open the challenge in Wick — the calm hot-and-cold word game.",
+      description: "Open the challenge in Wick, the calm hot-and-cold word game.",
     };
   }
   if (decoded.kind === "duel") {
@@ -217,7 +217,7 @@ export function previewCopyFor(code: string): PreviewCopy {
       ? "Gave up on this one"
       : "Gave it a shot";
   return {
-    title: `Beat this Wick score — ${outcome}`,
+    title: `Beat this Wick score: ${outcome}`,
     description: "Think you can do better? Open the challenge in Wick and try the same word.",
   };
 }
@@ -285,12 +285,12 @@ export function inviteCopyFor(mode: InviteMode | undefined): PreviewCopy {
   if (mode === "race") {
     return {
       title: "Race me in Wick",
-      description: "A friend wants to race you to a hidden word — first to warm up wins. Tap to play.",
+      description: "A friend wants to race you to a hidden word. First to warm up wins. Tap to play.",
     };
   }
   return {
     title: "You've been challenged in Wick",
-    description: "A friend wants to play Wick with you — the calm hot-and-cold word game. Tap to play.",
+    description: "A friend wants to play Wick with you in the calm hot-and-cold word game. Tap to play.",
   };
 }
 

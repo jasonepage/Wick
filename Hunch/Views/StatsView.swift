@@ -124,11 +124,11 @@ struct StatsView: View {
     }
 
     private var averageText: String {
-        game.solves > 0 ? String(format: "%.1f", game.averageGuesses) : "—"
+        game.solves > 0 ? String(format: "%.1f", game.averageGuesses) : "-"
     }
 
     private var bestGuessText: String {
-        game.bestGuessCount > 0 ? "\(game.bestGuessCount)" : "—"
+        game.bestGuessCount > 0 ? "\(game.bestGuessCount)" : "-"
     }
 
     /// 3.6: today's race board.

@@ -262,7 +262,7 @@ export class MatchHub {
     // as a broken game, not a hard word. Check it before the code is registered
     // and a link gets shared.
     if (role === "setter" && !this.isPlayableSecret(word!.trim())) {
-      client.send({ t: "error", code: "not_a_word", message: "Wick doesn't know that word — try another." });
+      client.send({ t: "error", code: "not_a_word", message: "Wick doesn't know that word. Try another." });
       return;
     }
     // 3.1 invite intent (mirrors Race): the SETTER creates the code (must be free —
@@ -273,7 +273,7 @@ export class MatchHub {
     if (role === "setter") {
       if (existing?.setterId && existing.setterId !== client.id) {
         this.metrics.invite("code_taken", "dare");
-        client.send({ t: "error", code: "code_taken", message: "That code's already daring someone — tap Dare for a fresh one." });
+        client.send({ t: "error", code: "code_taken", message: "That code's already daring someone. Tap Dare for a fresh one." });
         return;
       }
       const wasNewSetter = !existing?.setterId;
@@ -285,7 +285,7 @@ export class MatchHub {
     } else {
       if (!existing?.setterId || !existing.word) {
         this.metrics.invite("no_such_invite", "dare");
-        client.send({ t: "error", code: "no_such_invite", message: "That dare isn't active anymore — ask your friend for a new link." });
+        client.send({ t: "error", code: "no_such_invite", message: "That dare isn't active anymore. Ask your friend for a new link." });
         return;
       }
       existing.guesserId = client.id;
@@ -325,13 +325,13 @@ export class MatchHub {
     // The setter spectates the guesser's words live — drop slurs so a guess can't
     // be used to harass. Vulgar-but-legit guesses ("cock" for a rooster) still play.
     if (isBlockedGuess(guess)) {
-      client.send({ t: "error", code: "blocked_word", message: "Let's keep it friendly — try another word." });
+      client.send({ t: "error", code: "blocked_word", message: "Let's keep it friendly. Try another word." });
       return;
     }
     // Reject non-words (Dare is snapshot-driven, so it simply isn't added; the
     // error tells the guesser why). The exact secret is always allowed.
     if (guess.trim().toLowerCase() !== dare.word().trim().toLowerCase() && !isRealWord(guess)) {
-      client.send({ t: "error", code: "not_a_word", message: "That's not a word I know — try another." });
+      client.send({ t: "error", code: "not_a_word", message: "That's not a word I know. Try another." });
       return;
     }
     const roomId = dare.roomId;
@@ -381,12 +381,12 @@ export class MatchHub {
       const host = this.mm.friendRoomHost(friendCode);
       if (create && host && host !== client.id) {
         this.metrics.invite("code_taken", "race");
-        client.send({ t: "error", code: "code_taken", message: "That code's already in use — tap Invite for a fresh one." });
+        client.send({ t: "error", code: "code_taken", message: "That code's already in use. Tap Invite for a fresh one." });
         return;
       }
       if (!create && !host) {
         this.metrics.invite("no_such_invite", "race");
-        client.send({ t: "error", code: "no_such_invite", message: "That invite isn't active anymore — ask your friend for a new link." });
+        client.send({ t: "error", code: "no_such_invite", message: "That invite isn't active anymore. Ask your friend for a new link." });
         return;
       }
     }

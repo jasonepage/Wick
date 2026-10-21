@@ -499,7 +499,7 @@ enum OfflineKeeper {
     static func openingLine(seed: String) -> String {
         let lines = [
             "I've locked in today's word. Start closing in.",
-            "A word is hidden — ask yes/no questions to warm up.",
+            "A word is hidden. Ask yes/no questions to warm up.",
             "Guess by meaning; I'll tell you hot or cold.",
             "One secret word. Ask about it, then take your shot.",
         ]
@@ -509,11 +509,11 @@ enum OfflineKeeper {
     /// Honest shrug when offline Wick can't decide a question, in the round's
     /// language. Shown without spending a question.
     private static let shrugs: [GameLanguage: String] = [
-        .english: "Offline, I only know the essentials — try asking what kind of thing it is, its size, or whether it's alive.",
+        .english: "Offline, I only know the essentials. Try asking what kind of thing it is, its size, or whether it's alive.",
         .spanish: "Sin conexión solo sé lo básico. Prueba a preguntar qué tipo de cosa es, su tamaño o si está vivo.",
-        .french: "Hors ligne, je ne sais que l'essentiel — demande quel genre de chose c'est, sa taille, ou si c'est vivant.",
-        .italian: "Offline conosco solo l'essenziale — chiedi che tipo di cosa è, la sua dimensione, o se è vivo.",
-        .german: "Offline kenne ich nur das Wichtigste – frag, was für ein Ding es ist, wie groß es ist oder ob es lebt.",
+        .french: "Hors ligne, je ne sais que l'essentiel. Demande quel genre de chose c'est, sa taille, ou si c'est vivant.",
+        .italian: "Offline conosco solo l'essenziale. Chiedi che tipo di cosa è, la sua dimensione, o se è vivo.",
+        .german: "Offline kenne ich nur das Wichtigste. Frag, was für ein Ding es ist, wie groß es ist oder ob es lebt.",
     ]
 
     static func shrug(_ language: GameLanguage) -> String {

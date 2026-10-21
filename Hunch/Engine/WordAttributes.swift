@@ -51,7 +51,7 @@ enum WordCategory: String {
         case .plant:
             return "It is a living plant. It is not man-made."
         case .person:
-            return "It is a person — a living human being. It is not man-made."
+            return "It is a person, a living human being. It is not man-made."
         case .food:
             return "It is a food or drink: a physical thing you can eat or taste. It is not man-made machinery and may be natural."
         case .substance:
@@ -65,7 +65,7 @@ enum WordCategory: String {
         case .event:
             return "It is an event, occasion, or activity, not a physical object you can hold. It is not alive and has no material or color."
         case .artMusic:
-            return "It is a form of art or music — an abstract human creation, not a solid object you can hold. It is not alive."
+            return "It is a form of art or music: an abstract human creation, not a solid object you can hold. It is not alive."
         case .abstract:
             return "It is an abstract concept, quality, or feeling, not a physical object. It is not alive, not man-made, and has no size, color, smell, or material."
         }
@@ -120,7 +120,7 @@ enum WordData {
         guard let url = Bundle.main.url(forResource: "WordData", withExtension: "json"),
               let data = try? Data(contentsOf: url),
               let decoded = try? JSONDecoder().decode(Payload.self, from: data) else {
-            assertionFailure("WordData.json missing or malformed — Keeper accuracy layer will defer everything to the model")
+            assertionFailure("WordData.json missing or malformed; Keeper accuracy layer will defer everything to the model")
             return Payload(categories: [:], sets: [:])
         }
         return decoded

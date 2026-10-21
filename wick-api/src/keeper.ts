@@ -35,7 +35,7 @@ const THINKING_BUDGET = (() => {
 })();
 /** Saved answers made under another prompt are thrown away on boot. Bump this
  *  whenever answerInstructions() changes in a way that changes answers. */
-export const KEEPER_PROMPT_VERSION = "3.7-1";
+export const KEEPER_PROMPT_VERSION = "3.7-2"; // 3.7-2: replies never carry an em dash
 
 export type KeeperVerdict = "Yes" | "No" | "Sort of" | "IDK" | "Won't say" | "";
 export type KeeperSource = "leak" | "cache" | "llm" | "unavailable";
@@ -278,7 +278,17 @@ export function cleanReply(text: string): string {
   );
   s = s.replace(/\s+/g, " ");
   s = s.replace(/^[\s\t"'.,:;—-]+/, "").replace(/[\s\t"'.,:;—-]+$/, "");
-  return s.trim();
+  return noDashes(s).trim();
+}
+
+/** Wick never says an em dash (3.7, a house style rule). A model that writes
+ *  one ("Yes, mostly — in the city") gets a comma instead; a spaced en dash
+ *  too. A plain hyphen ("man-made") and a number range ("3–5") are kept. */
+export function noDashes(text: string): string {
+  return text
+    .replace(/\s*—\s*|\s+–\s+/g, ", ")
+    .replace(/,\s*([,.!?;:])/g, "$1")
+    .replace(/\s{2,}/g, " ");
 }
 
 export function trimmedReply(text: string, maxWords = 18): string {

@@ -32,7 +32,7 @@ struct GameView: View {
     /// Cute one-liners Wick says when you poke him. Never reveal anything.
     private static let pokeQuips = [
         "Hey, that tickles!", "Boop!", "I'm not telling, you know.",
-        "Careful — I'm flammable.", "You rang?", "Still guarding the word…",
+        "Careful, I'm flammable.", "You rang?", "Still guarding the word…",
         "Stop poking, I'm concentrating!", "Warm hands, warm heart.",
         "Psst… the answer is… nope, almost got me.", "Hehe.",
     ]
@@ -41,7 +41,7 @@ struct GameView: View {
     /// unaffected). Shown only when the guess isn't the actual answer.
     private static let wordEggs: [String: String] = [
         "wick": "Hey, that's my name! But it's not the word.",
-        "keeper": "I keep secrets — I don't hand them out.",
+        "keeper": "I keep secrets. I don't hand them out.",
         "hunch": "Cute. That's the name of the game, not the word.",
         "flame": "Warm… but that's just my vibe.",
         "fire": "You're playing with fire now. Still not it though.",
