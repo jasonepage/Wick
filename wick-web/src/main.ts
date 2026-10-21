@@ -652,10 +652,6 @@ function landingHeader(): HTMLElement {
       el("a", { class: "appstore-link", href: APP_STORE_URL, target: "_blank", rel: "noopener" }, [badge]),
       el("a", { class: "landing-by", href: "https://jasonepage.github.io", target: "_blank", rel: "noopener" }, [t("madeBy", "Jason Page")]),
     ]),
-    // PeerPush listing badge (also in index.html and the marketing footer).
-    el("a", { class: "peerpush-link", href: "https://peerpush.com/p/wick", target: "_blank", rel: "noopener" }, [
-      el("img", { class: "peerpush-badge", src: "https://peerpush.com/p/wick/badge.png", alt: "Wick on PeerPush" }),
-    ]),
   ]);
 }
 

@@ -43,11 +43,12 @@
         document.body.className = "theme-" + t;
       })();
     </script>
-    <!-- PeerPush badge in the plain HTML, so a checker that does not run
-         scripts still finds it. The game replaces #app when it loads and shows
-         the badge again in its home header (landingHeader in src/main.ts). -->
+    <!-- A plain link back to Wick's PeerPush page keeps the listing verified
+         (PeerPush accepts any plain link, no badge picture needed). It sits in
+         the plain HTML so their checker finds it; the game replaces #app when
+         it loads, so players never see it. Also in the marketing footer. -->
     <div id="app">
-      <a href="https://peerpush.com/p/wick" target="_blank" rel="noopener"><img src="https://peerpush.com/p/wick/badge.png" alt="Wick on PeerPush" style="width: 230px;" /></a>
+      <a href="https://peerpush.com/p/wick" target="_blank" rel="noopener">Wick on PeerPush</a>
     </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
