@@ -4,7 +4,7 @@
 //
 //  Mirrors the player's *progression* into iCloud's key-value store, so a new
 //  phone — or a delete-and-reinstall — doesn't silently wipe the streak, the
-//  stats, the achievements, the wardrobe, and coins the player PAID for.
+//  stats, and the achievements.
 //
 //  Before this file, every one of those lived in `UserDefaults.standard` and
 //  nowhere else. For a game whose entire retention mechanic is a flame counter,
@@ -39,21 +39,15 @@
 //  Two devices can both write. There is no server to arbitrate, so each key
 //  gets a rule that converges without one:
 //
-//  • max      — bestStreak, solves, totalGuesses, lastBonusDay. Monotonic;
-//               taking the larger can never destroy progress. (lastBonusDay as
-//               max also stops the daily bonus being farmed across devices.)
+//  • max      — bestStreak, solves, totalGuesses. Monotonic;
+//               taking the larger can never destroy progress.
 //  • min      — bestGuessCount. Lower is better; 0 means "none yet" and loses.
-//  • union    — achievements, wardrobe owned. Earned things never un-earn.
+//  • union    — achievements. Earned things never un-earn.
 //  • paired   — streak + lastSolvedDay move TOGETHER, decided by the later
 //               lastSolvedDay. Merging them independently is the classic bug:
 //               you would take device A's streak of 9 next to device B's
 //               lastSolvedDay, and the next solve would read as consecutive
 //               when it wasn't.
-//  • revision — coins and equipped outfit. Spendable/mutable state can't use
-//               max (that would let a two-device player refill by syncing) so
-//               it's last-writer-wins on a monotonic `rev` counter. On a fresh
-//               install local rev is 0 and any cloud value wins, which is the
-//               case that matters: restore.
 //
 
 import Foundation
@@ -63,24 +57,17 @@ enum CloudSync {
 
     // MARK: - Mirrored keys
 
-    private static let kCoins          = "hunch.coins"
     private static let kStreak         = "hunch.streak"
     private static let kLastSolvedDay  = "hunch.lastSolvedDay"
-    private static let kLastBonusDay   = "hunch.lastBonusDay"
     private static let kSolves         = "hunch.solves"
     private static let kBestStreak     = "hunch.bestStreak"
     private static let kTotalGuesses   = "hunch.totalGuesses"
     private static let kBestGuess      = "hunch.bestGuessCount"
     private static let kAchievements   = "hunch.achievements"
-    private static let kWardrobeOwned  = "hunch.wardrobe.owned"
-    private static let kWardrobeEquip  = "hunch.wardrobe.equipped"
-    /// Monotonic write counter, local and remote, for the revision rule.
-    private static let kRev            = "hunch.cloud.rev"
 
     /// Called on the main actor after a merge that actually changed local
-    /// values, so the view model can re-read them. Set by `GameViewModel.init`,
-    /// mirroring how `CoinStore.onGrant` and `WardrobeStore.spend` reach it —
-    /// a plain closure rather than a `@Sendable` NotificationCenter block.
+    /// values, so the view model can re-read them. Set by `GameViewModel.init`
+    /// as a plain closure rather than a `@Sendable` NotificationCenter block.
     static var onMerge: (() -> Void)?
 
     private static var observing = false
@@ -161,9 +148,7 @@ enum CloudSync {
         mergeMax(kSolves)
         mergeMax(kBestStreak)
         mergeMax(kTotalGuesses)
-        mergeMax(kLastBonusDay)
         mergeUnion(kAchievements)
-        mergeUnion(kWardrobeOwned)
 
         // Fewest guesses to a solve: lower wins, and 0 means "never solved".
         if let r = remoteInt(kBestGuess), r > 0 {
@@ -184,15 +169,6 @@ enum CloudSync {
                 d.set(remoteStreak, forKey: kStreak)
                 changed = true
             }
-        }
-
-        // Spendable / mutable state: newest writer wins.
-        let remoteRev = remoteInt(kRev) ?? 0
-        if remoteRev > d.integer(forKey: kRev) {
-            if let c = remoteInt(kCoins) { d.set(c, forKey: kCoins) }
-            if let e = kv.string(forKey: kWardrobeEquip) { d.set(e, forKey: kWardrobeEquip) }
-            d.set(remoteRev, forKey: kRev)
-            changed = true
         }
 
         return changed
@@ -224,9 +200,7 @@ enum CloudSync {
         pushMax(kSolves)
         pushMax(kBestStreak)
         pushMax(kTotalGuesses)
-        pushMax(kLastBonusDay)
         pushUnion(kAchievements)
-        pushUnion(kWardrobeOwned)
 
         let localBest = d.integer(forKey: kBestGuess)
         if localBest > 0 {
@@ -241,13 +215,6 @@ enum CloudSync {
             kv.set(Int64(localDay), forKey: kLastSolvedDay)
             kv.set(Int64(d.integer(forKey: kStreak)), forKey: kStreak)
         }
-
-        // Bump the revision so this device's coins/outfit win the next merge.
-        let rev = d.integer(forKey: kRev) + 1
-        d.set(rev, forKey: kRev)
-        kv.set(Int64(rev), forKey: kRev)
-        kv.set(Int64(d.integer(forKey: kCoins)), forKey: kCoins)
-        kv.set(d.string(forKey: kWardrobeEquip) ?? "", forKey: kWardrobeEquip)
 
         kv.synchronize()
     }

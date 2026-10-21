@@ -48,7 +48,6 @@ struct Loc {
     var homeGuessWord: String { s("homeGuessWord") }
     var homeReplayAnyDay: String { s("homeReplayAnyDay") }
     var homePlayAnytime: String { s("homePlayAnytime") }
-    var homeDressUpWick: String { s("homeDressUpWick") }
 
     // MARK: - Duels
     var duel: String { s("duel") }
@@ -148,18 +147,6 @@ struct Loc {
     var liveScanCaption: String { s("liveScanCaption") }
     var liveRematch: String { s("liveRematch") }
 
-    // MARK: - Wardrobe
-    var wardrobe: String { s("wardrobe") }
-    var wardrobeBlurb: String { s("wardrobeBlurb") }
-    var equip: String { s("equip") }
-    var equipped: String { s("equipped") }
-    var take_off: String { s("take_off") }
-    var buy: String { s("buy") }
-    var owned: String { s("owned") }
-    var notEnoughCoins: String { s("notEnoughCoins") }
-    func slotName(_ slot: AccessorySlot) -> String { s("slot_" + slot.rawValue) }
-    func accessoryName(_ key: String) -> String { s(key) }
-
     // MARK: - Welcome / hero
     func welcome(_ keeper: String) -> String { f("welcome", keeper) }
     var notInVocabulary: String { s("notInVocabulary") }
@@ -203,7 +190,6 @@ struct Loc {
     /// composed from copy that already exists (the word, the heat band, the
     /// rank), so only the controls that show no text at all need their own key.
     var a11ySend: String { s("a11ySend") }
-    var a11yShop: String { s("a11yShop") }
     var a11yAskThis: String { s("a11yAskThis") }
     /// Opening-board legend teaching the round's two verbs.
     var waysTitle: String { s("waysTitle") }
@@ -284,8 +270,6 @@ struct Loc {
     func freeQuestionsLeft(_ n: Int) -> String {
         f(n == 1 ? "freeQuestionsLeft.one" : "freeQuestionsLeft.other", n)
     }
-    func questionCost(_ cost: Int, coins: Int) -> String { f("questionCost", cost, coins) }
-    var outOfCoins: String { s("outOfCoins") }
 
     // MARK: - Menu / Settings
     var howToPlay: String { s("howToPlay") }
@@ -300,7 +284,6 @@ struct Loc {
     var wordsSolved: String { s("wordsSolved") }
     var avgGuesses: String { s("avgGuesses") }
     var fewestGuesses: String { s("fewestGuesses") }
-    var coins: String { s("coins") }
     var achievements: String { s("achievements") }
     var leaderboards: String { s("leaderboards") }
     // 3.6: everyone's week on the Stats page, and its Settings switch.
@@ -359,19 +342,17 @@ struct Loc {
     var notNow: String { s("notNow") }
 
     // MARK: - Toasts
-    func dailyBonus(_ n: Int) -> String { f("dailyBonus", n) }
     func countsAsAlready(_ typed: String, _ word: String) -> String { f("countsAsAlready", typed, word) }
     func alreadyGuessed(_ word: String) -> String { f("alreadyGuessed", word) }
     func normalizedTo(_ typed: String, _ word: String) -> String { f("normalizedTo", typed, word) }
     func didYouMean(_ typed: String, _ suggestion: String) -> String { f("didYouMean", typed, suggestion) }
     func notInVocabToast(_ typed: String) -> String { f("notInVocabToast", typed) }
-    func solvedBadge(_ reward: Int, _ badge: String) -> String { f("solvedBadge", reward, badge) }
-    func solvedCoins(_ reward: Int) -> String { f("solvedCoins", reward) }
+    func solvedBadge(_ badge: String) -> String { f("solvedBadge", badge) }
     func theWordWasToast(_ word: String) -> String { f("theWordWasToast", word) }
     var hintWarmingUp: String { s("hintWarmingUp") }
-    func hintsCost(_ cost: Int) -> String { f("hintsCost", cost) }
     func hintFreeLeft(_ n: Int) -> String { f("hintFreeLeft", n) }
-    func hintCoinPrice(_ cost: Int) -> String { f("hintCoinPrice", cost) }
+    /// The day's free hints are used up; there are no more hints until tomorrow.
+    var noHintsToday: String { s("noHintsToday") }
     func topTakeIt(_ n: Int) -> String { f("topTakeIt", n) }
     var noCloserHint: String { s("noCloserHint") }
     func hintLands(_ word: String, _ rank: Int) -> String { f("hintLands", word, rank) }
@@ -379,8 +360,6 @@ struct Loc {
     var wickEgg: String { s("wickEgg") }
     var eggHunch: String { s("eggHunch") }
     var eggCheat: String { s("eggCheat") }
-    func plusCoins(_ amount: Int) -> String { f("plusCoins", amount) }
-    func outOfFreeQuestions(_ cost: Int) -> String { f("outOfFreeQuestions", cost) }
     var keeperDidntRespond: String { s("keeperDidntRespond") }
     var scoringUnavailable: String { s("scoringUnavailable") }
     var vocabularyReady: String { s("vocabularyReady") }
@@ -459,15 +438,6 @@ struct Loc {
     func tutStepOf(_ step: Int, _ total: Int) -> String { f("tutStepOf", step, total) }
     var tutPlayTutorial: String { s("tutPlayTutorial") }
     var tutPlayTutorialSub: String { s("tutPlayTutorialSub") }
-
-    // MARK: - Shop
-    var getCoins: String { s("getCoins") }
-    var yourBalance: String { s("yourBalance") }
-    func coinsAmount(_ n: Int) -> String { f("coinsAmount", n) }
-    var loadingShop: String { s("loadingShop") }
-    var shopUnavailable: String { s("shopUnavailable") }
-    var shopUnavailableDetail: String { s("shopUnavailableDetail") }
-    var coinsBuyBlurb: String { s("coinsBuyBlurb") }
 
     // MARK: - Ghost Race (3.2)
     /// Keys mirror wick-web/src/i18n.ts exactly, so a challenge reads the same
@@ -654,7 +624,6 @@ struct Loc {
         "roundLog": "Your round",
         "needIdeas": "Need ideas to ask Wick?",
         "a11ySend": "Send",
-        "a11yShop": "Open the coin shop",
         "a11yAskThis": "Asks Wick this question",
         "waysTitle": "Two ways to play",
         "wayGuessTitle": "Type one word",
@@ -715,7 +684,6 @@ struct Loc {
         "homeGuessWord": "Guess the secret word",
         "homeReplayAnyDay": "Replay any day",
         "homePlayAnytime": "Play anytime",
-        "homeDressUpWick": "Dress up Wick",
         "duelCreate": "Create a duel",
         "duelRace": "Race",
         "duelRaceBlurb": "Wick picks a secret word — you both play it blind, then compare.",
@@ -743,31 +711,6 @@ struct Loc {
         "duelYouChose": "You chose \"%@\". Send the code to a friend.",
         "duelShareMsg": "Can you beat me at Wick?",
         "duelSolvedIn": "Solved in %d",
-        "wardrobe": "Wick's Wardrobe",
-        "wardrobeBlurb": "Spend coins to dress up Wick. Just for fun — it won't change the game.",
-        "equip": "Wear",
-        "equipped": "Wearing",
-        "take_off": "Take off",
-        "buy": "Buy",
-        "owned": "Owned",
-        "notEnoughCoins": "Not enough coins",
-        "slot_hat": "Hats",
-        "slot_eyes": "Eyes",
-        "slot_face": "Face",
-        "slot_mouth": "Mouth",
-        "slot_neck": "Neck",
-        "acc_tophat": "Top Hat",
-        "acc_tongue": "Tongue Out",
-        "acc_googly": "Googly Eyes",
-        "acc_hearts": "Heart Eyes",
-        "acc_stars": "Star Eyes",
-        "acc_party": "Party Hat",
-        "acc_wizard": "Wizard Hat",
-        "acc_crown": "Crown",
-        "acc_monocle": "Monocle",
-        "acc_glasses": "Glasses",
-        "acc_bowtie": "Bow Tie",
-        "acc_tie": "Necktie",
         "askTab": "Ask",
         "guessTab": "Guess",
         "suggestedQuestions": "Suggested questions",
@@ -782,8 +725,6 @@ struct Loc {
         "offlineFootnote": "Offline mode: Wick answers the basics on-device. Tap a suggestion for an exact answer.",
         "freeQuestionsLeft.one": "%d free question left",
         "freeQuestionsLeft.other": "%d free questions left",
-        "questionCost": "Each question costs %d coins (you have %d)",
-        "outOfCoins": "Out of coins — keep guessing free, or solve rounds to earn more.",
         // Menu / Settings
         "howToPlay": "How to play",
         "settings": "Settings",
@@ -796,7 +737,6 @@ struct Loc {
         "wordsSolved": "Words solved",
         "avgGuesses": "Avg guesses",
         "fewestGuesses": "Fewest guesses",
-        "coins": "Coins",
         "achievements": "Achievements",
         "leaderboards": "Leaderboards",
         "boardYourResult": "Your result today",
@@ -843,18 +783,16 @@ struct Loc {
         "reminderOfferYes": "Remind me",
         "notNow": "Not now",
         // Toasts
-        "dailyBonus": "Daily bonus · +%d coins",
         "countsAsAlready": "“%@” counts as “%@” — already guessed.",
         "alreadyGuessed": "Already guessed “%@”.",
         "normalizedTo": "“%@” → “%@”",
         "didYouMean": "“%@” isn’t in my vocabulary — did you mean “%@”?",
         "notInVocabToast": "“%@” isn’t in my vocabulary — try another.",
-        "solvedBadge": "Solved! +%d · 🏅 %@",
-        "solvedCoins": "Solved! +%d coins",
+        "solvedBadge": "Solved! · 🏅 %@",
         "theWordWasToast": "The word was “%@”",
         "hintWarmingUp": "Hint is warming up — try again in a second.",
-        "hintsCost": "Free hints are done for today. Hints cost %d coins now.",
-        "hintFreeLeft": "Hint (%d free today)", "hintCoinPrice": "Hint (%d coins)",
+        "hintFreeLeft": "Hint (%d free today)",
+        "noHintsToday": "No hints left today. Come back tomorrow!",
         "topTakeIt": "You're in the top %d — take it from here! 🔥",
         "noCloserHint": "You're closing in — no closer hint to give!",
         "hintLands": "Hint: “%@” lands at #%d — warmer!",
@@ -862,8 +800,6 @@ struct Loc {
         "wickEgg": "Hey — that's what I'm made of!",
         "eggHunch": "Hunch? That's my old name — good memory.",
         "eggCheat": "Cheat? Where's the fun in that?",
-        "plusCoins": "+%d coins",
-        "outOfFreeQuestions": "Out of free questions — costs %d coins.",
         "keeperDidntRespond": "The Keeper didn’t respond — tap Retry.",
         "scoringUnavailable": "This language's dictionary isn't downloaded yet — I'll keep trying. Connect to the internet for a moment and it'll sort itself out.",
         "vocabularyReady": "Dictionary ready — game on!",
@@ -942,14 +878,6 @@ struct Loc {
         "howAskLine": "Ask me yes or no questions.",
         "howHintLine": "Stuck? A hint gives you a closer word.",
         "howDailyLine": "A new word every day. Race everyone to solve it!",
-        // Shop
-        "getCoins": "Get coins",
-        "yourBalance": "Your balance",
-        "coinsAmount": "%d coins",
-        "loadingShop": "Loading shop…",
-        "shopUnavailable": "Shop unavailable",
-        "shopUnavailableDetail": "Coin packs couldn't load right now. Check your connection and try again.",
-        "coinsBuyBlurb": "Coins buy extra hints and questions. You can always play the daily and earn coins for free.",
         // Solve Replay (3.4)
         "replayShare": "Share replay",
         "replayTitle": "Solve replay",
@@ -1078,7 +1006,6 @@ struct Loc {
         "roundLog": "Tu ronda",
         "needIdeas": "¿Ideas para preguntar a Wick?",
         "a11ySend": "Enviar",
-        "a11yShop": "Abrir la tienda de monedas",
         "a11yAskThis": "Hace esta pregunta a Wick",
         "waysTitle": "Dos formas de jugar",
         "wayGuessTitle": "Escribe una palabra",
@@ -1139,7 +1066,6 @@ struct Loc {
         "homeGuessWord": "Adivina la palabra secreta",
         "homeReplayAnyDay": "Repite cualquier día",
         "homePlayAnytime": "Juega cuando quieras",
-        "homeDressUpWick": "Viste a Wick",
         "duelCreate": "Crear un duelo",
         "duelRace": "Carrera",
         "duelRaceBlurb": "Wick elige una palabra secreta — ambos jugáis a ciegas y comparáis.",
@@ -1167,31 +1093,6 @@ struct Loc {
         "duelYouChose": "Elegiste «%@». Envía el código a un amigo.",
         "duelShareMsg": "¿Puedes ganarme en Wick?",
         "duelSolvedIn": "Resuelto en %d",
-        "wardrobe": "Armario de Wick",
-        "wardrobeBlurb": "Gasta monedas para vestir a Wick. Solo por diversión — no cambia el juego.",
-        "equip": "Poner",
-        "equipped": "Puesto",
-        "take_off": "Quitar",
-        "buy": "Comprar",
-        "owned": "Adquirido",
-        "notEnoughCoins": "Monedas insuficientes",
-        "slot_hat": "Sombreros",
-        "slot_eyes": "Ojos",
-        "slot_face": "Cara",
-        "slot_mouth": "Boca",
-        "slot_neck": "Cuello",
-        "acc_tophat": "Chistera",
-        "acc_tongue": "Lengua fuera",
-        "acc_googly": "Ojos saltones",
-        "acc_hearts": "Ojos de corazón",
-        "acc_stars": "Ojos de estrella",
-        "acc_party": "Gorro de fiesta",
-        "acc_wizard": "Sombrero de mago",
-        "acc_crown": "Corona",
-        "acc_monocle": "Monóculo",
-        "acc_glasses": "Gafas",
-        "acc_bowtie": "Pajarita",
-        "acc_tie": "Corbata",
         "askTab": "Preguntar",
         "guessTab": "Adivinar",
         "suggestedQuestions": "Preguntas sugeridas",
@@ -1206,8 +1107,6 @@ struct Loc {
         "offlineFootnote": "Modo sin conexión: Wick responde lo básico en el dispositivo. Toca una sugerencia para una respuesta exacta.",
         "freeQuestionsLeft.one": "%d pregunta gratis",
         "freeQuestionsLeft.other": "%d preguntas gratis",
-        "questionCost": "Cada pregunta cuesta %d monedas (tienes %d)",
-        "outOfCoins": "Sin monedas: sigue adivinando gratis o resuelve rondas para ganar más.",
         // Menu / Settings
         "howToPlay": "Cómo jugar",
         "settings": "Ajustes",
@@ -1220,7 +1119,6 @@ struct Loc {
         "wordsSolved": "Palabras resueltas",
         "avgGuesses": "Intentos prom.",
         "fewestGuesses": "Menos intentos",
-        "coins": "Monedas",
         "achievements": "Logros",
         "leaderboards": "Clasificaciones",
         "boardYourResult": "Tu resultado de hoy",
@@ -1262,18 +1160,16 @@ struct Loc {
         "reminderOfferYes": "Avísame",
         "notNow": "Ahora no",
         // Toasts
-        "dailyBonus": "Bono diario · +%d monedas",
         "countsAsAlready": "«%@» cuenta como «%@» — ya la intentaste.",
         "alreadyGuessed": "Ya intentaste «%@».",
         "normalizedTo": "«%@» → «%@»",
         "didYouMean": "«%@» no está en mi vocabulario — ¿quisiste decir «%@»?",
         "notInVocabToast": "«%@» no está en mi vocabulario — prueba otra.",
-        "solvedBadge": "¡Resuelto! +%d · 🏅 %@",
-        "solvedCoins": "¡Resuelto! +%d monedas",
+        "solvedBadge": "¡Resuelto! · 🏅 %@",
         "theWordWasToast": "La palabra era «%@»",
         "hintWarmingUp": "La pista se está calentando — inténtalo en un segundo.",
-        "hintsCost": "Las pistas gratis de hoy se acabaron. Ahora cuestan %d monedas.",
-        "hintFreeLeft": "Pista (%d gratis hoy)", "hintCoinPrice": "Pista (%d monedas)",
+        "hintFreeLeft": "Pista (%d gratis hoy)",
+        "noHintsToday": "No quedan pistas por hoy. ¡Vuelve mañana!",
         "topTakeIt": "Estás entre los %d primeros — ¡tú puedes! 🔥",
         "noCloserHint": "Te estás acercando — ¡no hay pista más cercana!",
         "hintLands": "Pista: «%@» queda en el n.º %d — ¡más cálido!",
@@ -1281,8 +1177,6 @@ struct Loc {
         "wickEgg": "¡Oye, de eso estoy hecho!",
         "eggHunch": "¿Hunch? Así me llamaba antes — buena memoria.",
         "eggCheat": "¿Hacer trampa? ¿Dónde está la gracia?",
-        "plusCoins": "+%d monedas",
-        "outOfFreeQuestions": "Sin preguntas gratis — cuesta %d monedas.",
         "keeperDidntRespond": "El Guardián no respondió — toca Reintentar.",
         "scoringUnavailable": "El diccionario de este idioma aún no se ha descargado — seguiré intentándolo. Conéctate a internet un momento y se arreglará solo.",
         "vocabularyReady": "Diccionario listo — ¡a jugar!",
@@ -1361,14 +1255,6 @@ struct Loc {
         "howAskLine": "Hazme preguntas de sí o no.",
         "howHintLine": "¿Atascado? Una pista te da una palabra más cercana.",
         "howDailyLine": "Una palabra nueva cada día. ¡Compite con todos para resolverla!",
-        // Shop
-        "getCoins": "Conseguir monedas",
-        "yourBalance": "Tu saldo",
-        "coinsAmount": "%d monedas",
-        "loadingShop": "Cargando la tienda…",
-        "shopUnavailable": "Tienda no disponible",
-        "shopUnavailableDetail": "No se pudieron cargar los paquetes de monedas ahora. Revisa tu conexión e inténtalo de nuevo.",
-        "coinsBuyBlurb": "Las monedas compran pistas y preguntas extra. Siempre puedes jugar el diario y ganar monedas gratis.",
         // Solve Replay (3.4)
         "replayShare": "Compartir repetición",
         "replayTitle": "Repetición",
@@ -1499,7 +1385,6 @@ struct Loc {
         "roundLog": "Ta manche",
         "needIdeas": "Des idées de questions pour Wick ?",
         "a11ySend": "Envoyer",
-        "a11yShop": "Ouvrir la boutique de pièces",
         "a11yAskThis": "Pose cette question à Wick",
         "waysTitle": "Deux façons de jouer",
         "wayGuessTitle": "Écris un mot",
@@ -1560,7 +1445,6 @@ struct Loc {
         "homeGuessWord": "Devine le mot secret",
         "homeReplayAnyDay": "Rejoue n'importe quel jour",
         "homePlayAnytime": "Joue quand tu veux",
-        "homeDressUpWick": "Habille Wick",
         "duelCreate": "Créer un duel",
         "duelRace": "Course",
         "duelRaceBlurb": "Wick choisit un mot secret — vous jouez tous deux à l'aveugle, puis comparez.",
@@ -1588,31 +1472,6 @@ struct Loc {
         "duelYouChose": "Tu as choisi « %@ ». Envoie le code à un ami.",
         "duelShareMsg": "Peux-tu me battre à Wick ?",
         "duelSolvedIn": "Résolu en %d",
-        "wardrobe": "Garde-robe de Wick",
-        "wardrobeBlurb": "Dépense des pièces pour habiller Wick. Juste pour le plaisir — ça ne change pas le jeu.",
-        "equip": "Porter",
-        "equipped": "Porté",
-        "take_off": "Retirer",
-        "buy": "Acheter",
-        "owned": "Acquis",
-        "notEnoughCoins": "Pas assez de pièces",
-        "slot_hat": "Chapeaux",
-        "slot_eyes": "Yeux",
-        "slot_face": "Visage",
-        "slot_mouth": "Bouche",
-        "slot_neck": "Cou",
-        "acc_tophat": "Haut-de-forme",
-        "acc_tongue": "Langue tirée",
-        "acc_googly": "Yeux mobiles",
-        "acc_hearts": "Yeux en cœur",
-        "acc_stars": "Yeux étoilés",
-        "acc_party": "Chapeau de fête",
-        "acc_wizard": "Chapeau de magicien",
-        "acc_crown": "Couronne",
-        "acc_monocle": "Monocle",
-        "acc_glasses": "Lunettes",
-        "acc_bowtie": "Nœud papillon",
-        "acc_tie": "Cravate",
         "askTab": "Demander",
         "guessTab": "Deviner",
         "suggestedQuestions": "Questions suggérées",
@@ -1627,8 +1486,6 @@ struct Loc {
         "offlineFootnote": "Mode hors ligne : Wick répond à l'essentiel sur l'appareil. Touche une suggestion pour une réponse exacte.",
         "freeQuestionsLeft.one": "%d question gratuite",
         "freeQuestionsLeft.other": "%d questions gratuites",
-        "questionCost": "Chaque question coûte %d pièces (tu en as %d)",
-        "outOfCoins": "Plus de pièces — continue à deviner gratuitement, ou résous des manches pour en gagner.",
         // Menu / Settings
         "howToPlay": "Comment jouer",
         "settings": "Réglages",
@@ -1641,7 +1498,6 @@ struct Loc {
         "wordsSolved": "Mots trouvés",
         "avgGuesses": "Essais moy.",
         "fewestGuesses": "Moins d'essais",
-        "coins": "Pièces",
         "achievements": "Succès",
         "leaderboards": "Classements",
         "boardYourResult": "Ton résultat du jour",
@@ -1683,18 +1539,16 @@ struct Loc {
         "reminderOfferYes": "Me le rappeler",
         "notNow": "Pas maintenant",
         // Toasts
-        "dailyBonus": "Bonus quotidien · +%d pièces",
         "countsAsAlready": "« %@ » compte comme « %@ » — déjà essayé.",
         "alreadyGuessed": "Déjà essayé « %@ ».",
         "normalizedTo": "« %@ » → « %@ »",
         "didYouMean": "« %@ » n'est pas dans mon vocabulaire — tu voulais dire « %@ » ?",
         "notInVocabToast": "« %@ » n'est pas dans mon vocabulaire — essaie un autre mot.",
-        "solvedBadge": "Trouvé ! +%d · 🏅 %@",
-        "solvedCoins": "Trouvé ! +%d pièces",
+        "solvedBadge": "Trouvé ! · 🏅 %@",
         "theWordWasToast": "Le mot était « %@ »",
         "hintWarmingUp": "L'indice se prépare — réessaie dans une seconde.",
-        "hintsCost": "Plus d'indices gratuits aujourd'hui. Ils coûtent %d pièces maintenant.",
-        "hintFreeLeft": "Indice (%d gratuits aujourd'hui)", "hintCoinPrice": "Indice (%d pièces)",
+        "hintFreeLeft": "Indice (%d gratuits aujourd'hui)",
+        "noHintsToday": "Plus d'indices pour aujourd'hui. Reviens demain !",
         "topTakeIt": "Tu es dans le top %d — à toi de jouer ! 🔥",
         "noCloserHint": "Tu te rapproches — pas d'indice plus proche à donner !",
         "hintLands": "Indice : « %@ » arrive au n° %d — plus chaud !",
@@ -1702,8 +1556,6 @@ struct Loc {
         "wickEgg": "Hé — c'est de ça que je suis fait !",
         "eggHunch": "Hunch ? C'était mon ancien nom — bonne mémoire.",
         "eggCheat": "Tricher ? Où est le plaisir ?",
-        "plusCoins": "+%d pièces",
-        "outOfFreeQuestions": "Plus de questions gratuites — coûte %d pièces.",
         "keeperDidntRespond": "Le Gardien n'a pas répondu — touche Réessayer.",
         "scoringUnavailable": "Le dictionnaire de cette langue n'est pas encore téléchargé — je continue d'essayer. Connecte-toi à internet un instant et ça se réglera tout seul.",
         "vocabularyReady": "Dictionnaire prêt — à toi de jouer !",
@@ -1782,14 +1634,6 @@ struct Loc {
         "howAskLine": "Pose-moi des questions par oui ou non.",
         "howHintLine": "Bloqué ? Un indice te donne un mot plus proche.",
         "howDailyLine": "Un nouveau mot chaque jour. Fais la course pour le trouver !",
-        // Shop
-        "getCoins": "Obtenir des pièces",
-        "yourBalance": "Ton solde",
-        "coinsAmount": "%d pièces",
-        "loadingShop": "Chargement de la boutique…",
-        "shopUnavailable": "Boutique indisponible",
-        "shopUnavailableDetail": "Impossible de charger les packs de pièces. Vérifie ta connexion et réessaie.",
-        "coinsBuyBlurb": "Les pièces offrent des indices et des questions en plus. Le mot du jour reste gratuit, et tu gagnes des pièces en jouant.",
         // Solve Replay (3.4)
         "replayShare": "Partager le replay",
         "replayTitle": "Replay",
@@ -1920,7 +1764,6 @@ struct Loc {
         "roundLog": "Il tuo round",
         "needIdeas": "Idee per domande a Wick?",
         "a11ySend": "Invia",
-        "a11yShop": "Apri il negozio di monete",
         "a11yAskThis": "Fa questa domanda a Wick",
         "waysTitle": "Due modi di giocare",
         "wayGuessTitle": "Scrivi una parola",
@@ -1981,7 +1824,6 @@ struct Loc {
         "homeGuessWord": "Indovina la parola segreta",
         "homeReplayAnyDay": "Rigioca un giorno qualsiasi",
         "homePlayAnytime": "Gioca quando vuoi",
-        "homeDressUpWick": "Vesti Wick",
         "duelCreate": "Crea un duello",
         "duelRace": "Gara",
         "duelRaceBlurb": "Wick sceglie una parola segreta — giocate entrambi alla cieca e confrontate.",
@@ -2009,31 +1851,6 @@ struct Loc {
         "duelYouChose": "Hai scelto «%@». Invia il codice a un amico.",
         "duelShareMsg": "Riesci a battermi a Wick?",
         "duelSolvedIn": "Risolto in %d",
-        "wardrobe": "Guardaroba di Wick",
-        "wardrobeBlurb": "Spendi monete per vestire Wick. Solo per gioco — non cambia la partita.",
-        "equip": "Indossa",
-        "equipped": "Indossato",
-        "take_off": "Togli",
-        "buy": "Compra",
-        "owned": "Posseduto",
-        "notEnoughCoins": "Monete insufficienti",
-        "slot_hat": "Cappelli",
-        "slot_eyes": "Occhi",
-        "slot_face": "Viso",
-        "slot_mouth": "Bocca",
-        "slot_neck": "Collo",
-        "acc_tophat": "Cilindro",
-        "acc_tongue": "Linguaccia",
-        "acc_googly": "Occhi finti",
-        "acc_hearts": "Occhi a cuore",
-        "acc_stars": "Occhi a stella",
-        "acc_party": "Cappellino da festa",
-        "acc_wizard": "Cappello da mago",
-        "acc_crown": "Corona",
-        "acc_monocle": "Monocolo",
-        "acc_glasses": "Occhiali",
-        "acc_bowtie": "Papillon",
-        "acc_tie": "Cravatta",
         "askTab": "Chiedi",
         "guessTab": "Indovina",
         "suggestedQuestions": "Domande suggerite",
@@ -2048,8 +1865,6 @@ struct Loc {
         "offlineFootnote": "Modalità offline: Wick risponde all'essenziale sul dispositivo. Tocca un suggerimento per una risposta esatta.",
         "freeQuestionsLeft.one": "%d domanda gratis",
         "freeQuestionsLeft.other": "%d domande gratis",
-        "questionCost": "Ogni domanda costa %d monete (ne hai %d)",
-        "outOfCoins": "Monete finite — continua a indovinare gratis, o risolvi round per guadagnarne.",
         // Menu / Settings
         "howToPlay": "Come si gioca",
         "settings": "Impostazioni",
@@ -2062,7 +1877,6 @@ struct Loc {
         "wordsSolved": "Parole risolte",
         "avgGuesses": "Tentativi medi",
         "fewestGuesses": "Meno tentativi",
-        "coins": "Monete",
         "achievements": "Obiettivi",
         "leaderboards": "Classifiche",
         "boardYourResult": "Il tuo risultato di oggi",
@@ -2104,18 +1918,16 @@ struct Loc {
         "reminderOfferYes": "Avvisami",
         "notNow": "Non ora",
         // Toasts
-        "dailyBonus": "Bonus giornaliero · +%d monete",
         "countsAsAlready": "«%@» conta come «%@» — già provata.",
         "alreadyGuessed": "Hai già provato «%@».",
         "normalizedTo": "«%@» → «%@»",
         "didYouMean": "«%@» non è nel mio vocabolario — intendevi «%@»?",
         "notInVocabToast": "«%@» non è nel mio vocabolario — prova un'altra parola.",
-        "solvedBadge": "Risolto! +%d · 🏅 %@",
-        "solvedCoins": "Risolto! +%d monete",
+        "solvedBadge": "Risolto! · 🏅 %@",
         "theWordWasToast": "La parola era «%@»",
         "hintWarmingUp": "L'indizio si sta preparando — riprova tra un secondo.",
-        "hintsCost": "Gli indizi gratis di oggi sono finiti. Ora costano %d monete.",
-        "hintFreeLeft": "Indizio (%d gratis oggi)", "hintCoinPrice": "Indizio (%d monete)",
+        "hintFreeLeft": "Indizio (%d gratis oggi)",
+        "noHintsToday": "Niente più indizi per oggi. Torna domani!",
         "topTakeIt": "Sei tra i primi %d — ce la puoi fare! 🔥",
         "noCloserHint": "Ti stai avvicinando — nessun indizio più vicino da dare!",
         "hintLands": "Indizio: «%@» arriva al n. %d — più caldo!",
@@ -2123,8 +1935,6 @@ struct Loc {
         "wickEgg": "Ehi — è di questo che sono fatto!",
         "eggHunch": "Hunch? Era il mio vecchio nome — che memoria.",
         "eggCheat": "Barare? Che gusto c'è?",
-        "plusCoins": "+%d monete",
-        "outOfFreeQuestions": "Domande gratis finite — costa %d monete.",
         "keeperDidntRespond": "Il Custode non ha risposto — tocca Riprova.",
         "scoringUnavailable": "Il dizionario di questa lingua non è ancora scaricato — continuo a provare. Connettiti a internet un momento e si sistemerà da solo.",
         "vocabularyReady": "Dizionario pronto — si gioca!",
@@ -2203,14 +2013,6 @@ struct Loc {
         "howAskLine": "Fammi domande da sì o no.",
         "howHintLine": "Bloccato? Un indizio ti dà una parola più vicina.",
         "howDailyLine": "Una parola nuova ogni giorno. Sfida tutti a risolverla!",
-        // Shop
-        "getCoins": "Ottieni monete",
-        "yourBalance": "Il tuo saldo",
-        "coinsAmount": "%d monete",
-        "loadingShop": "Caricamento del negozio…",
-        "shopUnavailable": "Negozio non disponibile",
-        "shopUnavailableDetail": "Impossibile caricare i pacchetti di monete. Controlla la connessione e riprova.",
-        "coinsBuyBlurb": "Le monete danno indizi e domande extra. La parola del giorno resta gratis, e guadagni monete giocando.",
         // Solve Replay (3.4)
         "replayShare": "Condividi replay",
         "replayTitle": "Replay",
@@ -2340,7 +2142,6 @@ struct Loc {
         "roundLog": "Deine Runde",
         "needIdeas": "Ideen für Fragen an Wick?",
         "a11ySend": "Senden",
-        "a11yShop": "Münz-Shop öffnen",
         "a11yAskThis": "Stellt Wick diese Frage",
         "waysTitle": "Zwei Arten zu spielen",
         "wayGuessTitle": "Tippe ein Wort",
@@ -2401,7 +2202,6 @@ struct Loc {
         "homeGuessWord": "Errate das geheime Wort",
         "homeReplayAnyDay": "Spiele jeden Tag erneut",
         "homePlayAnytime": "Jederzeit spielen",
-        "homeDressUpWick": "Wick anziehen",
         "duelCreate": "Duell erstellen",
         "duelRace": "Rennen",
         "duelRaceBlurb": "Wick wählt ein geheimes Wort — ihr spielt beide blind und vergleicht.",
@@ -2429,31 +2229,6 @@ struct Loc {
         "duelYouChose": "Du hast „%@“ gewählt. Sende den Code an einen Freund.",
         "duelShareMsg": "Schlägst du mich bei Wick?",
         "duelSolvedIn": "In %d gelöst",
-        "wardrobe": "Wicks Kleiderschrank",
-        "wardrobeBlurb": "Gib Münzen aus, um Wick zu verkleiden. Nur zum Spaß — es ändert das Spiel nicht.",
-        "equip": "Anziehen",
-        "equipped": "Getragen",
-        "take_off": "Ablegen",
-        "buy": "Kaufen",
-        "owned": "Besitzt",
-        "notEnoughCoins": "Nicht genug Münzen",
-        "slot_hat": "Hüte",
-        "slot_eyes": "Augen",
-        "slot_face": "Gesicht",
-        "slot_mouth": "Mund",
-        "slot_neck": "Hals",
-        "acc_tophat": "Zylinder",
-        "acc_tongue": "Zunge raus",
-        "acc_googly": "Kulleraugen",
-        "acc_hearts": "Herzaugen",
-        "acc_stars": "Sternaugen",
-        "acc_party": "Partyhut",
-        "acc_wizard": "Zaubererhut",
-        "acc_crown": "Krone",
-        "acc_monocle": "Monokel",
-        "acc_glasses": "Brille",
-        "acc_bowtie": "Fliege",
-        "acc_tie": "Krawatte",
         "askTab": "Fragen",
         "guessTab": "Raten",
         "suggestedQuestions": "Vorgeschlagene Fragen",
@@ -2468,8 +2243,6 @@ struct Loc {
         "offlineFootnote": "Offline-Modus: Wick beantwortet das Wichtigste auf dem Gerät. Tippe auf einen Vorschlag für eine exakte Antwort.",
         "freeQuestionsLeft.one": "%d Gratisfrage übrig",
         "freeQuestionsLeft.other": "%d Gratisfragen übrig",
-        "questionCost": "Jede Frage kostet %d Münzen (du hast %d)",
-        "outOfCoins": "Keine Münzen mehr – rate gratis weiter oder löse Runden, um mehr zu verdienen.",
         // Menu / Settings
         "howToPlay": "Spielanleitung",
         "settings": "Einstellungen",
@@ -2482,7 +2255,6 @@ struct Loc {
         "wordsSolved": "Gelöste Wörter",
         "avgGuesses": "Ø Versuche",
         "fewestGuesses": "Wenigste Versuche",
-        "coins": "Münzen",
         "achievements": "Erfolge",
         "leaderboards": "Bestenlisten",
         "boardYourResult": "Dein heutiges Ergebnis",
@@ -2524,18 +2296,16 @@ struct Loc {
         "reminderOfferYes": "Erinnere mich",
         "notNow": "Jetzt nicht",
         // Toasts
-        "dailyBonus": "Tagesbonus · +%d Münzen",
         "countsAsAlready": "„%@“ zählt als „%@“ – schon versucht.",
         "alreadyGuessed": "„%@“ schon versucht.",
         "normalizedTo": "„%@“ → „%@“",
         "didYouMean": "„%@“ ist nicht in meinem Wortschatz – meintest du „%@“?",
         "notInVocabToast": "„%@“ ist nicht in meinem Wortschatz – versuch ein anderes.",
-        "solvedBadge": "Gelöst! +%d · 🏅 %@",
-        "solvedCoins": "Gelöst! +%d Münzen",
+        "solvedBadge": "Gelöst! · 🏅 %@",
         "theWordWasToast": "Das Wort war „%@“",
         "hintWarmingUp": "Der Hinweis wärmt sich auf – versuch es gleich noch mal.",
-        "hintsCost": "Die Gratis-Hinweise für heute sind aufgebraucht. Jetzt kosten sie %d Münzen.",
-        "hintFreeLeft": "Hinweis (%d gratis heute)", "hintCoinPrice": "Hinweis (%d Münzen)",
+        "hintFreeLeft": "Hinweis (%d gratis heute)",
+        "noHintsToday": "Keine Hinweise mehr für heute. Komm morgen wieder!",
         "topTakeIt": "Du bist unter den ersten %d – schaff es allein! 🔥",
         "noCloserHint": "Du kommst näher – es gibt keinen näheren Hinweis mehr!",
         "hintLands": "Hinweis: „%@“ landet auf Nr. %d – wärmer!",
@@ -2543,8 +2313,6 @@ struct Loc {
         "wickEgg": "Hey — daraus bestehe ich doch!",
         "eggHunch": "Hunch? So hieß ich früher — gutes Gedächtnis.",
         "eggCheat": "Schummeln? Wo bliebe da der Spaß?",
-        "plusCoins": "+%d Münzen",
-        "outOfFreeQuestions": "Keine Gratisfragen mehr – kostet %d Münzen.",
         "keeperDidntRespond": "Der Hüter hat nicht geantwortet – tippe auf „Erneut versuchen“.",
         "scoringUnavailable": "Das Wörterbuch dieser Sprache ist noch nicht heruntergeladen – ich versuche es weiter. Geh kurz online, dann löst es sich von selbst.",
         "vocabularyReady": "Wörterbuch bereit – los geht's!",
@@ -2623,14 +2391,6 @@ struct Loc {
         "howAskLine": "Stell mir Ja-oder-Nein-Fragen.",
         "howHintLine": "Kommst du nicht weiter? Ein Tipp gibt dir ein näheres Wort.",
         "howDailyLine": "Jeden Tag ein neues Wort. Tritt gegen alle an!",
-        // Shop
-        "getCoins": "Münzen holen",
-        "yourBalance": "Dein Guthaben",
-        "coinsAmount": "%d Münzen",
-        "loadingShop": "Shop wird geladen…",
-        "shopUnavailable": "Shop nicht verfügbar",
-        "shopUnavailableDetail": "Die Münzpakete konnten gerade nicht geladen werden. Prüfe deine Verbindung und versuch es erneut.",
-        "coinsBuyBlurb": "Münzen kaufen extra Hinweise und Fragen. Das Tageswort bleibt gratis, und du verdienst Münzen beim Spielen.",
         // Solve Replay (3.4)
         "replayShare": "Replay teilen",
         "replayTitle": "Replay",

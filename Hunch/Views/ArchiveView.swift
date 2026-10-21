@@ -8,7 +8,7 @@
 //  `GameViewModel.startArchive`. Per-day status comes from RoundHistory.
 //
 //  Archive rounds are ephemeral: they never overwrite today's board and never
-//  award coins, streak, or stats (see GameViewModel).
+//  award streak or stats (see GameViewModel).
 //
 
 import SwiftUI

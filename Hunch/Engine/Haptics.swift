@@ -59,7 +59,7 @@ enum Haptics {
         UINotificationFeedbackGenerator().notificationOccurred(.success)
     }
 
-    /// A short, firm tap for spending coins.
+    /// A short, firm tap (formerly for spending coins; currently unused).
     static func coin() {
         guard enabled else { return }
         UIImpactFeedbackGenerator(style: .rigid).impactOccurred(intensity: 0.7)

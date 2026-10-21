@@ -74,7 +74,7 @@ struct HowToPlayView: View {
     private var tutorialButton: some View {
         Button(action: playTutorial) {
             HStack(spacing: HunchTheme.Spacing.m) {
-                KeeperView(mood: .idle, size: 60, showsAccessories: false)
+                KeeperView(mood: .idle, size: 60)
                     .frame(width: 60)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(game.loc.tutPlayTutorial)

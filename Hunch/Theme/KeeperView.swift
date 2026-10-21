@@ -3,9 +3,12 @@
 //  Hunch
 //
 //  "Wick" — the Keeper mascot. A little flame spirit drawn entirely in
-//  SwiftUI shapes. Its color and expression track the temperature of the
-//  game: icy blue when you're freezing, blazing orange when you're hot,
-//  green and starry-eyed when you solve it.
+//  SwiftUI. His colour tracks the temperature of the game (icy blue when
+//  you're freezing, blazing orange when you're hot, green when you solve it),
+//  and he wears one of the Keeper's six faces (KeeperFace.swift): Sly when
+//  cold, Flustered when close, Shocked when the word is cracked then Calm,
+//  Serious in a race, Focus while he answers a question. He changes faces with
+//  a blink: the brows, mouth and flame tip morph while his eyes are shut.
 //
 //  UI-only: no game logic lives here.
 //
@@ -115,17 +118,14 @@ struct KeeperView: View {
     var size: CGFloat = 84
     /// Called when the player pokes Wick — lets the parent react (e.g. a quip).
     var onPoke: (() -> Void)? = nil
-    /// Whether Wick wears the player's equipped accessories. Pass `false` for a
-    /// bare Wick (e.g. onboarding, or the wardrobe's own preview handles its own).
-    var showsAccessories: Bool = true
     /// Dance to the race music when it plays (see WickDance). Only the live
     /// race screen sets this; everywhere else Wick just bobs.
     var dances: Bool = false
+    /// Race mode: the Serious face. Defaults to on whenever he dances (the live race).
+    var race: Bool? = nil
 
-    /// Equipped cosmetics, read reactively from the shared wardrobe.
-    @State private var wardrobe = WardrobeStore.shared
-
-    @State private var blinking = false
+    /// Picks his face from the mood and runs the blink-and-morph between faces.
+    @State private var animator = KeeperFaceAnimator()
     @State private var pokeStart: Date? = nil
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -156,11 +156,18 @@ struct KeeperView: View {
             let pokeScale = reduceMotion ? 1 : 1 + poke * 0.20
             let pokeWiggle = reduceMotion ? 0 : poke * 6 * sin((pokeStart.map { ctx.date.timeIntervalSince($0) } ?? 0) * 34)
 
-            keeperBody(flicker: flick)
-                .scaleEffect(x: breathe * pokeScale * dance.scaleX,
-                             y: breathe * pokeScale * dance.scaleY, anchor: .bottom)
+            // The face for this frame, and the pop as he opens on a new one
+            // (squash and stretch, plus a little hop for Shocked).
+            let face = animator.frame(t: t, mood: mood, race: race ?? dances, reduceMotion: reduceMotion)
+            let popX: Double = 1 - 0.06 * face.pop
+            let popY: Double = 1 + 0.10 * face.pop
+            let hop: CGFloat = face.name == .shocked ? -size * 0.04 * CGFloat(face.pop) : 0
+
+            keeperBody(flicker: flick, face: face)
+                .scaleEffect(x: breathe * pokeScale * dance.scaleX * popX,
+                             y: breathe * pokeScale * dance.scaleY * popY, anchor: .bottom)
                 .rotationEffect(.degrees(pokeWiggle + shake.rotation + dance.rotation), anchor: .bottom)
-                .offset(x: shiver + shake.x + dance.x, y: bob + shake.y + dance.y)
+                .offset(x: shiver + shake.x + dance.x, y: bob + shake.y + dance.y + hop)
                 .opacity(glow)
                 .shadow(color: mood.bodyColor.opacity(mood == .defeated ? 0 : 0.35),
                         radius: size * 0.12, y: size * 0.05)
@@ -168,7 +175,6 @@ struct KeeperView: View {
         .frame(width: size, height: size * 1.18)
         .contentShape(Rectangle())
         .onTapGesture { poke() }
-        .task(id: mood) { await blinkLoop() }
         .accessibilityHidden(true)
     }
 
@@ -196,16 +202,16 @@ struct KeeperView: View {
 
     // MARK: Body
 
-    private func keeperBody(flicker: Double) -> some View {
+    private func keeperBody(flicker: Double, face: KeeperFaceAnimator.Frame) -> some View {
         ZStack {
             // Soft glow
-            KeeperFlameShape(flicker: flicker)
+            KeeperChunkyFlameShape(flicker: flicker, tip: face.face.tip)
                 .fill(mood.bodyColor.opacity(mood == .defeated ? 0.10 : 0.30))
                 .blur(radius: size * 0.10)
                 .scaleEffect(1.12)
 
-            // Body
-            KeeperFlameShape(flicker: flicker)
+            // Body: the chunky flame from the icon art
+            KeeperChunkyFlameShape(flicker: flicker, tip: face.face.tip)
                 .fill(
                     LinearGradient(
                         colors: [mood.bodyColor.opacity(0.92), mood.bodyColor],
@@ -213,208 +219,18 @@ struct KeeperView: View {
                     )
                 )
 
-            // Inner core highlight
-            KeeperFlameShape(flicker: flicker)
-                .fill(Color.white.opacity(mood == .defeated ? 0.08 : 0.22))
-                .scaleEffect(x: 0.55, y: 0.55, anchor: .bottom)
-                .offset(y: -size * 0.04)
+            // Inner flame: one tone step lighter than the body (white at 22%)
+            KeeperPlateShape()
+                .fill(Color.white.opacity(0.22))
 
-            face
-                .offset(y: size * 0.16)
+            // The face: brows, heavy lids, under-eye bags, eyes, mouth
+            KeeperFaceCanvas(face: face.face, closure: face.closure, color: face.color)
 
             if mood == .celebrating {
                 sparkles
             }
-
-            // Accessories ride on top of the body. They sit in the SAME ZStack, so
-            // the outer bob/breathe/poke transforms apply to them too; each only
-            // has to match the intra-body flicker lean to stay anchored.
-            if showsAccessories {
-                accessoryLayer(flicker: flicker)
-            }
         }
         .animation(.easeInOut(duration: 0.5), value: mood)
-    }
-
-    // MARK: Accessories
-
-    /// Draws every equipped accessory at its slot's anchor. The flame tip leans by
-    /// `lean` at the very top; each slot follows a damped fraction so hats perch on
-    /// the tip while face/neck props barely drift. Anchors are tuned to `size`.
-    @ViewBuilder
-    private func accessoryLayer(flicker: Double) -> some View {
-        let lean = (flicker - 0.5) * 0.22 * size   // identical formula to KeeperFlameShape
-        // Eyes are drawn in the face (they replace the eyeballs), not perched at a
-        // slot anchor, so exclude them here.
-        ForEach(wardrobe.equippedAccessories.filter { $0.slot != .eyes }) { item in
-            WickAccessoryView(id: item.id, size: size)
-                .offset(x: lean * Self.leanFactor(item.slot),
-                        y: size * Self.slotY(item.slot))
-                .rotationEffect(.degrees(lean * Self.rotFactor(item.slot)))
-        }
-        // Holiday Wick: an auto-worn seasonal hat, shown only when the player hasn't
-        // equipped a hat of their own — so it never overrides a chosen look.
-        if wardrobe.equipped[.hat] == nil, let seasonal = Self.seasonalHatID() {
-            WickAccessoryView(id: seasonal, size: size)
-                .offset(x: lean * Self.leanFactor(.hat), y: size * Self.slotY(.hat))
-                .rotationEffect(.degrees(lean * Self.rotFactor(.hat)))
-        }
-    }
-
-    /// The auto-worn seasonal hat id for a date, or nil. Christmas gets the drawn
-    /// Santa hat; New Year's Day and Halloween reuse existing hats.
-    static func seasonalHatID(for date: Date = Date()) -> String? {
-        let cal = Calendar.current
-        let m = cal.component(.month, from: date)
-        let d = cal.component(.day, from: date)
-        switch (m, d) {
-        case (12, 18...31): return "hat.santa"    // Christmas season
-        case (1, 1):        return "hat.party"     // New Year's Day
-        case (10, 28...31): return "hat.wizard"    // Halloween week
-        default:            return nil
-        }
-    }
-
-    /// Vertical anchor per slot, as a fraction of `size` from the ZStack center.
-    /// Hat sits above the tip; face over the eyes; neck near the base.
-    private static func slotY(_ slot: AccessorySlot) -> CGFloat {
-        switch slot {
-        case .hat:   return -0.52
-        case .eyes:  return  0.10   // unused (eyes are drawn in the face)
-        case .face:  return  0.10
-        case .mouth: return  0.32
-        case .neck:  return  0.44
-        }
-    }
-    /// How much each slot tracks the tip's horizontal sway.
-    private static func leanFactor(_ slot: AccessorySlot) -> CGFloat {
-        switch slot {
-        case .hat:   return 0.9
-        case .eyes:  return 0.3     // unused
-        case .face:  return 0.3
-        case .mouth: return 0.2
-        case .neck:  return 0.1
-        }
-    }
-    private static func rotFactor(_ slot: AccessorySlot) -> CGFloat {
-        switch slot {
-        case .hat:   return 0.25
-        case .eyes:  return 0.0     // unused
-        case .face:  return 0.05
-        case .mouth: return 0.0
-        case .neck:  return 0.0
-        }
-    }
-
-    // MARK: Face
-
-    /// When the tongue accessory is worn, hide the drawn mouth so the tongue
-    /// reads as sticking out — not floating beneath a smile.
-    private var hidesMouth: Bool {
-        showsAccessories && wardrobe.isEquipped("mouth.tongue")
-    }
-
-    private var face: some View {
-        VStack(spacing: size * 0.07) {
-            HStack(spacing: size * 0.16) {
-                eye
-                eye
-            }
-            if !hidesMouth { mouth }
-        }
-    }
-
-    /// The equipped eye-cosmetic id, if any (nil when accessories are hidden).
-    private var equippedEyeID: String? {
-        showsAccessories ? wardrobe.equipped[.eyes] : nil
-    }
-
-    /// Cosmetic eyes replace the mood eyes; Wick still emotes via body color and
-    /// mouth. When none is equipped, fall back to the mood-driven eyes.
-    @ViewBuilder
-    private var eye: some View {
-        if let eyeID = equippedEyeID {
-            WickEye(id: eyeID, size: size)
-        } else {
-            moodEye
-        }
-    }
-
-    @ViewBuilder
-    private var moodEye: some View {
-        let eyeW = size * 0.115
-        switch mood {
-        case .celebrating:
-            Image(systemName: "star.fill")
-                .font(.system(size: eyeW * 1.5))
-                .foregroundStyle(.white)
-        case .defeated:
-            Capsule().fill(.white.opacity(0.85))
-                .frame(width: eyeW, height: eyeW * 0.22)
-        case .freezing:
-            Capsule().fill(.white)
-                .frame(width: eyeW, height: blinking ? eyeW * 0.18 : eyeW * 0.45)
-        case .thinking:
-            Circle().fill(.white)
-                .frame(width: eyeW, height: blinking ? eyeW * 0.18 : eyeW)
-                .offset(x: eyeW * 0.18, y: -eyeW * 0.22)   // gazing up & away
-        case .boiling, .hot:
-            Circle().fill(.white)
-                .frame(width: eyeW * 1.18, height: blinking ? eyeW * 0.18 : eyeW * 1.18)
-        case .unamused:
-            // Flat dashes: the "-_-" look.
-            Capsule().fill(.white.opacity(0.9))
-                .frame(width: eyeW * 1.15, height: eyeW * 0.22)
-        default:
-            Circle().fill(.white)
-                .frame(width: eyeW, height: blinking ? eyeW * 0.18 : eyeW)
-        }
-    }
-
-    @ViewBuilder
-    private var mouth: some View {
-        let mw = size * 0.16
-        switch mood {
-        case .celebrating, .boiling:
-            // Open, delighted
-            Circle()
-                .trim(from: 0, to: 0.5)
-                .fill(.white.opacity(0.9))
-                .frame(width: mw, height: mw)
-        case .hot, .warm:
-            // Smile
-            Circle()
-                .trim(from: 0.05, to: 0.45)
-                .stroke(.white.opacity(0.9), style: StrokeStyle(lineWidth: size * 0.028, lineCap: .round))
-                .frame(width: mw, height: mw * 0.9)
-        case .thinking:
-            // Small pondering "o", nudged to one side
-            Circle()
-                .fill(.white.opacity(0.85))
-                .frame(width: mw * 0.34, height: mw * 0.34)
-                .offset(x: mw * 0.22)
-        case .defeated:
-            // Flat line
-            Capsule().fill(.white.opacity(0.7))
-                .frame(width: mw * 0.7, height: size * 0.025)
-        case .unamused:
-            // Flat, unimpressed line
-            Capsule().fill(.white.opacity(0.85))
-                .frame(width: mw * 0.7, height: size * 0.026)
-        case .freezing, .cold:
-            // Wobbly frown
-            Circle()
-                .trim(from: 0.55, to: 0.95)
-                .stroke(.white.opacity(0.9), style: StrokeStyle(lineWidth: size * 0.028, lineCap: .round))
-                .frame(width: mw * 0.8, height: mw * 0.7)
-                .offset(y: mw * 0.18)
-        default:
-            // Small contented smile
-            Circle()
-                .trim(from: 0.1, to: 0.4)
-                .stroke(.white.opacity(0.9), style: StrokeStyle(lineWidth: size * 0.026, lineCap: .round))
-                .frame(width: mw * 0.8, height: mw * 0.8)
-        }
     }
 
     private var sparkles: some View {
@@ -439,18 +255,7 @@ struct KeeperView: View {
         }
     }
 
-    // MARK: Blink loop
 
-    private func blinkLoop() async {
-        guard mood != .defeated, mood != .celebrating, mood != .unamused else { return }
-        while !Task.isCancelled {
-            try? await Task.sleep(for: .seconds(Double.random(in: 2.2...4.5)))
-            if Task.isCancelled { return }
-            withAnimation(.easeOut(duration: 0.07)) { blinking = true }
-            try? await Task.sleep(for: .milliseconds(110))
-            withAnimation(.easeIn(duration: 0.09)) { blinking = false }
-        }
-    }
 }
 
 // MARK: - Previews

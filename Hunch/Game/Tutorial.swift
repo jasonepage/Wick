@@ -13,7 +13,7 @@
 //                                  the race board
 //
 //  The secret is one of ten simple animals. The tutorial is a sandbox: it
-//  never touches the daily, stats, streak, coins, achievements, round history,
+//  never touches the daily, stats, streak, achievements, round history,
 //  the weekly word tally, or the race board (see GameViewModel, `.tutorial`).
 //
 //  Types only. The step logic lives in GameViewModel (it needs the round's

@@ -31,7 +31,6 @@
 		AA00000000000000000000F7 /* ODRResources/SpanishEmbedding.mlmodelc */ = {isa = PBXFileReference; lastKnownFileType = folder; path = ODRResources/SpanishEmbedding.mlmodelc; sourceTree = SOURCE_ROOT; };
 		AA0000000000000000000A01 /* HunchTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = HunchTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		BCFB704B2FD4C15800E1E9BA /* Hunch.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Hunch.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		BCFB707A2FD5E31C00E1E9BA /* Hunch.storekit */ = {isa = PBXFileReference; lastKnownFileType = text; path = Hunch.storekit; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -68,7 +67,6 @@
 		BCFB70422FD4C15800E1E9BA = {
 			isa = PBXGroup;
 			children = (
-				BCFB707A2FD5E31C00E1E9BA /* Hunch.storekit */,
 				AA00000000000000000000C1 /* Config/Wick.xcconfig */,
 				BCFB704D2FD4C15800E1E9BA /* Hunch */,
 				AA0000000000000000000A02 /* HunchTests */,

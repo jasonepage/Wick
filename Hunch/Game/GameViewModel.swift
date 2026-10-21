@@ -3,12 +3,11 @@
 //  Hunch
 //
 //  Orchestrates a round: guesses (semantic closeness), questions (on-device LLM),
-//  coins, streak, solve detection, and the shareable result.
+//  hints, streak, solve detection, and the shareable result.
 //
 
 import Foundation
 import Observation
-import StoreKit
 import UIKit   // UIImage, for the shareable Reveal card
 
 @MainActor
@@ -17,13 +16,9 @@ final class GameViewModel {
 
     // Tuning knobs
     static let freeQuestionsPerGame = 3
-    static let questionCoinCost = 5
-    static let hintCoinCost = 8
     /// 3.3: hints are free to serve (on-device), so the first few each day are
-    /// free for everyone. Coins only after these are gone. A player who runs
-    /// out of hints loses, quits and never shares; this is the biggest leak.
+    /// free for everyone. Once they are gone, there are no more hints that day.
     static let freeHintsPerDay = 3
-    static let dailyBonus = 5
     /// Stuck-player spelling aid: after this many guesses the word's first letter
     /// appears, and one more letter every `spellHintStep` guesses after that.
     static let spellHintThreshold = 50
@@ -242,18 +237,12 @@ final class GameViewModel {
     private var rankingBuilding = false
     var transientMessage: String?
 
-    // Persisted economy
-    var coins: Int {
-        didSet { UserDefaults.standard.set(coins, forKey: "hunch.coins") }
-    }
+    // Persisted progression
     private(set) var streak: Int {
         didSet { UserDefaults.standard.set(streak, forKey: "hunch.streak") }
     }
     private var lastSolvedDay: Int {
         didSet { UserDefaults.standard.set(lastSolvedDay, forKey: "hunch.lastSolvedDay") }
-    }
-    private var lastBonusDay: Int {
-        didSet { UserDefaults.standard.set(lastBonusDay, forKey: "hunch.lastBonusDay") }
     }
 
     // Persisted stats
@@ -397,17 +386,12 @@ final class GameViewModel {
     /// the progress modal. The vocabulary-retry loop above still swaps the engine
     /// in once a pack lands, and Apple's vectors remain the offline fallback.
     let assetLoader = EmbeddingAssetLoader.shared
-    /// Wick's cosmetic wardrobe. Shared so every `KeeperView` shows the equipped
-    /// look; coins stay owned here and are reached via injected closures below.
-    let wardrobe = WardrobeStore.shared
     /// The language in play before the current download started, so cancelling the
     /// download can revert to something that actually scores.
     private var languageBeforeDownload: GameLanguage = .english
-    let coinStore = CoinStore()
 
     init() {
         let d = UserDefaults.standard
-        coins = d.object(forKey: "hunch.coins") as? Int ?? 50
         streak = d.object(forKey: "hunch.streak") as? Int ?? 0
         lastSolvedDay = d.object(forKey: "hunch.lastSolvedDay") as? Int ?? -1
         solves = d.integer(forKey: "hunch.solves")
@@ -415,37 +399,12 @@ final class GameViewModel {
         totalSolveGuesses = d.integer(forKey: "hunch.totalGuesses")
         bestGuessCount = d.integer(forKey: "hunch.bestGuessCount")
         unlocked = Set(d.stringArray(forKey: "hunch.achievements") ?? [])
-        lastBonusDay = d.object(forKey: "hunch.lastBonusDay") as? Int ?? -1
         lastReviewDay = d.object(forKey: "hunch.lastReviewDay") as? Int ?? -100_000
         reviewAsks = d.integer(forKey: "hunch.reviewAsks")
         freeHintDay = d.object(forKey: "hunch.freeHintDay") as? Int ?? -1
         freeHintsUsedToday = d.integer(forKey: "hunch.freeHintsUsed")
 
-        // Small daily bonus so a player can never run dry. (didSet doesn't fire
-        // during init, so persist explicitly here.)
-        var bonus = 0
-        let today = WordBank.dayIndex()
-        if lastBonusDay != today {
-            bonus = Self.dailyBonus
-            coins += bonus
-            lastBonusDay = today
-            d.set(coins, forKey: "hunch.coins")
-            d.set(lastBonusDay, forKey: "hunch.lastBonusDay")
-        }
-
-        coinStore.onGrant = { [weak self] amount in self?.creditCoins(amount) }
-
-        // Wardrobe reaches the economy only through these closures (mirrors
-        // CoinStore.onGrant): spend debits coins iff affordable, balance reads them.
-        wardrobe.balance = { [weak self] in self?.coins ?? 0 }
-        wardrobe.spend = { [weak self] price in
-            guard let self, self.coins >= price else { return false }
-            self.coins -= price
-            return true   // WardrobeStore mirrors to iCloud once the item lands
-        }
-
         startDaily()
-        if bonus > 0 { transientMessage = loc.dailyBonus(bonus) }
         // Kick an ODR download if the stored language needs one (silent at launch —
         // the retry loop + scoring banner cover it; no modal over a cold start).
         assetLoader.ensure(language, presentModal: false)
@@ -647,7 +606,7 @@ final class GameViewModel {
     }
 
     func startPractice(tier: Int) {
-        // Practice is free so players can always play and earn coins back.
+        // Practice is free so players can always play.
         let entry = pickPractice(maxTier: tier)
         mode = .practice(tier: tier)
         target = entry.word
@@ -660,7 +619,7 @@ final class GameViewModel {
     /// Replay a past daily from the archive. The word is deterministic from the
     /// day index, so no stored word is needed. Ephemeral by design: it never
     /// overwrites today's saved board (saveDailyState guards on `.daily`) and
-    /// never awards coins, advances the streak, or inflates stats
+    /// never advances the streak or inflates stats
     /// (see `markSolved` / `recordRound`).
     func startArchive(dayIndex day: Int) {
         // Clamp into the valid window: launch day … yesterday.
@@ -684,7 +643,7 @@ final class GameViewModel {
     /// Start a Friend Duel from a decoded code. The word is a curated bank entry
     /// resolved by index in the duel's OWN language (a duel is language-locked),
     /// so it scores identically on both players' devices. Ephemeral like archive:
-    /// no coins, streak, stats, or history (see `markSolved` / `recordRound`).
+    /// no streak, stats, or history (see `markSolved` / `recordRound`).
     func startDuel(_ payload: DuelPayload) {
         let entries = WordBank.entries(for: payload.language)
         guard entries.indices.contains(payload.wordIndex) else { return }
@@ -1422,23 +1381,20 @@ final class GameViewModel {
         }
         recordRound(solved: true)
 
-        // Archive replays are for completion only — no coins, streak, stats,
+        // Archive replays are for completion only — no streak, stats,
         // achievements, or review prompts, so the daily economy stays honest
         // and old puzzles can't be farmed. (recordRound still logs the win.)
         if case .archive = mode {
             transientMessage = loc.archiveSolvedToast
             return
         }
-        // Duels are competitive but ephemeral — no coins/streak/stats (can't be
+        // Duels are competitive but ephemeral — no streak/stats (can't be
         // farmed by replaying a code). The UI surfaces the result-code sharing.
         if case .duel = mode {
             saveMyDuelResult()
             transientMessage = loc.duelSolvedToast
             return
         }
-
-        let reward = max(5, 30 - guesses.count) + targetTier * 3
-        coins += reward
 
         if case .daily = mode {
             let today = WordBank.dayIndex()
@@ -1464,12 +1420,12 @@ final class GameViewModel {
 
         let newBadges = evaluateAchievements()
         if let first = newBadges.first {
-            transientMessage = loc.solvedBadge(reward, first)
+            transientMessage = loc.solvedBadge(first)
         } else {
-            transientMessage = loc.solvedCoins(reward)
+            transientMessage = loc.solvedTitle
         }
         saveDailyState()
-        // Progression changed (streak, stats, coins, badges) — mirror it before
+        // Progression changed (streak, stats, badges) — mirror it before
         // anything can happen to this device, and stand the streak warning down
         // now that today is safe.
         CloudSync.push()
@@ -1493,12 +1449,11 @@ final class GameViewModel {
     // MARK: - iCloud progression
 
     /// Re-reads the cloud-backed keys after a merge. Deliberately narrow: it
-    /// touches the economy, the stats and the wardrobe, and never the round in
+    /// touches the streak and the stats, and never the round in
     /// play — adopting a board mid-guess from another device would be a worse
     /// bug than the one this fixes.
     private func adoptCloudState() {
         let d = UserDefaults.standard
-        coins             = d.object(forKey: "hunch.coins") as? Int ?? coins
         streak            = d.object(forKey: "hunch.streak") as? Int ?? streak
         lastSolvedDay     = d.object(forKey: "hunch.lastSolvedDay") as? Int ?? lastSolvedDay
         solves            = d.integer(forKey: "hunch.solves")
@@ -1506,7 +1461,6 @@ final class GameViewModel {
         totalSolveGuesses = d.integer(forKey: "hunch.totalGuesses")
         bestGuessCount    = d.integer(forKey: "hunch.bestGuessCount")
         unlocked          = Set(d.stringArray(forKey: "hunch.achievements") ?? [])
-        wardrobe.reloadFromDefaults()
         refreshReminders()
         // 3.6: a returning player on a new phone can land in the tutorial
         // before their progress arrives. If they haven't started it, let them go.
@@ -1578,7 +1532,7 @@ final class GameViewModel {
 
     /// Asks for an App Store rating at a genuinely happy moment — a couple of wins
     /// in, or a good streak — and no more than a few times ever, well spaced.
-    /// (StoreKit also enforces its own ~3/year cap.) A view watches
+    /// (Apple also enforces its own ~3/year cap.) A view watches
     /// `reviewRequestID` and presents the system prompt.
     private func maybeRequestReview() {
         let today = WordBank.dayIndex()
@@ -1726,11 +1680,11 @@ final class GameViewModel {
         }
 
         // The tutorial's hint is always free and never counts against the
-        // day's free hints or the coin balance.
+        // day's free hints. Outside it, once the day's free hints are gone
+        // there are no more hints until tomorrow.
         let tutorial = mode == .tutorial
-        let useFree = tutorial || freeHintsLeft > 0
-        guard useFree || coins >= Self.hintCoinCost else {
-            transientMessage = loc.hintsCost(Self.hintCoinCost)
+        guard tutorial || freeHintsLeft > 0 else {
+            transientMessage = loc.noHintsToday
             return
         }
 
@@ -1817,13 +1771,10 @@ final class GameViewModel {
 
         if tutorial {
             Feedback.play(.selection)
-        } else if useFree {
+        } else {
             let today = WordBank.dayIndex()
             if freeHintDay != today { freeHintDay = today; freeHintsUsedToday = 0 }
             freeHintsUsedToday += 1
-        } else {
-            coins -= Self.hintCoinCost
-            Feedback.play(.coinSpent)
         }
         hintsUsed += 1
         // The hint's word is Wick's pick, not the player's, so it stays out of
@@ -1836,29 +1787,7 @@ final class GameViewModel {
         if tutorial { tutorialHinted() }
     }
 
-    // MARK: - Coins shop
-
-    /// Credits purchased coins (called back from CoinStore).
-    func creditCoins(_ amount: Int) {
-        coins += amount
-        transientMessage = loc.plusCoins(amount)
-        // Real money changed hands. Mirror it now, not at the next convenient
-        // moment — a player who loses paid coins to a lost handset writes to
-        // support, and rightly.
-        CloudSync.push()
-    }
-
-    func buyCoins(_ product: Product) async {
-        await coinStore.purchase(product)
-    }
-
 #if DEBUG
-    /// Debug-only coin grant for testing. Compiled out of release builds.
-    func debugAddCoins(_ amount: Int = 1000) {
-        coins += amount
-        transientMessage = "Debug +\(amount) coins"
-    }
-
     /// Audits every daily-pool word for solvability and prints a report to the
     /// Xcode console. Flags words whose closest common word is still cold (an
     /// embedding outlier that plays unfairly) or that have too few warm words.
@@ -1918,7 +1847,7 @@ final class GameViewModel {
     /// instead of relying on a toast that flashes by.
     var scoringUnavailable: Bool { !engine.hasVocabulary }
 
-    /// Questions are free — talking to Wick never costs coins (only hints do).
+    /// Questions are free — talking to Wick never costs anything.
     /// Kept as a property so existing call sites read naturally.
     var canAffordQuestion: Bool { true }
 
@@ -2027,7 +1956,7 @@ final class GameViewModel {
 
         if let category = WordAttributes.category(for: target, language: language),
            let verdict = WordAttributes.deterministicVerdict(word: target, language: language, category: category, property: item.key) {
-            // Questions are free now, so no coin gate — just record it, with a
+            // Questions are free, so no gate — just record it, with a
             // short in-character flavor line so tapped chips feel like Wick too.
             let flavor = OfflineKeeper.reply(verdict: verdict, seed: full, language: language)
             questions.insert(AskedQuestion(question: full, verdict: verdict, reply: flavor,
@@ -2062,12 +1991,10 @@ final class GameViewModel {
         failedQuestion = nil   // new attempt — clear any prior failure
         failedQuestionTyped = typed
         isAsking = true
-        // Pass the round's prior exchanges (memory) and what Wick is currently
-        // wearing (so he reacts truthfully to his own outfit).
-        let wearing = wardrobe.equippedAccessories.map { loc.accessoryName($0.nameKey) }
+        // Pass the round's prior exchanges (memory). Wick wears nothing now.
         let result = await keeper.answer(question: q, secret: target,
                                          facts: WordAttributes.facts(for: target, language: language),
-                                         history: questions, wearing: wearing)
+                                         history: questions, wearing: [])
         isAsking = false
 
         switch result {
@@ -2085,7 +2012,7 @@ final class GameViewModel {
             transientMessage = reason
         case .failed:
             // Keep the question so the player can retry with one tap. No free
-            // question or coins are spent on a failed answer.
+            // question is spent on a failed answer.
             failedQuestion = q
             transientMessage = loc.keeperDidntRespond
         }
@@ -2102,28 +2029,15 @@ final class GameViewModel {
     /// The copy-paste result card. Fully localized; a flag marks non-English
     /// rounds; the heat grid wraps at 10 per row so long rounds stay tidy; the
     /// streak flame rides along when it's worth bragging about.
-    /// Emoji signature of whatever Wick is wearing, so cosmetics travel in shares.
-    /// Empty when he's bare.
-    private var outfitEmoji: String {
-        let map: [String: String] = [
-            "hat.tophat": "🎩", "hat.party": "🥳", "hat.wizard": "🧙", "hat.crown": "👑",
-            "eyes.hearts": "😍", "eyes.googly": "👀", "eyes.star": "🤩",
-            "face.glasses": "👓", "face.monocle": "🧐", "mouth.tongue": "😛",
-            "neck.bowtie": "🎀", "neck.tie": "👔",
-        ]
-        let e = wardrobe.equippedAccessories.compactMap { map[$0.id] }.joined()
-        return e.isEmpty ? "" : " \(e)"
-    }
-
-    /// "Wick #1359 🇩🇪 🎩" — the header on both the text share and the image card.
+    /// "Wick #1359 🇩🇪" — the header on both the text share and the image card.
     /// Extracted so the two can never drift apart.
     var shareTitle: String {
         let flag = language == .english ? "" : " \(language.flag)"
         switch mode {
-        case .daily:    return "Wick #\(puzzleNumber)\(flag)\(outfitEmoji)"
-        case .practice: return "Wick\(flag) · \(loc.practice)\(outfitEmoji)"
-        case .archive:  return "Wick #\(puzzleNumber)\(flag)\(outfitEmoji)"
-        case .duel:     return "Wick\(flag) · \(loc.duel)\(outfitEmoji)"
+        case .daily:    return "Wick #\(puzzleNumber)\(flag)"
+        case .practice: return "Wick\(flag) · \(loc.practice)"
+        case .archive:  return "Wick #\(puzzleNumber)\(flag)"
+        case .duel:     return "Wick\(flag) · \(loc.duel)"
         case .tutorial: return "Wick"
         }
     }

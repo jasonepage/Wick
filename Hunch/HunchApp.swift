@@ -13,7 +13,7 @@ struct HunchApp: App {
     @UIApplicationDelegateAdaptor(RaceAlertsAppDelegate.self) private var alertsDelegate
 
     init() {
-        // ORDER MATTERS. `GameViewModel.init` reads the streak, coins, stats and
+        // ORDER MATTERS. `GameViewModel.init` reads the streak, stats and
         // achievements straight out of UserDefaults, so iCloud has to be merged
         // in FIRST — otherwise a fresh install shows a zeroed profile until the
         // next launch. This is why `game` is initialised here rather than inline.

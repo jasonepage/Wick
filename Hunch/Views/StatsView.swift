@@ -29,8 +29,6 @@ struct StatsView: View {
                                  system: "chart.bar.fill", color: HunchTheme.Palette.freezing)
                         statCard(game.loc.fewestGuesses, value: bestGuessText,
                                  system: "target", color: HunchTheme.Palette.hot)
-                        statCard(game.loc.coins, value: "\(game.coins)",
-                                 system: "circle.hexagongrid.fill", color: HunchTheme.Palette.coin)
                     }
                     boardLink
                     achievementsLink

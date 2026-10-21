@@ -273,7 +273,7 @@ struct AskQuestionView: View {
         if mode == .ask && !game.aiAvailable {
             return game.loc.offlineFootnote
         }
-        // Questions are free now — only hints cost coins.
+        // Questions are free.
         return game.loc.questionsFree
     }
 

@@ -211,7 +211,7 @@ extension View {
     }
 }
 
-/// Compact capsule stat chip (streak, coins…).
+/// Compact capsule stat chip (streak…).
 struct HunchChip: View {
     let text: String
     let systemImage: String

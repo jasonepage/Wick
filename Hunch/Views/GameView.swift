@@ -14,14 +14,12 @@ struct GameView: View {
     @State private var showReveal = false
     @State private var showReminderOffer = false
     @State private var showGiveUpConfirm = false
-    @State private var showShop = false
     @State private var showSettings = false
     @State private var wickEggScale: CGFloat = 1
     @FocusState private var guessFocused: Bool
     /// Drives the guess-row reflow at accessibility text sizes — the fixed-width
     /// word column below cannot hold a word at AX5.
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    @State private var coinPop = false
     @State private var showStarters = false
     /// Set to open the Solve Replay sheet (3.4).
     @State private var replayRequest: ReplayRequest?
@@ -175,7 +173,6 @@ struct GameView: View {
                     }
                 }
             }
-            .sheet(isPresented: $showShop) { ShopView() }
             .sheet(isPresented: $showSettings) { SettingsView() }
             .sheet(isPresented: $showBoard) { DailyBoardView() }
             .sheet(item: $replayRequest) { request in
@@ -252,35 +249,12 @@ struct GameView: View {
                 HunchTag(text: game.loc.tier(game.targetTier), color: HunchTheme.Palette.keeper)
             }
             Spacer(minLength: HunchTheme.Spacing.s)
-            // The tutorial is a sandbox: no streak or coins on show.
-            if game.mode != .tutorial {
-                if game.streak > 0 {
-                    HunchChip(text: "\(game.streak)", systemImage: "flame.fill",
-                              color: HunchTheme.Palette.flame)
-                        .accessibilityElement(children: .ignore)
-                        .accessibilityLabel(game.loc.streakDays(game.streak))
-                }
-                Button { showShop = true } label: {
-                    HunchChip(text: "\(game.coins)", systemImage: "circle.hexagongrid.fill",
-                              color: HunchTheme.Palette.coin)
-                        .scaleEffect(coinPop ? 1.22 : 1)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("\(game.coins) \(game.loc.coins)")
-                .accessibilityHint(game.loc.a11yShop)
-                .onChange(of: game.coins) { old, new in
-                    guard new > old else { return }
-                    withAnimation(.spring(response: 0.28, dampingFraction: 0.45)) { coinPop = true }
-                    Task {
-                        try? await Task.sleep(for: .milliseconds(220))
-                        withAnimation(.spring(response: 0.35, dampingFraction: 0.6)) { coinPop = false }
-                    }
-                }
-#if DEBUG
-                .simultaneousGesture(
-                    LongPressGesture(minimumDuration: 0.5).onEnded { _ in game.debugAddCoins(10000) }
-                )
-#endif
+            // The tutorial is a sandbox: no streak on show.
+            if game.mode != .tutorial, game.streak > 0 {
+                HunchChip(text: "\(game.streak)", systemImage: "flame.fill",
+                          color: HunchTheme.Palette.flame)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(game.loc.streakDays(game.streak))
             }
         }
     }
@@ -609,24 +583,26 @@ struct GameView: View {
 
     // MARK: - Hint (demoted until the player has actually tried)
 
-    /// Hint costs coins, so it has no business being the loudest control on a
-    /// board where nothing has been guessed yet. It appears after the first
-    /// guess as a quiet link, and only grows into a real button once the player
-    /// looks stuck.
+    /// Hints are limited to a few a day, so the button has no business being
+    /// the loudest control on a board where nothing has been guessed yet. It
+    /// appears after the first guess as a quiet link, and only grows into a
+    /// real button once the player looks stuck.
     @ViewBuilder
     private var hintButton: some View {
         if game.guessCount >= 1 || game.mode == .tutorial {
             let tutorial = game.mode == .tutorial
             let urgent = (tutorial && game.tutorialStep == .hint) || game.coldStreak >= 3 || game.guessCount >= 6
+            // Out of free hints for today: no more hints until tomorrow.
+            let noneLeft = !tutorial && game.freeHintsLeft == 0
             Button {
                 guessFocused = false
                 game.revealHint()
             } label: {
                 Label(tutorial
                       ? game.loc.tutFreeHint
-                      : (game.freeHintsLeft > 0
-                         ? game.loc.hintFreeLeft(game.freeHintsLeft)
-                         : game.loc.hintCoinPrice(GameViewModel.hintCoinCost)),
+                      : (noneLeft
+                         ? game.loc.noHintsToday
+                         : game.loc.hintFreeLeft(game.freeHintsLeft)),
                       systemImage: "lightbulb.fill")
                     .font(urgent ? HunchTheme.Fonts.label : .subheadline)
                     .frame(maxWidth: .infinity)
@@ -634,6 +610,7 @@ struct GameView: View {
             }
             .buttonStyle(.bordered)
             .tint(HunchTheme.Palette.warm)
+            .disabled(noneLeft)
             .opacity(urgent ? 1 : 0.75)
             .animation(.easeInOut(duration: 0.25), value: urgent)
         }

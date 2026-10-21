@@ -15,7 +15,6 @@ struct HomeView: View {
 
     @State private var showDuel = false
     @State private var showArchive = false
-    @State private var showWardrobe = false
     @State private var showStats = false
     @State private var showSettings = false
     @State private var showHowTo = false
@@ -52,7 +51,7 @@ struct HomeView: View {
             // you". In practice a solved round (score 100) pulled every mesh
             // point up to 84% of the way to solved-green and the entire screen
             // flooded one hue — the mode cards, which are a 12% tint of their own
-            // colour, were swallowed whole and Practice and Wardrobe became
+            // colour, were swallowed whole and Practice became
             // unreadable. Temperature belongs on the board, where a single
             // reading is the point; the hub is a front door and should look the
             // same every time you open it.
@@ -69,8 +68,8 @@ struct HomeView: View {
                         header
                         heroCard
                         // 3.3: three front doors. Daily (hero), Race, Practice.
-                        // Dare is gone; Past puzzles and Wardrobe step down to a
-                        // quieter row so Race gets the attention.
+                        // Dare is gone; Past puzzles steps down to a quieter
+                        // row so Race gets the attention.
                         LazyVGrid(columns: cols, spacing: 12) {
                             modeCard(title: game.loc.duelRace, subtitle: game.loc.homeRaceSub,
                                      system: "flag.checkered", color: HunchTheme.Palette.flame) { showDuel = true }
@@ -90,7 +89,6 @@ struct HomeView: View {
             .navigationBarTitleDisplayMode(.inline)
             .sheet(isPresented: $showDuel) { DuelView() }
             .sheet(isPresented: $showArchive) { ArchiveView() }
-            .sheet(isPresented: $showWardrobe) { WardrobeView() }
             .sheet(isPresented: $showStats) { StatsView() }
             .sheet(isPresented: $showSettings) { SettingsView() }
             .sheet(isPresented: $showHowTo) { HowToPlayView() }
@@ -111,7 +109,6 @@ struct HomeView: View {
             if game.streak > 0 {
                 HunchChip(text: "\(game.streak)", systemImage: "flame.fill", color: HunchTheme.Palette.flame)
             }
-            HunchChip(text: "\(game.coins)", systemImage: "circle.hexagongrid.fill", color: HunchTheme.Palette.coin)
         }
     }
 
@@ -178,15 +175,12 @@ struct HomeView: View {
         return slimButton(title, system: "trophy.fill", color: HunchTheme.Palette.coin) { showBoard = true }
     }
 
-    // MARK: Secondary row (Past puzzles, Wardrobe)
+    // MARK: Secondary row (Past puzzles)
 
+    /// Full width, like the race board button above it.
     private var secondaryRow: some View {
-        HStack(spacing: HunchTheme.Spacing.s) {
-            slimButton(game.loc.pastPuzzles, system: "clock.arrow.circlepath",
-                       color: HunchTheme.Palette.cool) { showArchive = true }
-            slimButton(game.loc.wardrobe, system: "tshirt.fill",
-                       color: HunchTheme.Palette.warm) { showWardrobe = true }
-        }
+        slimButton(game.loc.pastPuzzles, system: "clock.arrow.circlepath",
+                   color: HunchTheme.Palette.cool) { showArchive = true }
     }
 
     private func slimButton(_ title: String, system: String, color: Color,

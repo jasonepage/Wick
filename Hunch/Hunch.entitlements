@@ -7,8 +7,8 @@
 		<string>applinks:guesswick.com</string>
 		<string>applinks:jasonepage.github.io</string>
 	</array>
-	<!-- iCloud key-value storage, for CloudSync.swift (streak / stats / coins /
-	     achievements / wardrobe). This entitlement must ALSO be enabled on the
+	<!-- iCloud key-value storage, for CloudSync.swift (streak / stats /
+	     achievements). This entitlement must ALSO be enabled on the
 	     App ID: Xcode → target → Signing & Capabilities → + Capability → iCloud
 	     → tick "Key-value storage". Without that, signing fails with
 	     "Provisioning profile doesn't include the

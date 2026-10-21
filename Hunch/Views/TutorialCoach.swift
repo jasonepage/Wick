@@ -122,7 +122,7 @@ struct TutorialCoachCard: View {
         VStack(alignment: .leading, spacing: HunchTheme.Spacing.m) {
             TutorialStepBadges(step: game.tutorialStep, loc: game.loc)
             HStack(alignment: .top, spacing: HunchTheme.Spacing.m) {
-                KeeperView(mood: mood, size: 54, showsAccessories: true)
+                KeeperView(mood: mood, size: 54)
                     .frame(width: 54)
                 VStack(alignment: .leading, spacing: HunchTheme.Spacing.m) {
                     TypewriterText(text: game.tutorialLine)

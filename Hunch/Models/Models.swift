@@ -61,14 +61,14 @@ enum GameMode: Equatable {
     case practice(tier: Int)
     /// Replaying a past daily from the archive. `dayIndex` is the original
     /// shared day (see WordBank.dayIndex). Ephemeral: never saved as today's
-    /// board, and never touches coins, streak, or lifetime stats.
+    /// board, and never touches the streak or lifetime stats.
     case archive(dayIndex: Int)
     /// A Friend Duel — a curated word carried in a shared code. Language-locked
-    /// and ephemeral (never saved as today's board, never touches coins, streak,
+    /// and ephemeral (never saved as today's board, never touches the streak,
     /// stats, or history), like archive. See `DuelCode` / `startDuel`.
     case duel(DuelPayload)
     /// 3.6: the hands-on tutorial level (a random simple animal). A sandbox:
-    /// never saved, never touches coins, streak, stats, achievements, round
+    /// never saved, never touches the streak, stats, achievements, round
     /// history, the weekly tally or the race board. See Game/Tutorial.swift.
     case tutorial
 }
