@@ -43,7 +43,12 @@
         document.body.className = "theme-" + t;
       })();
     </script>
-    <div id="app"></div>
+    <!-- PeerPush badge in the plain HTML, so a checker that does not run
+         scripts still finds it. The game replaces #app when it loads and shows
+         the badge again in its home header (landingHeader in src/main.ts). -->
+    <div id="app">
+      <a href="https://peerpush.com/p/wick" target="_blank" rel="noopener"><img src="https://peerpush.com/p/wick/badge.png" alt="Wick on PeerPush" style="width: 230px;" /></a>
+    </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
