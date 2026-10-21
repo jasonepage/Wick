@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/icon.png" width="128" alt="Wick: a small purple flame with a face">
+  <img src="docs/icon-sly.png" width="128" alt="Wick: a small purple flame with a face">
 </p>
 
 <h1 align="center">Wick</h1>
@@ -56,7 +56,7 @@ environment. This repository is all three parts.
 | Platforms | iPhone, iOS 17 and later. Any modern browser. No Android app; the web game is the Android answer. |
 | Server | One Node process on Render, in memory, no database. Self-hostable with your own Gemini key. |
 | Accounts | None. No logins, no tracking, no ads. Single-player stats live on your device. |
-| Price | Free. Optional coin packs on iOS for extra hints. |
+| Price | Free. No coins, no in-app purchases, no ads. Three free hints a day on iOS. |
 | Dependencies | Server: Hono, ws, word-list. Web: qrcode, Mediabunny, built with Vite. iOS: Apple frameworks only. |
 | Tests | More than 200 server tests and 30 web tests, run by GitHub Actions on every push and pull request. iOS tests run in Xcode. |
 
