@@ -17,7 +17,7 @@
 import { embed, cosine, hasEmbeddings, rankVocabEntries, LruCache } from "./embeddings.js";
 import { normalizeWord, sameWord } from "./room.js";
 import { isRealWord } from "./dictionary.js";
-import type { Lang } from "./lang.js";
+import { rankVocabFor, type Lang } from "./lang.js";
 
 // Calibration for gemini-embedding-001 + SEMANTIC_SIMILARITY: this model runs hot
 // — unrelated words sit ~0.80, closely related ~0.87–0.94. So the useful window is
@@ -145,6 +145,46 @@ export function lexicalFallback(a: string, b: string): number {
   return Math.round(Math.min(45, (0.5 * jaccard + 0.5 * prefix) * 60));
 }
 
+// ── Folding plurals before scoring (3.7) ──────────────────────────────────────
+//  "swings" read Cold for "park" while "playground" was #5. Gemini embeds
+//  "swings" as the verb or the mood ("mood swings"), not the playground swings.
+//  The iOS app folds an out-of-vocabulary inflection to its base word before
+//  scoring (SemanticEngine.canonicalForm), so the server now does the same:
+//  when the guess is not a rank-vocabulary word but a simple de-inflection of
+//  it is ("swings" to "swing"), the base word is scored instead.
+
+const vocabSets = new Map<Lang, Set<string>>();
+function vocabSet(lang: Lang): Set<string> {
+  let set = vocabSets.get(lang);
+  if (!set) { set = new Set(rankVocabFor(lang)); vocabSets.set(lang, set); }
+  return set;
+}
+
+/** Simple de-inflections, same order as the iOS SemanticEngine.morphologicalVariants. */
+export function morphologicalVariants(w: string): string[] {
+  const out: string[] = [];
+  const add = (x: string) => { if (x.length >= 2) out.push(x); };
+  if (w.endsWith("ies")) add(w.slice(0, -3) + "y");
+  if (w.endsWith("es")) add(w.slice(0, -2));
+  if (w.endsWith("s") && !w.endsWith("ss")) add(w.slice(0, -1));
+  if (w.endsWith("ing")) { add(w.slice(0, -3)); add(w.slice(0, -3) + "e"); }
+  if (w.endsWith("ed")) { add(w.slice(0, -2)); add(w.slice(0, -1)); }
+  return out;
+}
+
+/** The word to score for a guess: the guess itself when it is a rank-vocabulary
+ *  word, else the first de-inflection that is, else the guess unchanged. Never
+ *  folds onto the secret itself (that stays the solve check's job). */
+export function scoringForm(guess: string, secret: string, lang: Lang = "en"): string {
+  if (lang === "zh") return guess;
+  const vocab = vocabSet(lang);
+  if (vocab.has(guess)) return guess;
+  for (const v of morphologicalVariants(guess)) {
+    if (v !== secret && vocab.has(v)) return v;
+  }
+  return guess;
+}
+
 /**
  * Score how warm `guess` is to `secret`. `embedder` is injectable for tests.
  */
@@ -160,7 +200,7 @@ export async function warmthScore(
   if (s === g || sameWord(s, g)) return { score: 100, source: "exact" };
 
   if (hasEmbeddings()) {
-    const [es, eg] = await Promise.all([embedder(s), embedder(g)]);
+    const [es, eg] = await Promise.all([embedder(s), embedder(scoringForm(g, s, lang))]);
     if (es && eg) {
       const cos = cosine(es, eg);
       const round = Math.round(cos * 1000) / 1000;

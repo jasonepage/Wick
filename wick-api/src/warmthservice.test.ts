@@ -1,6 +1,6 @@
 import { _setRankVectors } from "./embeddings.js";
 import { describe, it, expect } from "vitest";
-import { scoreFromCosine, lexicalFallback, warmthScore, validateSecret } from "./warmthservice.js";
+import { scoreFromCosine, lexicalFallback, warmthScore, validateSecret, scoringForm } from "./warmthservice.js";
 import { cosine } from "./embeddings.js";
 
 describe("scoreFromCosine", () => {
@@ -102,5 +102,28 @@ describe("validateSecret", () => {
     const r = await validateSecret("tomato", async () => vec(3));
     expect(r.ok).toBe(true);
     expect(r.verdict).toBe("ok");
+  });
+});
+
+// ── 3.7: "swings" read Cold for "park" (BUGS_3.7.md) ────────────────────────
+describe("plural folding before scoring", () => {
+  it("scores an out-of-vocabulary plural as its base word", () => {
+    expect(scoringForm("swings", "park")).toBe("swing");
+    expect(scoringForm("benches", "park")).toBe("bench");
+    expect(scoringForm("playground", "park")).toBe("playground"); // already a vocab word
+    expect(scoringForm("zzzqs", "park")).toBe("zzzqs");           // nothing to fold to
+  });
+
+  it("never folds onto the secret itself", () => {
+    expect(scoringForm("swings", "swing")).toBe("swings");
+  });
+
+  it("embeds the base word for the guess", async () => {
+    const asked: string[] = [];
+    process.env.GEMINI_API_KEY = "test-key";
+    _setRankVectors([]);
+    await warmthScore("park", "swings", async (t) => { asked.push(t); return [1, 0, 0]; });
+    delete process.env.GEMINI_API_KEY;
+    expect(asked.sort()).toEqual(["park", "swing"]);
   });
 });
