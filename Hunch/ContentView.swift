@@ -37,19 +37,6 @@ struct ContentView: View {
             .fullScreenCover(isPresented: $game.pendingQuickRace) {
                 LiveDuelView()
             }
-            // Ghost Race — a tapped race link shows the challenge, counts in, and
-            // drops straight onto the board with the ghost already running.
-            .fullScreenCover(item: $game.pendingGhostRace) { run in
-                GhostChallengeView(
-                    run: run,
-                    loc: game.loc,
-                    onStart: {
-                        game.startGhostRace(run)
-                        game.startRaceClock()
-                    },
-                    onDecline: { game.pendingGhostRace = nil }
-                )
-            }
     }
 
     /// Bridges the loader's `promptLanguage` to a `sheet(item:)` binding. Setting

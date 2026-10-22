@@ -8,9 +8,8 @@
 //   • Race someone live (the hero) opens the server-matched live race
 //     (LiveDuelView), which pairs you with a real player or a disclosed bot and
 //     also handles private friend codes. It is the fun one, so it leads.
-//   • Race a friend (secondary) is the Ghost Race from 3.2. You finish a round,
-//     send a link, and your friend races a replay of your run. Nobody has to be
-//     online at the same time, and the link plays on the web with no install.
+//   • Race a friend (the Ghost Race from 3.2) was removed in 3.7. Friends race
+//     live instead, with an invite code inside the live race screen.
 //
 //  The struct keeps its old name so HomeView and previews need no churn. The
 //  legacy offline WK-/WR- duel codes are still honoured by deep links in
@@ -26,23 +25,13 @@ struct DuelView: View {
 
     @State private var showLiveDuel = false
 
-    private let raceColor = HunchTheme.Palette.flame     // energetic orange
     private let liveColor = HunchTheme.Palette.keeper    // Wick violet
-
-    /// The round in memory is finished and can be sent as a ghost race. At
-    /// launch the app preloads today's daily, so a finished daily counts here
-    /// even before the player opens the board.
-    private var finishedRun: GhostRun? {
-        guard game.solved || game.revealed else { return nil }
-        return game.ghostRun()
-    }
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 16) {
                     liveCard
-                    friendCard
                     Label(game.loc.raceLiveDisclosure, systemImage: "lock.shield")
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -95,48 +84,6 @@ struct DuelView: View {
         .padding(HunchTheme.Spacing.l)
         .background(liveColor, in: RoundedRectangle(cornerRadius: 20))
         .shadow(color: liveColor.opacity(0.4), radius: 8, y: 4)
-    }
-
-    // MARK: Race a friend (ghost, secondary)
-
-    private var friendCard: some View {
-        Button {
-            Feedback.play(.selection)
-            if let run = finishedRun {
-                // Same wording as the end-of-round button in GameView and
-                // the web share sheet (shareRace in main.ts).
-                let text = run.solved
-                    ? game.loc.raceShareSolved(Ghost.formatDuration(ms: run.durationMs))
-                    : game.loc.raceShareUnsolved
-                Events.track(.raceLinkCreated, n: run.mode == .daily ? run.ref : nil)
-                ShareSheet.present([text, Ghost.link(run)])
-            } else {
-                dismiss()
-                game.playDaily()
-            }
-        } label: {
-            HStack(spacing: 14) {
-                Image(systemName: "flag.checkered")
-                    .font(.title2)
-                    .foregroundStyle(raceColor)
-                    .frame(width: 40)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(game.loc.raceAFriend)
-                        .font(.headline).foregroundStyle(raceColor)
-                    Text(game.loc.raceFriendBlurb)
-                        .font(.caption).foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                Spacer(minLength: 0)
-                Image(systemName: finishedRun == nil ? "play.fill" : "square.and.arrow.up")
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(.tertiary)
-            }
-            .padding(HunchTheme.Spacing.l)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .hunchCard(radius: 16)
-        }
-        .buttonStyle(.plain)
     }
 }
 

@@ -81,6 +81,19 @@ Jason chose "Server Gemini" for iPhone solo.
 - Prompt changes: bump `KEEPER_PROMPT_VERSION` in `keeper.ts`, or old saved
   answers stay.
 
+## Also done in the second session
+
+- Ghost Race removed on iPhone and web (Jason's call). Old /r/ and ?r= links
+  still open, as a normal round of the same word (openRaceLink on both).
+  Gone: the challenge screen, countdown, ghost strip, race result banner,
+  "Race them back", and the "Race a friend" card on the iPhone Race screen.
+  Friends race live with an invite code instead. Ghost.swift and ghost.ts stay
+  only to decode old links. Not built in Xcode yet.
+- Em dashes removed from everything players see, plus a noDashes() scrub on
+  every model reply (server and iPhone).
+- Home and welcome Wick cycle through all six faces every 5 seconds.
+- Link preview picture and favicons: Sly icon, PNG, cropped close.
+
 ## (Done) The job: replace the automatic Keeper answers with Gemini plus saved answers
 
 Jason's call: the automatic (deterministic) answers are wrong far too often

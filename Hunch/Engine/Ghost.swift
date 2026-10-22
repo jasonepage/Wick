@@ -2,6 +2,9 @@
 //  Ghost.swift
 //  Hunch
 //
+//  3.7: the Ghost Race itself was removed. Only Ghost.from(url:) is still used,
+//  so an old race link opens its word as a normal round (openRaceLink).
+//
 //  Ghost Race — the codec for "race me on this word" links.
 //  A DIRECT PORT of wick-web/src/game/ghost.ts. The two must stay byte-identical:
 //  a link made on web has to decode on iOS and vice versa, so any change here

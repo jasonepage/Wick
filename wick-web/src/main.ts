@@ -28,7 +28,7 @@ import { canRecord, canShareFile, downloadVideo, recordReplay, shareVideo, type 
 import { initEvents, track } from "./net/events.ts";
 import { submitBoard, fetchBoard, flushBoard, rerollBoardName, myBoardId, myBoardName, fmtBoardTime, BOARD_FLAG, recordResult, recordedResult, notSubmitted, type BoardSnapshot, type BoardResult } from "./net/board.ts";
 import { initPwa, promptInstall } from "./pwa.ts";
-import { encodeRun, decodeRun, runDuration, fmtDuration } from "./game/ghost.ts";
+import { decodeRun } from "./game/ghost.ts";
 import type { GhostRun } from "./game/ghost.ts";
 import { mountBackdrop, setBackdropHeat } from "./game/backdrop.ts";
 import { dailyStarters, starterText, STARTER_CATEGORIES, type StarterItem } from "./game/starters.ts";
@@ -105,13 +105,6 @@ const sp = {
   lastAt: 0,
   /** Next action's sequence number. */
   seq: 0,
-  /** The run being raced, if this round came from a ?r= link. */
-  ghost: null as GhostRun | null,
-  /** Wall clock when the race started (after the countdown). 0 = not racing.
-   *  The race uses REAL elapsed time — you cannot pause a race — while the
-   *  recording keeps using the idle-clamped clock, so a shared run is still
-   *  sane if the player wanders off. */
-  raceStartAt: 0,
   /** Pool index of the practice word, so a practice round can be raced.
    *  -1 when this isn't a practice round. */
   practiceIndex: -1,
@@ -219,11 +212,6 @@ const live = {
 };
 
 let clockTimer: number | null = null;
-/** A run parsed from a ?r= link, waiting for the ghost strip (phase 3) to show
- *  it. Held rather than acted on so a link is inert until the UI exists. */
-let pendingGhost: GhostRun | null = null;
-/** Drives the ghost strip while a race is on. */
-let ghostTimer: number | null = null;
 /** Polls GET /live while the Race chooser is on screen ("N racing now"). */
 let liveCountTimer: number | null = null;
 /** Arms the Searching screen's fallback ("race a flame now") after a wait. */
@@ -461,10 +449,6 @@ function clear(_hint?: "light" | "dark"): void {
     window.clearInterval(clockTimer);
     clockTimer = null;
   }
-  if (ghostTimer !== null) {
-    window.clearInterval(ghostTimer);
-    ghostTimer = null;
-  }
   if (liveCountTimer !== null) {
     window.clearInterval(liveCountTimer);
     liveCountTimer = null;
@@ -695,8 +679,6 @@ function enterDailyPuzzle(puzzleNumber: number, word: DailyWord): void {
   sp.replies = saved?.replies ?? [];
   sp.solved = saved?.solved ?? false;
   startRoundClock(saved?.elapsedMs ?? 0, saved?.seq ?? 0);
-  sp.ghost = null;
-  sp.raceStartAt = 0;
   sp.practiceIndex = -1;
   sp.revealed = saved?.revealed ?? false;
   screenSolo();
@@ -756,8 +738,6 @@ function startPractice(): void {
   sp.guesses = [];
   sp.replies = [];
   startRoundClock();
-  sp.ghost = null;
-  sp.raceStartAt = 0;
   sp.practiceIndex = picked.index;
   sp.solved = false;
   sp.revealed = false;
@@ -1285,44 +1265,12 @@ function showReplayReady(rec: Recording, name: string, stage: HTMLElement, bar: 
   actions.replaceChildren(...buttons);
 }
 
-/** Someone sent you a race link. Shown instead of Home so the challenge is the
- *  first thing you see, with an explicit opt-out into a normal round. */
-function isIOS(): boolean {
-  const ua = navigator.userAgent;
-  // iPadOS 13+ reports itself as Macintosh; the touch-point count is what tells
-  // the two apart.
-  return /iPad|iPhone|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
-}
-
-function screenChallenge(run: GhostRun): void {
-  clear("dark");
+/** 3.7: the Ghost Race was removed. A race link someone shared before that
+ *  (/r/<run> or ?r=<run>) still works: it opens the same word as an ordinary
+ *  round, with no replay to race against. Only the link's mode and puzzle (or
+ *  pool index) are used. */
+function openRaceLink(run: GhostRun): void {
   track("race_link_opened", run.mode === "daily" ? { n: run.ref } : {});
-  const kids: (Node | string)[] = [
-    wickBox("mascot-wrap", { score: null, size: 108, id: "chal" }),
-    el("h2", {}, [t("raceChallengeTitle")]),
-    el("p", { class: "center muted" }, [
-      run.mode === "practice"
-        ? t("raceChallengeBlurbPractice", run.actions.length)
-        : t("raceChallengeBlurb", run.ref, run.actions.length),
-    ]),
-    el("button", { class: "btn primary", onclick: () => { void playSound("tap"); startGhostRace(run); } }, [t("raceStart")]),
-    el("button", { class: "btn secondary", onclick: () => { pendingGhost = null; goHome(); } }, [t("raceDecline")]),
-  ];
-  // A Universal Link only fires when it is tapped from another app. Typed into
-  // Safari's address bar, tapped from a page already on guesswick.com, or opened
-  // while iOS holds a stale association, it does not — so someone who owns the app
-  // can still land here. The custom scheme has none of those rules.
-  if (isIOS()) {
-    kids.push(el("a", { class: "btn ghost", href: `wick://r/${encodeRun(run)}` }, [t("raceOpenApp")]));
-  }
-  app.append(el("main", { class: "card" }, kids));
-}
-
-/** Enter the challenged puzzle, then count in. The race clock does not start
- *  until the countdown finishes — otherwise you lose seconds to reading. */
-function startGhostRace(run: GhostRun): void {
-  pendingGhost = null;
-
   if (run.mode === "practice") {
     const w = practiceAt(run.ref);
     if (!w) { toast(t("raceUnavailable")); goHome(); return; }
@@ -1343,44 +1291,9 @@ function startGhostRace(run: GhostRun): void {
       ? today.word
       : pastPuzzles().find((p) => p.puzzleNumber === run.ref)?.word;
     if (!word) { toast(t("raceUnavailable")); goHome(); return; }
-    const saved = loadDaily(run.ref);
-    // Already finished this day? Don't drop them into a spent board — they have
-    // a time already, so the race resolves right now for free.
-    if (saved && (saved.solved || saved.revealed)) {
-      enterDailyPuzzle(run.ref, word);
-      sp.ghost = run;
-      sp.raceStartAt = Date.now() - Math.max(0, saved.elapsedMs);
-      screenSolo();
-      return;
-    }
-    enterDailyPuzzle(run.ref, word);   // resets sp.ghost, so set it after
+    enterDailyPuzzle(run.ref, word);
   }
-
-  sp.ghost = run;
-  sp.raceStartAt = 0;
   screenSolo();
-  countIn(() => { sp.raceStartAt = Date.now(); });
-}
-
-/** 3 · 2 · 1 · Go. */
-function countIn(done: () => void): void {
-  const steps = ["3", "2", "1", t("raceGo")];
-  const overlay = el("div", { class: "countdown" });
-  const n = el("div", { class: "countdown-n" });
-  overlay.append(n);
-  document.body.append(overlay);
-  let i = 0;
-  const tick = (): void => {
-    if (i >= steps.length) { overlay.remove(); done(); return; }
-    n.textContent = steps[i]!;
-    n.classList.remove("pop");
-    void n.offsetWidth;
-    n.classList.add("pop");
-    void playSound("tap", 0.6);
-    i++;
-    window.setTimeout(tick, 700);
-  };
-  tick();
 }
 
 function screenSolo(): void {
@@ -1428,7 +1341,6 @@ function screenSolo(): void {
         el("span", { class: "solo-title" }, [sp.mode === "daily" ? t("dailyTitle", sp.puzzleNumber) : t("practice")]),
         el("span", {}, [""]),
       ]),
-      ...(sp.ghost ? [el("div", { id: "ghost-strip", class: "opp-strip ghost-strip" })] : []),
       el("div", { id: "hero", class: "hero" }),
       el("div", { id: "latest", class: "latest" }),
       el("div", { id: "keeper", class: "keeper" }),
@@ -1445,91 +1357,6 @@ function screenSolo(): void {
   );
   input.focus();
   renderSolo();
-  if (sp.ghost) {
-    renderGhostStrip();
-    ghostTimer = window.setInterval(renderGhostStrip, 250);
-    if (sp.solved || sp.revealed) track("race_finished", { g: sp.guesses.length });
-  }
-}
-
-/** The headline after a raced round. Time decides it — you cannot pause a race —
- *  and an unsolved round always loses to a solved one. Their time is withheld
- *  until this moment on purpose: knowing the target from move one kills it. */
-function raceBanner(): HTMLElement | null {
-  const run = sp.ghost;
-  if (!run) return null;
-  const mine = raceElapsed();
-  const theirs = runDuration(run);
-  const drew = sp.solved && run.solved && Math.abs(mine - theirs) < 1000;
-  const won = !drew && sp.solved && (!run.solved || mine < theirs);
-  const headline = drew ? t("raceDraw") : won ? t("raceWon") : sp.solved ? t("raceLost") : t("raceUnsolved");
-  return el("div", { class: `race-result ${won ? "win" : drew ? "draw" : "loss"}` }, [
-    el("div", { class: "race-head" }, [headline]),
-    el("div", { class: "race-times" }, [
-      el("span", {}, [`${t("raceYou")} ${sp.solved ? fmtDuration(mine) : "-"}`]),
-      el("span", { class: "race-vs" }, ["vs"]),
-      el("span", {}, [`${t("raceThem")} ${run.solved ? fmtDuration(theirs) : "-"}`]),
-    ]),
-  ]);
-}
-
-/** Where the ghost stands right now: the last action whose timestamp has been
- *  reached. Returns -1 before their first move. */
-function ghostIndexAt(run: GhostRun, elapsedMs: number): number {
-  let i = -1;
-  for (let k = 0; k < run.actions.length; k++) {
-    if (run.actions[k]!.t <= elapsedMs) i = k; else break;
-  }
-  return i;
-}
-
-/** Elapsed race time in ms, or 0 when not racing. */
-function raceElapsed(): number {
-  return sp.raceStartAt > 0 ? Date.now() - sp.raceStartAt : 0;
-}
-
-// Canonical band TOKENS, not display strings — they key into "heat.*" in
-// i18n.ts, the same table the guess rows use. Never render one directly.
-const BAND_LABEL = ["Freezing", "Cold", "Cool", "Warm", "Hot", "Boiling", "Solved!"];
-const BAND_SCORE = [4, 12, 22, 36, 50, 75, 100]; // a representative score per band, for colour
-
-/** Paint the opponent strip from the recording. Same markup and classes as a
- *  live match, because a ghost should look exactly like an opponent — that is
- *  the whole point of it being the on-ramp to live Race. */
-function renderGhostStrip(): void {
-  const strip = document.querySelector<HTMLDivElement>("#ghost-strip");
-  if (!strip || !sp.ghost) return;
-  const run = sp.ghost;
-  const over = sp.solved || sp.revealed;
-  const elapsed = over ? runDuration(run) + 1 : raceElapsed();
-  const idx = ghostIndexAt(run, elapsed);
-  const cur = idx >= 0 ? run.actions[idx]! : null;
-  const band = cur ? cur.band : 0;
-  const done = idx >= run.actions.length - 1 && run.solved;
-
-  const bar = el("i");
-  bar.style.width = `${cur ? Math.round(((band + 1) / 7) * 100) : 0}%`;
-  bar.style.background = scoreColor(cur ? BAND_SCORE[band]! : null);
-
-  // One pip per action they have taken so far. Filled = it improved their best,
-  // hollow = it didn't, ? = they asked Wick. Never shows the future.
-  const pips = run.actions.slice(0, idx + 1).map((a) =>
-    el("span", { class: `gpip ${a.kind === 1 ? "q" : a.improved ? "up" : "flat"}` }, [a.kind === 1 ? "?" : ""]),
-  );
-
-  strip.replaceChildren(
-    el("div", { class: "opp-info" }, [
-      el("div", { class: "opp-top" }, [
-        el("span", { class: "tag ghost" }, ["👻 " + t("ghostRival")]),
-        el("span", { class: "opp-count" }, [
-          done ? t("ghostFinished", fmtDuration(runDuration(run)))
-               : cur ? t("heat." + BAND_LABEL[band]!) : t("ghostWaiting"),
-        ]),
-      ]),
-      el("div", { class: "mini-bar" }, [bar]),
-      el("div", { class: "gpips" }, pips),
-    ]),
-  );
 }
 
 /** Reveal the word and end the round (parity with iOS "Give up"). */
@@ -1576,7 +1403,6 @@ function renderSolo(): void {
       // button instead, which respects that call.)
       const actions: HTMLElement[] = [];
       const hasMap = sp.guesses.some((g) => g.warmth !== null);
-      const banner = sp.ghost ? raceBanner() : null;
       if (hasMap) {
         actions.push(el("button", { class: "btn secondary", onclick: () => { void screenReveal(); } }, [t("revealSeeMap")]));
         actions.push(el("button", { class: "btn secondary", onclick: () => { void playSound("tap"); screenReplay(); } }, [t("replayShare")]));
@@ -1606,7 +1432,6 @@ function renderSolo(): void {
       }
       latestEl.replaceChildren(
         el("span", { class: "word" }, [`${t("solvedTitle")} ${t("theWordWas")} "${withGloss(sp.secret, soloAnswerMeaning())}".`]),
-        ...(banner ? [banner] : []),
         el("div", { class: "row-actions" }, actions),
       );
     } else if (sp.revealed) {
@@ -1618,7 +1443,6 @@ function renderSolo(): void {
       // button instead, which respects that call.)
       const actions: HTMLElement[] = [];
       const hasMap = sp.guesses.some((g) => g.warmth !== null);
-      const banner = sp.ghost ? raceBanner() : null;
       if (hasMap) {
         actions.push(el("button", { class: "btn secondary", onclick: () => { void screenReveal(); } }, [t("revealSeeMap")]));
         actions.push(el("button", { class: "btn secondary", onclick: () => { void playSound("tap"); screenReplay(); } }, [t("replayShare")]));
@@ -1647,7 +1471,6 @@ function renderSolo(): void {
       }
       latestEl.replaceChildren(
         el("span", { class: "word reveal" }, [`${t("theWordWas")} "${withGloss(sp.secret, soloAnswerMeaning())}".`]),
-        ...(banner ? [banner] : []),
         el("div", { class: "row-actions" }, actions),
       );
     } else {
@@ -2442,7 +2265,7 @@ function raceTile(): HTMLElement {
 
 /** Race a friend (3.6 web): invite with a link and a code, or join with a
  *  code. Live only; the web no longer makes ghost-race links (it still opens
- *  ones made on iOS, see screenChallenge). */
+ *  old ones as a normal round, see openRaceLink). */
 function screenFriend(): void {
   clear("dark");
   const codeInput = el("input", { class: "field", placeholder: t("friendCodePlaceholder"), spellcheck: false, autocomplete: "off" });
@@ -2878,22 +2701,20 @@ function boot(): void {
   scheduleReminder();
   const params = new URLSearchParams(location.search);
 
-  // A ghost-race link. Parsed and held; the strip that renders it lands in the
-  // next phase, so a link is currently inert rather than broken.
-  // Accept both: /r/<run> (current, app-openable) and ?r=<run> (older links).
+  // An old ghost-race link (the Ghost Race was removed in 3.7). It opens the
+  // same word as a normal round. Both shapes: /r/<run> and ?r=<run>.
   const pathRun = /^\/r\/(.+)$/.exec(location.pathname)?.[1];
   const r = (pathRun ?? params.get("r") ?? "").trim();
   if (r) {
-    pendingGhost = decodeRun(r);
+    const run = decodeRun(r);
     // "/" not location.pathname: for a /r/<run> link the pathname IS the run, so
     // reusing it would leave the whole payload sitting in the address bar.
     history.replaceState(null, "", "/");
-    if (pendingGhost) {
-      screenChallenge(pendingGhost);
+    if (run) {
+      openRaceLink(run);
       return;
-    } else {
-      console.warn("[wick] ghost link was malformed, ignored");
     }
+    console.warn("[wick] old race link was malformed, ignored");
   }
 
   const code = params.get("p")?.trim();

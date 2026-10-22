@@ -62,97 +62,15 @@ final class GameViewModel {
     /// A race alert was tapped: open the live race screen (no invite code).
     var pendingQuickRace = false
 
-    /// A ghost run opened from a race link, waiting to be started — drives the
-    /// same kind of app-wide presentation as `pendingLiveInvite`. Set by
-    /// `HunchApp.onOpenURL`; cleared when the race begins or is declined.
-    var pendingGhostRace: GhostRun?
-
-    /// The run currently being raced, or nil for an ordinary round.
-    private(set) var ghost: GhostRun?
-
     /// Where in `DailyWords.all` this practice round's word came from, so the
     /// round can be shared as a race. -1 outside practice.
     private(set) var practicePoolIndex = -1
 
-    /// When the race clock started, set after the 3-2-1 count-in. The race uses
-    /// REAL elapsed time — a race cannot be paused — unlike the recorded round
-    /// clock, which clamps idle gaps so a shared run is still sane if the player
-    /// wanders off mid-round.
-    private(set) var raceStartedAt: Date?
-
-    /// Seconds into the race right now, or 0 before the count-in finishes.
-    var raceElapsed: TimeInterval {
-        guard let s = raceStartedAt else { return 0 }
-        return Date().timeIntervalSince(s)
-    }
-
-    /// Where the ghost stands at this instant: the last action whose timestamp
-    /// has been reached, or nil before their first move.
-    var ghostAction: GhostAction? {
-        guard let run = ghost else { return nil }
-        let ms = Int(raceElapsed * 1000)
-        var found: GhostAction?
-        for a in run.actions {
-            if a.t <= ms { found = a } else { break }
-        }
-        return found
-    }
-
-    /// Begin racing a run. The caller starts the round itself first (daily or
-    /// practice), then hands the ghost over; the clock starts when `countIn`
-    /// completes so the player doesn't lose seconds to reading the board.
-    func beginGhostRace(_ run: GhostRun) {
-        ghost = run
-        raceStartedAt = nil
-        pendingGhostRace = nil
-    }
-
-    /// Called when the count-in finishes.
-    func startRaceClock() {
-        raceStartedAt = Date()
-    }
-
-    /// Clear any race state — called from resetRound().
-    func clearGhostRace() {
-        ghost = nil
-        raceStartedAt = nil
-    }
-
-    /// Build a shareable run from the round just played, or nil if there's
-    /// nothing replayable. Numbers only — no word, question or reply travels.
-    ///
-    /// Practice refs are capped to the words iOS and web share (see
-    /// Ghost.sharedPoolCount): sending an index the web client can't resolve
-    /// would put the two players on different words with both boards looking
-    /// entirely normal.
-    func ghostRun() -> GhostRun? {
-        var events: [(atMs: Int, isQuestion: Bool, score: Double?)] = []
-        for g in guesses {
-            guard let at = g.at else { continue }
-            events.append((at, false, g.known ? g.score : nil))
-        }
-        for q in questions {
-            guard let at = q.at else { continue }
-            events.append((at, true, nil))
-        }
-        guard !events.isEmpty else { return nil }
-        events.sort { $0.atMs < $1.atMs }
-
-        switch mode {
-        case .daily:
-            return Ghost.build(mode: .daily, ref: puzzleNumber,
-                               solved: solved, events: events)
-        case .practice:
-            guard let ref = Ghost.practiceRef(poolIndex: practicePoolIndex) else { return nil }
-            return Ghost.build(mode: .practice, ref: ref, solved: solved, events: events)
-        default:
-            return nil   // archive rounds aren't raceable: no stable shared ref
-        }
-    }
-
-    /// Start racing a run that arrived from a link: enter the right round, then
-    /// hand the ghost over. The clock starts when the count-in finishes.
-    func startGhostRace(_ run: GhostRun) {
+    /// 3.7: the Ghost Race was removed. A race link someone shared before
+    /// that (https://guesswick.com/r/<run>) still opens: it plays the same word
+    /// as an ordinary round, with no replay to race against. Only the link's
+    /// mode and puzzle (or pool index) are used.
+    func openRaceLink(_ run: GhostRun) {
         switch run.mode {
         case .daily:
             if run.ref == WordBank.dailyNumber() {
@@ -163,10 +81,7 @@ final class GameViewModel {
                 startArchive(dayIndex: day)
             }
         case .practice:
-            guard run.ref >= 0, run.ref < DailyWords.all.count else {
-                pendingGhostRace = nil
-                return
-            }
+            guard run.ref >= 0, run.ref < DailyWords.all.count else { return }
             let pair = DailyWords.all[run.ref]
             currentPair = pair
             mode = .practice(tier: pair.tier)
@@ -176,7 +91,6 @@ final class GameViewModel {
             resetRound()
             practicePoolIndex = run.ref
         }
-        beginGhostRace(run)
         onHomeScreen = false
     }
 
@@ -988,7 +902,6 @@ final class GameViewModel {
 
     private func resetRound() {
         startRoundClock()
-        clearGhostRace()
         guesses = []
         questions = []
         failedQuestion = nil

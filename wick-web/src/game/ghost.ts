@@ -1,4 +1,7 @@
 //
+//  3.7: the Ghost Race itself was removed. Only decodeRun is still used, so an
+//  old race link opens its word as a normal round (openRaceLink in main.ts).
+//
 //  ghost.ts — encode a finished round into a shareable "race me" link.
 //
 //  See PLAN_RACE_GHOST. The rule that shapes everything here:

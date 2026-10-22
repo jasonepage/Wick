@@ -63,7 +63,9 @@ struct HunchApp: App {
                         game.pendingQuickRace = true
                         return
                     }
-                    // Ghost race:  https://guesswick.com/r/<run>  (AASA claims "/r/*"),
+                    // Old ghost race link (the Ghost Race was removed in 3.7; the link now
+                    // just opens the same word as a normal round):
+                    //              https://guesswick.com/r/<run>  (AASA claims "/r/*"),
                     // the legacy query form  https://guesswick.com/?r=<run>, and the
                     // custom-scheme fallback  wick://r/<run>. The scheme matters: a
                     // Universal Link does not fire from Safari's address bar, from a
@@ -73,7 +75,7 @@ struct HunchApp: App {
                     // most specific shape of the three handlers below.
                     if let run = Ghost.from(url: url) {
                         Events.track(.raceLinkOpened, n: run.mode == .daily ? run.ref : nil)
-                        game.pendingGhostRace = run
+                        game.openRaceLink(run)
                         return
                     }
                     if let invite = LiveInvite.from(url: url) {

@@ -64,14 +64,6 @@ struct GameView: View {
                                 tutorialContent
                             } else {
                                 header
-                                if let run = game.ghost {
-                                    GhostStripLive(
-                                        run: run,
-                                        startedAt: game.raceStartedAt,
-                                        finished: game.solved || game.revealed,
-                                        loc: game.loc
-                                    )
-                                }
                                 if let last = game.lastSubmitted {
                                     heroCard(last)
                                 } else if !game.solved && !game.revealed {
@@ -872,8 +864,6 @@ struct GameView: View {
     @ViewBuilder
     private var endActions: some View {
         boardButton
-        // Only when this round WAS a race from a friend's link: answer it.
-        raceShareButton
         // A duel sends its own result code.
         if game.currentDuel != nil { duelResultShareButton }
         shareRow
@@ -995,31 +985,6 @@ struct GameView: View {
             .buttonStyle(.borderedProminent)
             .tint(HunchTheme.Palette.keeper)
             .disabled(board.submitting)
-        }
-    }
-
-    /// "Race them back". Only on a round that came from a friend's race link, so
-    /// the player can answer the challenge (solved or gave up). The open-ended
-    /// "Race a friend" button was taken off the end cards in 3.6.
-    @ViewBuilder
-    private var raceShareButton: some View {
-        if game.ghost != nil, let run = game.ghostRun() {
-            Button {
-                Feedback.play(.selection)
-                // Same wording as the web share sheet (shareRace in main.ts):
-                // a solved round leads with your time, an unsolved one just dares.
-                let text = run.solved
-                    ? game.loc.raceShareSolved(Ghost.formatDuration(ms: run.durationMs))
-                    : game.loc.raceShareUnsolved
-                Events.track(.raceLinkCreated, n: run.mode == .daily ? run.ref : nil)
-                ShareSheet.present([text, Ghost.link(run)])
-            } label: {
-                Label(game.loc.raceThemBack, systemImage: "flag.checkered")
-                    .font(.headline)
-                    .frame(maxWidth: .infinity).padding(.vertical, 11)
-            }
-            .buttonStyle(.borderedProminent)
-            .tint(HunchTheme.Palette.hot)
         }
     }
 
