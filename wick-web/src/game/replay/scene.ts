@@ -24,6 +24,9 @@ import {
   finalSlot, formatRank, guessesShown, landedCount, makeBoard, meterFill, slotCenter,
   slotRect, tileBand, totalGuesses, wickTravel,
 } from "./timeline.ts";
+import { drawWick as drawCanvasWick } from "../wickcanvas.ts";
+import { type Pose, type WickMood, blinkAmount } from "../wick.ts";
+import { type FaceName, type RGB, PALETTE } from "../wickface.ts";
 
 export const W = 1080;
 export const H = 1920;
@@ -111,14 +114,24 @@ function shade(hex: string, k: number): string {
   return `rgb(${f((n >> 16) & 255)}, ${f((n >> 8) & 255)}, ${f(n & 255)})`;
 }
 
-/** Mix a "#rrggbb" toward white by f. */
-function tint(hex: string, f: number): string {
-  const n = parseInt(hex.slice(1), 16);
-  const m = (v: number) => Math.round(v + (255 - v) * f);
-  return `rgb(${m((n >> 16) & 255)}, ${m((n >> 8) & 255)}, ${m(n & 255)})`;
-}
-
 type Look = "idle" | "thinking" | "celebrating" | "defeated" | Band;
+
+/** What Wick looks like for each moment of the replay: the game's own mood,
+ *  face and colour (Sly cold, Flustered warm, Focus while answering, Shocked
+ *  on the solve, Calm and grey on a give-up). */
+function wickStyle(look: Look): { mood: WickMood; face: FaceName; color: RGB } {
+  switch (look) {
+    case "idle": return { mood: "idle", face: "sly", color: PALETTE.keeper };
+    case "thinking": return { mood: "idle", face: "focus", color: PALETTE.keeper };
+    case "celebrating": case "solved": return { mood: "celebrating", face: "shocked", color: PALETTE.solved };
+    case "defeated": return { mood: "unamused", face: "calm", color: PALETTE.neutral };
+    case "cold": return { mood: "freezing", face: "sly", color: PALETTE.freezing };
+    case "cool": return { mood: "cold", face: "sly", color: PALETTE.cool };
+    case "warm": return { mood: "warm", face: "flustered", color: PALETTE.warm };
+    case "hot": return { mood: "hot", face: "flustered", color: PALETTE.hot };
+    case "boiling": return { mood: "boiling", face: "flustered", color: PALETTE.boiling };
+  }
+}
 
 type Ctx = CanvasRenderingContext2D;
 
@@ -493,13 +506,6 @@ export class ReplayScene {
 
   // ── Wick ─────────────────────────────────────────────────────────────────
 
-  private bodyColor(look: Look): string {
-    if (look === "idle" || look === "thinking") return C.violet;
-    if (look === "celebrating" || look === "solved") return C.solved;
-    if (look === "defeated") return C.neutral;
-    return bandColor(look);
-  }
-
   private bobPeriod(look: Look): number {
     switch (look) {
       case "idle": case "thinking": return 1.8;
@@ -512,108 +518,28 @@ export class ReplayScene {
     }
   }
 
-  /** Wick with his feet at (fx, fy). Same proportions as KeeperView. */
+  /** Wick with his feet at (fx, fy), drawn by wickcanvas.ts: the same flame,
+   *  faces and colours as the game (3.7). `s` is his width in pixels, as before;
+   *  he stands 1.18 x s tall so the Keeper bubble still clears his head. */
   private drawWick(ctx: Ctx, fx: number, fy: number, s: number, look: Look, t: number,
     squash: number, dir: number, standing: boolean): void {
-    const h = s * 1.18;
-    const period = this.bobPeriod(look);
-    const bob = standing ? Math.sin((t * 2 * Math.PI) / period) * s * 0.03 : 0;
-    const flicker = 0.5 + 0.5 * Math.sin((t * 2 * Math.PI) / (period * 0.8));
-    const body = this.bodyColor(look);
-
-    ctx.save();
-    ctx.translate(fx, fy + bob);
-    ctx.scale(1 + (1 - squash) * 0.9, squash);
-
-    const rect: Rect = { x: -s / 2, y: -h, w: s, h };
-    // Glow.
-    ctx.save();
-    ctx.shadowColor = alpha(body.startsWith("#") ? body : C.violet, look === "defeated" ? 0.1 : 0.6);
-    ctx.shadowBlur = s * 0.35;
-    flamePath(ctx, rect, flicker);
-    ctx.fillStyle = body;
-    ctx.fill();
-    ctx.restore();
-
-    // Body gradient, lighter at the tip.
-    const g = ctx.createLinearGradient(0, -h, 0, 0);
-    g.addColorStop(0, tint(body, 0.12));
-    g.addColorStop(1, shade(body, 0.88));
-    flamePath(ctx, rect, flicker);
-    ctx.fillStyle = g;
-    ctx.fill();
-
-    // Inner core highlight.
-    flamePath(ctx, { x: (-s * 0.55) / 2, y: -h * 0.55 - s * 0.04, w: s * 0.55, h: h * 0.55 }, flicker);
-    ctx.fillStyle = `rgba(255,255,255,${look === "defeated" ? 0.08 : 0.22})`;
-    ctx.fill();
-
-    // Face.
-    const faceY = -h / 2 + s * 0.16;
-    const eyeY = faceY - s * 0.115;
-    const mouthY = faceY + s * 0.0925;
-    const gaze = dir * s * 0.03;
-    const ew = s * 0.115;
-    const blinking = (t + 0.7) % 3.3 < 0.12 && look !== "celebrating" && look !== "defeated";
-    for (const side of [-1, 1]) this.drawEye(ctx, side * s * 0.1375 + gaze, eyeY, ew, look, blinking);
-    this.drawMouth(ctx, gaze * 0.5, mouthY, s, look);
-
-    if (look === "celebrating") {
-      for (let i = 0; i < 5; i++) {
-        const a = (i / 5) * 2 * Math.PI;
-        const phase = (Math.sin((t * 2 * Math.PI) / 0.6 - i * 0.75) + 1) / 2;
-        sparklePath(ctx, Math.cos(a) * s * 0.62, -h / 2 + Math.sin(a) * s * 0.62, s * 0.07);
-        ctx.fillStyle = alpha(C.gold, 0.25 + 0.75 * phase);
-        ctx.fill();
-      }
-    }
-    ctx.restore();
-  }
-
-  private drawEye(ctx: Ctx, x: number, y: number, ew: number, look: Look, blinking: boolean): void {
-    ctx.fillStyle = "#fff";
-    const oval = (w: number, hh: number, dx = 0, dy = 0) => {
-      ctx.beginPath();
-      ctx.ellipse(x + dx, y + dy, w / 2, hh / 2, 0, 0, Math.PI * 2);
-      ctx.fill();
+    const scale: number = (s * 1.18) / 120;
+    const period: number = this.bobPeriod(look);
+    const bobPx: number = standing ? Math.sin((t * 2 * Math.PI) / period) * s * 0.03 : 0;
+    const flicker: number = 0.5 + 0.5 * Math.sin((t * 2 * Math.PI) / (period * 0.8));
+    const pose: Pose = {
+      x: 0,
+      y: bobPx / scale,
+      rot: dir * 4 * (1 - squash),
+      sx: 1 + (1 - squash) * 0.9,
+      sy: squash,
+      flicker,
+      opacity: 1,
     };
-    if (look === "celebrating") { starPath(ctx, x, y, ew * 0.85, 5); ctx.fill(); }
-    else if (look === "defeated") oval(ew, ew * 0.22);
-    else if (look === "thinking") oval(ew, blinking ? ew * 0.18 : ew, ew * 0.18, -ew * 0.22);
-    else if (look === "cold") oval(ew, blinking ? ew * 0.18 : ew * 0.45);
-    else if (look === "hot" || look === "boiling") oval(ew * 1.18, blinking ? ew * 0.18 : ew * 1.18);
-    else oval(ew, blinking ? ew * 0.18 : ew);
-  }
-
-  private drawMouth(ctx: Ctx, x: number, y: number, s: number, look: Look): void {
-    const mw = s * 0.16;
-    const white = "rgba(255,255,255,0.9)";
-    const arc = (radius: number, a: number, b: number, dy: number) => {
-      ctx.beginPath();
-      ctx.arc(x, y + dy, radius, a, b);
-      ctx.strokeStyle = white;
-      ctx.lineWidth = s * 0.028;
-      ctx.lineCap = "round";
-      ctx.stroke();
-    };
-    if (look === "celebrating" || look === "boiling" || look === "solved") {
-      // Open, delighted: the lower half of a disc.
-      ctx.beginPath();
-      ctx.arc(x, y - mw * 0.1, mw / 2, 0, Math.PI);
-      ctx.closePath();
-      ctx.fillStyle = white;
-      ctx.fill();
-    } else if (look === "hot" || look === "warm") arc(mw / 2, 0.15 * Math.PI, 0.85 * Math.PI, -mw * 0.25);
-    else if (look === "cold" || look === "cool") arc(mw * 0.4, 1.15 * Math.PI, 1.85 * Math.PI, mw * 0.35);
-    else if (look === "thinking") {
-      ctx.beginPath();
-      ctx.arc(x + mw * 0.22, y, mw * 0.17, 0, Math.PI * 2);
-      ctx.fillStyle = white;
-      ctx.fill();
-    } else if (look === "defeated") {
-      ctx.fillStyle = "rgba(255,255,255,0.7)";
-      ctx.fillRect(x - mw * 0.35, y - s * 0.0125, mw * 0.7, s * 0.025);
-    } else arc(mw * 0.4, 0.2 * Math.PI, 0.8 * Math.PI, -mw * 0.2);
+    const blinkAt: number = (t + 0.7) % 3.3;
+    const blink: number = look === "celebrating" || look === "defeated" ? 0 : blinkAmount(blinkAt);
+    const { mood, face, color } = wickStyle(look);
+    drawCanvasWick(ctx, { x: fx, y: fy, scale, mood, color, pose, blink, face, t });
   }
 
   // ── Keeper bubble ────────────────────────────────────────────────────────
@@ -920,20 +846,6 @@ function roundRect(ctx: Ctx, r: Rect, radius: number): void {
   ctx.arcTo(r.x + r.w, r.y + r.h, r.x, r.y + r.h, rad);
   ctx.arcTo(r.x, r.y + r.h, r.x, r.y, rad);
   ctx.arcTo(r.x, r.y, r.x + r.w, r.y, rad);
-  ctx.closePath();
-}
-
-/** KeeperFlameShape's curve. Keep in step with KeeperView.swift. */
-function flamePath(ctx: Ctx, r: Rect, flicker: number): void {
-  const w = r.w, h = r.h;
-  const lean = (flicker - 0.5) * 0.22 * w;
-  const X = (v: number) => r.x + v, Y = (v: number) => r.y + v;
-  ctx.beginPath();
-  ctx.moveTo(X(w * 0.5), Y(h));
-  ctx.bezierCurveTo(X(w * 0.16), Y(h * 0.98), X(w * 0.07), Y(h * 0.78), X(w * 0.07), Y(h * 0.52));
-  ctx.bezierCurveTo(X(w * 0.07), Y(h * 0.22), X(w * 0.32 + lean * 0.6), Y(h * 0.1), X(w * 0.5 + lean), Y(0));
-  ctx.bezierCurveTo(X(w * 0.68 + lean * 0.6), Y(h * 0.1), X(w * 0.93), Y(h * 0.22), X(w * 0.93), Y(h * 0.52));
-  ctx.bezierCurveTo(X(w * 0.93), Y(h * 0.78), X(w * 0.84), Y(h * 0.98), X(w * 0.5), Y(h));
   ctx.closePath();
 }
 
