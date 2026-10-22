@@ -75,7 +75,13 @@ struct HunchApp: App {
                     // most specific shape of the three handlers below.
                     if let run = Ghost.from(url: url) {
                         Events.track(.raceLinkOpened, n: run.mode == .daily ? run.ref : nil)
-                        game.openRaceLink(run)
+                        // A short wait lets a cold launch finish settling (an iCloud
+                        // merge can send a returning player Home) before the
+                        // link's round opens on top.
+                        Task { @MainActor in
+                            try? await Task.sleep(for: .milliseconds(500))
+                            game.openRaceLink(run)
+                        }
                         return
                     }
                     if let invite = LiveInvite.from(url: url) {

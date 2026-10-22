@@ -22,21 +22,21 @@ import SwiftUI
 
 // MARK: - Data
 
-enum KeeperFaceName: String, CaseIterable {
+nonisolated enum KeeperFaceName: String, CaseIterable {
     case sly, flustered, shocked, calm, serious, focus
 }
 
 /// One eye. lidL/lidR/sag: the heavy upper lid (y at its left and right ends,
 /// and how far it sags in the middle). closed 1 = shut (Calm); bow and tilt
 /// shape the shut lash line. pdx/pdy/pr: the pupil.
-struct KeeperEye {
+nonisolated struct KeeperEye {
     var cx, cy, rx, ry, lidL, lidR, sag, pdx, pdy, pr, closed, bow, tilt: Double
 }
 
 /// One bushy grey brow. `c` is a cubic curve (x0, y0 ... x3, y3) from the
 /// INNER end to the OUTER end. `hairs` holds two loose hairs (t, length, lean);
 /// `tail` two wisps off the tip (lift, length, width).
-struct KeeperBrow {
+nonisolated struct KeeperBrow {
     var c: [Double]
     var th: Double
     var taper: Double
@@ -46,7 +46,7 @@ struct KeeperBrow {
 }
 
 /// The mouth: a white stroke through `pts` (x, y pairs), or (oval 1) the small dark "o".
-struct KeeperMouth {
+nonisolated struct KeeperMouth {
     var pts: [Double]
     var w: Double
     var oval: Double
@@ -56,16 +56,16 @@ struct KeeperMouth {
     var ory: Double
 }
 
-struct KeeperDrop {
+nonisolated struct KeeperDrop {
     var on, x, y, r, h, tilt: Double
 }
 
 /// The flame tip's reaction, in viewBox units: curl (Sly), droop (Flustered), spike (Shocked).
-struct KeeperTip {
+nonisolated struct KeeperTip {
     var dx, dy, sharp: Double
 }
 
-struct KeeperFace {
+nonisolated struct KeeperFace {
     var eyes: [KeeperEye]
     var brows: [KeeperBrow]
     var mouth: KeeperMouth
@@ -74,7 +74,7 @@ struct KeeperFace {
 }
 
 /// A colour as 0...255 channels, so the shading rule can do arithmetic on it.
-struct KeeperRGB: Equatable {
+nonisolated struct KeeperRGB: Equatable {
     var r: Double
     var g: Double
     var b: Double
@@ -86,7 +86,7 @@ struct KeeperRGB: Equatable {
     }
 
     /// Wick's body colour for a mood, as numbers. Same values as HunchTheme.Palette.
-    static func body(for mood: KeeperMood) -> KeeperRGB {
+    @MainActor static func body(for mood: KeeperMood) -> KeeperRGB {
         switch mood {
         case .idle, .thinking, .unamused: return KeeperRGB(r: 0.49 * 255, g: 0.36 * 255, b: 0.92 * 255)
         case .freezing:                   return KeeperRGB(r: 0.27 * 255, g: 0.52 * 255, b: 0.90 * 255)
@@ -100,7 +100,7 @@ struct KeeperRGB: Equatable {
     }
 }
 
-enum KeeperFaces {
+nonisolated enum KeeperFaces {
     static let sly = KeeperFace(
         eyes: [
             KeeperEye(cx: 413.0, cy: 578.0, rx: 54.0, ry: 42.0, lidL: 590.0, lidR: 582.0, sag: 7.0, pdx: -24.0, pdy: 8.0, pr: 23.0, closed: 0.0, bow: 5.0, tilt: 0.0),
@@ -259,7 +259,7 @@ enum KeeperFaces {
     /// Which face for the game's state. Solved stays Shocked (he keeps blinking).
     /// Thinking (an Ask Wick answer on its way) is Focus, except in a race,
     /// where a pending guess keeps the Serious race face.
-    static func faceFor(mood: KeeperMood, race: Bool) -> KeeperFaceName {
+    @MainActor static func faceFor(mood: KeeperMood, race: Bool) -> KeeperFaceName {
         switch mood {
         case .celebrating:
             return .shocked
@@ -630,7 +630,7 @@ enum KeeperFaces {
     // MARK: Drawing
 
     /// Draw the face, back to front, in art units (the caller sets the transform).
-    static func draw(in ctx: inout GraphicsContext, face: KeeperFace, closure: [Double], color: KeeperRGB) {
+    @MainActor static func draw(in ctx: inout GraphicsContext, face: KeeperFace, closure: [Double], color: KeeperRGB) {
         let plate = plateRGB(color)
         var shapes: [EyeShapes] = []
         for i in face.eyes.indices {

@@ -14,11 +14,9 @@
 //  keeps clear of the right edge and the bottom, where TikTok, Reels and
 //  Shorts put their buttons and captions.
 //
-//  Wick here is a frame-by-frame copy of KeeperView: same flame curve, same
-//  face, same mood colors. KeeperView animates on the wall clock through
-//  TimelineView, which an offscreen render cannot use, so the shape math is
-//  repeated below. If the mascot's shape changes in KeeperView, change
-//  `flamePath` here too.
+//  Wick is drawn by KeeperFaceCG (3.8): the same chunky flame and the same
+//  six faces as KeeperView, in CoreGraphics so this offscreen render can use
+//  them. Which face he wears follows the game's rules (wickFace below).
 //
 //  Keeper questions show their text in Wick's bubble on every round; only
 //  the guessed words follow the spoiler rule.
@@ -666,163 +664,64 @@ nonisolated final class ReplayScene {
         }
     }
 
-    /// Draws Wick with his feet at `feet`. Same proportions as KeeperView:
-    /// a flame `size` wide and 1.18 x `size` tall, face 0.16 x size below
-    /// the middle.
+    /// Which face and colour Wick wears at each moment of the replay: the
+    /// game's own rules (Sly cold, Flustered warm, Focus while answering,
+    /// Shocked on the solve, Calm on a give-up), in the replay's colours.
+    private func wickFace(_ look: WickLook) -> KeeperFaceName {
+        switch look {
+        case .idle:        return .sly
+        case .thinking:    return .focus
+        case .celebrating: return .shocked
+        case .defeated:    return .calm
+        case .band(let b):
+            switch b {
+            case .cold, .cool:           return .sly
+            case .warm, .hot, .boiling:  return .flustered
+            case .solved:                return .shocked
+            }
+        }
+    }
+
+    /// Draws Wick with his feet at `feet`, `size` wide, 1.18 x `size` tall,
+    /// with the same flame and faces as KeeperView (3.8, KeeperFaceCG).
     private func drawWick(in ctx: CGContext, feet: CGPoint, size s: CGFloat, look: WickLook,
                           t: Double, squash: CGFloat, lookDirection: CGFloat, standing: Bool) {
-        let h = s * 1.18
-        let period = bobPeriod(look)
-        let bob = standing ? CGFloat(sin(t * 2 * .pi / period)) * s * 0.03 : 0
-        let flicker = 0.5 + 0.5 * sin(t * 2 * .pi / (period * 0.8))
-        let body = color(of: look)
+        let h: CGFloat = s * 1.18
+        let period: Double = bobPeriod(look)
+        let bob: CGFloat = standing ? CGFloat(sin(t * 2 * .pi / period)) * s * 0.03 : 0
+        let flicker: Double = 0.5 + 0.5 * sin(t * 2 * .pi / (period * 0.8))
+        let body: ReplayRGBA = color(of: look)
+        let rgb = KeeperRGB(r: Double(body.r) * 255, g: Double(body.g) * 255, b: Double(body.b) * 255)
+        let face: KeeperFace = KeeperFaces.face(wickFace(look))
+        let canBlink: Bool = look != .celebrating && look != .defeated
+        let blink: Double = canBlink ? KeeperFaces.blinkAmount(fmod(t + 0.7, 3.3)) : 0
+        let closure: [Double] = face.eyes.map { max($0.closed, blink) }
 
         ctx.saveGState()
         defer { ctx.restoreGState() }
         ctx.translateBy(x: feet.x, y: feet.y + bob)
         ctx.scaleBy(x: 1 + (1 - squash) * 0.9, y: squash)
 
-        let rect = CGRect(x: -s / 2, y: -h, width: s, height: h)
-        let flame = Self.flamePath(in: rect, flicker: flicker)
-
-        // Glow.
-        ctx.saveGState()
-        ctx.setShadow(offset: .zero, blur: s * 0.35,
-                      color: body.cg(look == .defeated ? 0.1 : 0.6))
-        ctx.addPath(flame)
-        ctx.setFillColor(body.cg())
-        ctx.fillPath()
-        ctx.restoreGState()
-
-        // Body gradient, lighter at the tip.
-        ctx.saveGState()
-        ctx.addPath(flame)
-        ctx.clip()
-        let colors = [body.mixed(.white, 0.12).cg(), body.scaled(0.88).cg()] as CFArray
-        if let g = CGGradient(colorsSpace: colorSpace, colors: colors, locations: [0, 1]) {
-            ctx.drawLinearGradient(g, start: CGPoint(x: 0, y: -h), end: .zero, options: [])
-        }
-        ctx.restoreGState()
-
-        // Inner core highlight.
-        let core = CGRect(x: -s * 0.55 / 2, y: -h * 0.55 - s * 0.04, width: s * 0.55, height: h * 0.55)
-        ctx.addPath(Self.flamePath(in: core, flicker: flicker))
-        ctx.setFillColor(ReplayRGBA.white.cg(look == .defeated ? 0.08 : 0.22))
-        ctx.fillPath()
-
-        // Face.
-        let faceY = -h / 2 + s * 0.16
-        let eyeY = faceY - s * 0.115
-        let mouthY = faceY + s * 0.0925
-        let gaze = lookDirection * s * 0.03
-        let ew = s * 0.115
-        let blinking = fmod(t + 0.7, 3.3) < 0.12 && look != .celebrating && look != .defeated
-        for side in [-1.0, 1.0] as [CGFloat] {
-            let c = CGPoint(x: side * s * 0.1375 + gaze, y: eyeY)
-            drawEye(in: ctx, center: c, width: ew, look: look, blinking: blinking)
-        }
-        drawMouth(in: ctx, center: CGPoint(x: gaze * 0.5, y: mouthY), size: s, look: look)
-
+        // Sparkles around a celebrating Wick, in pixels around his middle.
         if look == .celebrating {
             for i in 0..<5 {
-                let a = Double(i) / 5 * 2 * .pi
-                let phase = (sin(t * 2 * .pi / 0.6 - Double(i) * 0.75) + 1) / 2
+                let a: Double = Double(i) / 5 * 2 * .pi
+                let phase: Double = (sin(t * 2 * .pi / 0.6 - Double(i) * 0.75) + 1) / 2
                 let p = CGPoint(x: CGFloat(cos(a)) * s * 0.62, y: -h / 2 + CGFloat(sin(a)) * s * 0.62)
                 ctx.addPath(sparklePath(center: p, radius: s * 0.07))
                 ctx.setFillColor(style.gold.cg(CGFloat(0.25 + 0.75 * phase)))
                 ctx.fillPath()
             }
         }
-    }
 
-    private func drawEye(in ctx: CGContext, center c: CGPoint, width ew: CGFloat,
-                         look: WickLook, blinking: Bool) {
-        ctx.setFillColor(ReplayRGBA.white.cg())
-        func oval(_ w: CGFloat, _ h: CGFloat, dx: CGFloat = 0, dy: CGFloat = 0) {
-            ctx.fillEllipse(in: CGRect(x: c.x + dx - w / 2, y: c.y + dy - h / 2, width: w, height: h))
-        }
-        switch look {
-        case .celebrating:
-            ctx.addPath(starPath(center: c, radius: ew * 0.85, points: 5))
-            ctx.fillPath()
-        case .defeated:
-            oval(ew, ew * 0.22)
-        case .thinking:
-            oval(ew, blinking ? ew * 0.18 : ew, dx: ew * 0.18, dy: -ew * 0.22)
-        case .band(.cold):
-            oval(ew, blinking ? ew * 0.18 : ew * 0.45)
-        case .band(.hot), .band(.boiling):
-            oval(ew * 1.18, blinking ? ew * 0.18 : ew * 1.18)
-        default:
-            oval(ew, blinking ? ew * 0.18 : ew)
-        }
-    }
-
-    private func drawMouth(in ctx: CGContext, center c: CGPoint, size s: CGFloat, look: WickLook) {
-        let mw = s * 0.16
-        let white = ReplayRGBA.white.cg(0.9)
-        func arc(radius: CGFloat, from a: Double, to b: Double, dy: CGFloat = 0) {
-            // Built point by point so it reads the same in a flipped context.
-            let path = CGMutablePath()
-            for i in 0...16 {
-                let th = a + (b - a) * Double(i) / 16
-                let p = CGPoint(x: c.x + radius * CGFloat(cos(th)), y: c.y + dy + radius * CGFloat(sin(th)))
-                if i == 0 { path.move(to: p) } else { path.addLine(to: p) }
-            }
-            ctx.addPath(path)
-            ctx.setStrokeColor(white)
-            ctx.setLineWidth(s * 0.028)
-            ctx.setLineCap(.round)
-            ctx.strokePath()
-        }
-        switch look {
-        case .celebrating, .band(.boiling), .band(.solved):
-            // Open, delighted: the lower half of a disc. y grows downward, so
-            // angles 0...pi are the bottom half.
-            let path = CGMutablePath()
-            for i in 0...16 {
-                let th = Double.pi * Double(i) / 16
-                let p = CGPoint(x: c.x + mw / 2 * CGFloat(cos(th)), y: c.y - mw * 0.1 + mw / 2 * CGFloat(sin(th)))
-                if i == 0 { path.move(to: p) } else { path.addLine(to: p) }
-            }
-            path.closeSubpath()
-            ctx.addPath(path)
-            ctx.setFillColor(white)
-            ctx.fillPath()
-        case .band(.hot), .band(.warm):
-            arc(radius: mw / 2, from: 0.15 * .pi, to: 0.85 * .pi, dy: -mw * 0.25)
-        case .band(.cold), .band(.cool):
-            arc(radius: mw * 0.4, from: 1.15 * .pi, to: 1.85 * .pi, dy: mw * 0.35)
-        case .thinking:
-            let d = mw * 0.34
-            ctx.setFillColor(white)
-            ctx.fillEllipse(in: CGRect(x: c.x + mw * 0.22 - d / 2, y: c.y - d / 2, width: d, height: d))
-        case .defeated:
-            ctx.setFillColor(ReplayRGBA.white.cg(0.7))
-            ctx.fill(CGRect(x: c.x - mw * 0.35, y: c.y - s * 0.0125, width: mw * 0.7, height: s * 0.025))
-        case .idle:
-            arc(radius: mw * 0.4, from: 0.2 * .pi, to: 0.8 * .pi, dy: -mw * 0.2)
-        }
-    }
-
-    /// KeeperFlameShape's curve, in top-left coordinates. Keep in step with
-    /// KeeperView.swift.
-    static func flamePath(in rect: CGRect, flicker: Double) -> CGPath {
-        let w = rect.width, h = rect.height
-        let lean = CGFloat(flicker - 0.5) * 0.22 * w
-        func p(_ x: CGFloat, _ y: CGFloat) -> CGPoint { CGPoint(x: rect.minX + x, y: rect.minY + y) }
-        let path = CGMutablePath()
-        path.move(to: p(w * 0.5, h))
-        path.addCurve(to: p(w * 0.07, h * 0.52),
-                      control1: p(w * 0.16, h * 0.98), control2: p(w * 0.07, h * 0.78))
-        path.addCurve(to: p(w * 0.5 + lean, 0),
-                      control1: p(w * 0.07, h * 0.22), control2: p(w * 0.32 + lean * 0.6, h * 0.10))
-        path.addCurve(to: p(w * 0.93, h * 0.52),
-                      control1: p(w * 0.68 + lean * 0.6, h * 0.10), control2: p(w * 0.93, h * 0.22))
-        path.addCurve(to: p(w * 0.5, h),
-                      control1: p(w * 0.93, h * 0.78), control2: p(w * 0.84, h * 0.98))
-        path.closeSubpath()
-        return path
+        // Into Wick's viewBox units: 120 units tall from the tip to the feet.
+        let unit: CGFloat = h / 120
+        ctx.saveGState()
+        ctx.scaleBy(x: unit, y: unit)
+        ctx.translateBy(x: -60, y: -124)
+        KeeperFaceCG.drawWick(in: ctx, face: face, closure: closure, color: rgb, flicker: flicker,
+                              glowBlur: s * 0.3, glowAlpha: look == .defeated ? 0.1 : 0.6)
+        ctx.restoreGState()
     }
 
     // MARK: Keeper bubble

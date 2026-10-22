@@ -6,7 +6,40 @@ numbers.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased] (3.6)
+## [Unreleased] (3.8)
+
+### Changed
+
+- **Replay videos show the new Wick (iOS).** The share replay drew the old
+  round-eyed Wick. It now uses the same flame and faces as the game (new
+  KeeperFaceCG.swift): Sly when cold, Flustered when warm to boiling, Focus
+  while he answers, Shocked on the solve, Calm on a give-up. The web replay
+  got the same change after 3.7 shipped.
+- **Old race links on a cold launch (iOS).** An old ghost-race link tapped
+  while the app is closed waits a moment for launch to settle, so it opens
+  its round instead of landing on Home.
+
+## [3.7] - October 2026
+
+### Changed
+
+- **Smarter Keeper.** Gemini answers every question (the automatic answers
+  from word tags are gone), with a small thinking budget, the round's
+  earlier questions, and "answer for the typical case". Answers are saved
+  per word, so a repeat is instant and the same for everyone, and the daily
+  word's common questions are answered before players arrive. iPhone solo
+  asks the server too, with Apple Intelligence as the offline fallback.
+- **Six faces.** Sly, Flustered, Shocked, Calm, Serious and Focus on both
+  platforms, picked from the game state with a blink between them; Home and
+  the welcome card show them all off.
+- **100% free.** No coins, shop, purchases or cosmetics. Three free hints a
+  day, then none until tomorrow.
+- **Ghost Race removed.** Friends race live with an invite link or code. Old
+  race links open the same word as a normal round.
+- **Bigger iPad Home**, the Sly app icon, PNG favicons and link previews,
+  "swings" scored like "swing", and no em dashes anywhere Wick speaks.
+
+## [3.6] - October 2026
 
 ### Added
 
