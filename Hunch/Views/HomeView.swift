@@ -26,6 +26,10 @@ struct HomeView: View {
     private let cols = [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)]
 
     @Environment(\.colorScheme) private var scheme
+    /// iPad (and a wide window): a wider column with bigger cards, text and
+    /// Wick, so Home fills the screen instead of sitting in a phone-size strip.
+    @Environment(\.horizontalSizeClass) private var sizeClass
+    private var wide: Bool { sizeClass == .regular }
 
     // The home follows system appearance: a light pastel mesh + dark ink in light
     // mode, a dark backdrop + light ink in dark mode.
@@ -64,13 +68,13 @@ struct HomeView: View {
             ZStack {
                 homeBackground
                 ScrollView {
-                    VStack(spacing: HunchTheme.Spacing.l) {
+                    VStack(spacing: wide ? HunchTheme.Spacing.xl : HunchTheme.Spacing.l) {
                         header
                         heroCard
                         // 3.3: three front doors. Daily (hero), Race, Practice.
                         // Dare is gone; Past puzzles steps down to a quieter
                         // row so Race gets the attention.
-                        LazyVGrid(columns: cols, spacing: 12) {
+                        LazyVGrid(columns: cols, spacing: wide ? 18 : 12) {
                             modeCard(title: game.loc.duelRace, subtitle: game.loc.homeRaceSub,
                                      system: "flag.checkered", color: HunchTheme.Palette.flame) { showDuel = true }
                             modeCard(title: game.loc.practice, subtitle: game.loc.homePlayAnytime,
@@ -81,7 +85,7 @@ struct HomeView: View {
                         utilityRow
                     }
                     .padding(HunchTheme.Spacing.l)
-                    .frame(maxWidth: 640)
+                    .frame(maxWidth: wide ? 840 : 640)
                     .frame(maxWidth: .infinity)
                 }
             }
@@ -117,22 +121,22 @@ struct HomeView: View {
     private var heroCard: some View {
         Button { Feedback.play(.selection); game.playDaily() } label: {
             HStack(spacing: HunchTheme.Spacing.m) {
-                KeeperView(mood: .idle, size: 68, showcase: true)
-                    .frame(width: 68)
-                VStack(alignment: .leading, spacing: 2) {
+                KeeperView(mood: .idle, size: wide ? 108 : 68, showcase: true)
+                    .frame(width: wide ? 108 : 68)
+                VStack(alignment: .leading, spacing: wide ? 4 : 2) {
                     Text(game.loc.dailyTitle(WordBank.dailyNumber()))
-                        .font(.caption).foregroundStyle(HunchTheme.Palette.hot)
+                        .font(wide ? Font.headline : Font.caption).foregroundStyle(HunchTheme.Palette.hot)
                     Text(game.loc.todaysPuzzle)
-                        .font(.title2.bold()).foregroundStyle(inkPrimary)
+                        .font(wide ? Font.largeTitle.bold() : Font.title2.bold()).foregroundStyle(inkPrimary)
                     Text(game.loc.homeGuessWord)
-                        .font(.subheadline).foregroundStyle(inkSecondary)
+                        .font(wide ? Font.title3 : Font.subheadline).foregroundStyle(inkSecondary)
                 }
                 Spacer(minLength: 0)
                 Image(systemName: "play.circle.fill")
-                    .font(.system(size: 44))
+                    .font(.system(size: wide ? 68 : 44))
                     .foregroundStyle(HunchTheme.Palette.hot)
             }
-            .padding(HunchTheme.Spacing.l)
+            .padding(wide ? HunchTheme.Spacing.xl : HunchTheme.Spacing.l)
             .frame(maxWidth: .infinity)
             .background(HunchTheme.Palette.hot.opacity(0.12), in: RoundedRectangle(cornerRadius: HunchTheme.Radius.card))
             .overlay(RoundedRectangle(cornerRadius: HunchTheme.Radius.card)
@@ -146,15 +150,15 @@ struct HomeView: View {
     private func modeCard(title: String, subtitle: String, system: String,
                           color: Color, action: @escaping () -> Void) -> some View {
         Button { Feedback.play(.selection); action() } label: {
-            VStack(alignment: .leading, spacing: 6) {
-                Image(systemName: system).font(.title2).foregroundStyle(color)
-                Text(title).font(.headline).foregroundStyle(color)
+            VStack(alignment: .leading, spacing: wide ? 10 : 6) {
+                Image(systemName: system).font(wide ? Font.largeTitle : Font.title2).foregroundStyle(color)
+                Text(title).font(wide ? Font.title.bold() : Font.headline).foregroundStyle(color)
                     .fixedSize(horizontal: false, vertical: true)
-                Text(subtitle).font(.caption).foregroundStyle(inkSecondary)
+                Text(subtitle).font(wide ? Font.title3 : Font.caption).foregroundStyle(inkSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            .frame(maxWidth: .infinity, minHeight: 96, alignment: .topLeading)
-            .padding(HunchTheme.Spacing.l)
+            .frame(maxWidth: .infinity, minHeight: wide ? 170 : 96, alignment: .topLeading)
+            .padding(wide ? HunchTheme.Spacing.xl : HunchTheme.Spacing.l)
             .background(color.opacity(0.12), in: RoundedRectangle(cornerRadius: HunchTheme.Radius.card))
             .overlay(RoundedRectangle(cornerRadius: HunchTheme.Radius.card)
                 .strokeBorder(color.opacity(0.28), lineWidth: 1))
@@ -187,13 +191,13 @@ struct HomeView: View {
                             action: @escaping () -> Void) -> some View {
         Button { Feedback.play(.selection); action() } label: {
             HStack(spacing: HunchTheme.Spacing.s) {
-                Image(systemName: system).font(.subheadline).foregroundStyle(color)
-                Text(title).font(.subheadline.weight(.semibold)).foregroundStyle(inkPrimary)
+                Image(systemName: system).font(wide ? Font.title2 : Font.subheadline).foregroundStyle(color)
+                Text(title).font(wide ? Font.title2.weight(.semibold) : Font.subheadline.weight(.semibold)).foregroundStyle(inkPrimary)
                     .lineLimit(1).minimumScaleFactor(0.8)
                 Spacer(minLength: 0)
             }
-            .padding(.horizontal, HunchTheme.Spacing.m)
-            .padding(.vertical, HunchTheme.Spacing.m)
+            .padding(.horizontal, wide ? HunchTheme.Spacing.l : HunchTheme.Spacing.m)
+            .padding(.vertical, wide ? HunchTheme.Spacing.l : HunchTheme.Spacing.m)
             .frame(maxWidth: .infinity)
             .background(color.opacity(0.12), in: RoundedRectangle(cornerRadius: HunchTheme.Radius.field))
             .overlay(RoundedRectangle(cornerRadius: HunchTheme.Radius.field)
@@ -205,7 +209,7 @@ struct HomeView: View {
     // MARK: Utility row
 
     private var utilityRow: some View {
-        HStack(spacing: HunchTheme.Spacing.s) {
+        HStack(spacing: wide ? HunchTheme.Spacing.m : HunchTheme.Spacing.s) {
             utilityButton(game.loc.yourStats, system: "chart.bar.fill") { showStats = true }
             utilityButton(game.loc.howToPlay, system: "questionmark.circle.fill") { showHowTo = true }
             utilityButton(game.loc.settings, system: "gearshape.fill") { showSettings = true }
@@ -214,13 +218,13 @@ struct HomeView: View {
 
     private func utilityButton(_ title: String, system: String, action: @escaping () -> Void) -> some View {
         Button { Feedback.play(.selection); action() } label: {
-            VStack(spacing: 4) {
-                Image(systemName: system).font(.title3).foregroundStyle(.secondary)
-                Text(title).font(.caption).foregroundStyle(.secondary)
+            VStack(spacing: wide ? 8 : 4) {
+                Image(systemName: system).font(wide ? Font.largeTitle : Font.title3).foregroundStyle(.secondary)
+                Text(title).font(wide ? Font.title3 : Font.caption).foregroundStyle(.secondary)
                     .lineLimit(1).minimumScaleFactor(0.8)
             }
             .frame(maxWidth: .infinity)
-            .padding(.vertical, HunchTheme.Spacing.m)
+            .padding(.vertical, wide ? HunchTheme.Spacing.xl : HunchTheme.Spacing.m)
             .hunchCard(radius: HunchTheme.Radius.field)
         }
         .buttonStyle(.plain)
