@@ -567,7 +567,14 @@ nonisolated final class ReplayScene {
         if let i = timeline.beatIndex(at: t), case .keeper = timeline.beats[i].kind {
             return .thinking
         }
-        if let best = timeline.bestRank(at: t) { return .band(ReplayBand(rank: best)) }
+        // He wears the heat of the guess that just landed (the latest tile),
+        // not the best so far, so he flickers cold and hot as the guesses do.
+        // The HUD's "Best" still shows the best.
+        var latest: ReplayTile? = nil
+        for tile in timeline.tiles {
+            if tile.landsAt <= t { latest = tile } else { break }
+        }
+        if let tile = latest { return .band(tile.band) }
         return .idle
     }
 

@@ -447,8 +447,14 @@ export class ReplayScene {
     if (last && t >= last.landsAt) return this.tl.outcome === "solved" ? "celebrating" : "defeated";
     const beat = this.tl.beats[beatIndex(this.tl, t)];
     if (beat?.kind.kind === "keeper") return "thinking";
-    const best = bestRank(this.tl, t);
-    return best === null ? "idle" : bandForRank(best);
+    // He wears the heat of the guess that just landed (the latest tile), not
+    // the best so far, so he flickers cold and hot as the guesses do, like the
+    // board does while playing. The HUD's "Best" still shows the best.
+    let latest: Tile | null = null;
+    for (const tile of this.tl.tiles) {
+      if (tile.landsAt <= t) latest = tile; else break;
+    }
+    return latest ? tileBand(latest) : "idle";
   }
 
   private placement(t: number): { gx: number; gy: number; lift: number; squash: number; dir: number } {
