@@ -33,9 +33,9 @@ nonisolated struct KeeperEye {
     var cx, cy, rx, ry, lidL, lidR, sag, pdx, pdy, pr, closed, bow, tilt: Double
 }
 
-/// One bushy grey brow. `c` is a cubic curve (x0, y0 ... x3, y3) from the
-/// INNER end to the OUTER end. `hairs` holds two loose hairs (t, length, lean);
-/// `tail` two wisps off the tip (lift, length, width).
+/// One sculpted silver brow. `c` is a cubic curve (x0, y0 ... x3, y3) from the
+/// INNER end to the OUTER end. `hairs` positions two broad crown tufts
+/// (t, height, lean); `tail` describes the restrained outer taper.
 nonisolated struct KeeperBrow {
     var c: [Double]
     var th: Double
@@ -252,7 +252,10 @@ nonisolated enum KeeperFaces {
 
     static let eyeWhite = KeeperRGB(r: 245, g: 243, b: 254)
     static let pupil = KeeperRGB(r: 31, g: 23, b: 59)
-    static let browGrey = KeeperRGB(r: 214, g: 210, b: 228)
+    // Mid-silver reads as hair rather than another white eyelid; the stronger
+    // aubergine keyline keeps the brows clear on every Wick colour.
+    static let browGrey = KeeperRGB(r: 197, g: 193, b: 209)
+    static let browKey = KeeperRGB(r: 68, g: 55, b: 91)
 
     // MARK: State to face
 
@@ -452,22 +455,11 @@ nonisolated enum KeeperFaces {
         return EyeShapes(lid: lid, bag: bag, white: white, pupil: pupil, lash: lash, lashOpacity: lo * lo * (3 - 2 * lo))
     }
 
-    /// A strand: a centre line widened by `ws` either side along (px, py).
-    private static func strand(_ pts: [(Double, Double)], _ ws: [Double], _ px: Double, _ py: Double) -> Path {
-        var p = Path()
-        guard pts.count >= 2 else { return p }
-        for (k, q) in pts.enumerated() {
-            let a = pt(q.0 + px * ws[k], q.1 + py * ws[k])
-            if k == 0 { p.move(to: a) } else { p.addLine(to: a) }
-        }
-        for (k, q) in pts.enumerated().reversed() { p.addLine(to: pt(q.0 - px * ws[k], q.1 - py * ws[k])) }
-        p.closeSubpath()
-        return p
-    }
-
-    /// A bushy grey brow: tapered body with a soft uneven top, loose hairs and tip wisps.
+    /// A silver-fox brow built as one strong silhouette. Broad integrated tufts
+    /// retain the hand-drawn character without the sub-pixel loose hairs that
+    /// used to render differently in SwiftUI, Core Graphics, SVG and canvas.
     static func browPath(_ b: KeeperBrow) -> Path {
-        let n = 120
+        let n = 64
         let th = b.th
         let c = b.c
         func bez(_ t: Double) -> (Double, Double) {
@@ -493,24 +485,38 @@ nonisolated enum KeeperFaces {
         func width(_ t: Double) -> Double {
             let rise: Double = b.peak > 0 ? min(1, t / b.peak) : 1
             let fall: Double = max(0, (t - b.peak) / (1 - b.peak))
-            let s1: Double = 0.72 + 0.28 * sin(rise * Double.pi / 2)
-            let s2: Double = 1 - b.taper * pow(fall, 1.4)
+            let smoothRise: Double = rise * rise * (3 - 2 * rise)
+            let s1: Double = 0.96 + 0.12 * smoothRise
+            let s2: Double = 1 - b.taper * 0.98 * pow(fall, 1.15)
             return th * s1 * s2
         }
-        let ph: Double = (c[0] * 0.37 + c[1] * 0.11).truncatingRemainder(dividingBy: 6.28)
+        func tuft(_ t: Double) -> Double {
+            var lift: Double = 0
+            for j in 0..<2 {
+                let at = b.hairs[j * 3]
+                let height = min(th * 0.24, b.hairs[j * 3 + 1] * 0.42)
+                let d = (t - at) / 0.065
+                lift += height * exp(-d * d)
+            }
+            return lift
+        }
         var top: [CGPoint] = [], bot: [CGPoint] = []
         for i in 0...n {
             let f = frame(i)
             let t: Double = Double(i) / Double(n)
             let w: Double = width(t) / 2
-            let wave: Double = sin(2 * Double.pi * 2.4 * t + ph) + 0.5 * sin(2 * Double.pi * 5.3 * t + ph * 1.7)
-            let rough: Double = th * 0.055 * wave * (0.3 + 0.7 * t)
+            let rough: Double = th * 0.018 * sin(2 * Double.pi * 2.2 * t) * (0.25 + 0.75 * t)
             let x = cen[i].0, y = cen[i].1
-            top.append(pt(x + f.2 * (w + rough), y + f.3 * (w + rough)))
+            let crown = w + rough + tuft(t)
+            top.append(pt(x + f.2 * crown, y + f.3 * crown))
             bot.append(pt(x - f.2 * w, y - f.3 * w))
         }
         let f0 = frame(0)
         let w0: Double = width(0) / 2
+        let fn = frame(n)
+        let wn: Double = width(1) / 2
+        let outerTip = pt(cen[n].0 + fn.0 * wn * 0.9,
+                          cen[n].1 + fn.1 * wn * 0.9)
         var cap: [CGPoint] = []
         for kk in 1..<20 {
             let a: Double = Double.pi * Double(kk) / 20
@@ -519,45 +525,13 @@ nonisolated enum KeeperFaces {
         }
         var path = Path()
         var outline: [CGPoint] = top
+        outline.append(outerTip)
         outline.append(contentsOf: bot.reversed())
         outline.append(contentsOf: cap.reversed())
         path.move(to: outline[0])
         for q in outline.dropFirst() { path.addLine(to: q) }
         path.closeSubpath()
 
-        for j in 0..<2 {
-            let t = b.hairs[j * 3], ln = b.hairs[j * 3 + 1], lean = b.hairs[j * 3 + 2]
-            if ln < 0.5 { continue }
-            let i = min(n, max(0, Int((t * Double(n)).rounded(.down))))
-            let f = frame(i)
-            let w: Double = width(t) / 2
-            let bx: Double = cen[i].0 + f.2 * (w - 3), by: Double = cen[i].1 + f.3 * (w - 3)
-            let a: Double = lean * Double.pi / 180
-            let dx: Double = f.2 * cos(a) + f.0 * sin(a), dy: Double = f.3 * cos(a) + f.1 * sin(a)
-            let len: Double = ln * 1.4
-            var pts: [(Double, Double)] = [], ws: [Double] = []
-            for kk in 0...20 {
-                let u: Double = Double(kk) / 20
-                pts.append((bx + dx * len * u + f.0 * len * 0.35 * u * u, by + dy * len * u + f.1 * len * 0.35 * u * u))
-                ws.append(3.2 * (1 - u) + 0.4)
-            }
-            path.addPath(strand(pts, ws, -dy, dx))
-        }
-        let ft = frame(n - 6)
-        let ex = cen[n - 6].0, ey = cen[n - 6].1
-        for j in 0..<2 {
-            let lift = b.tail[j * 3], ln = b.tail[j * 3 + 1], wd = b.tail[j * 3 + 2]
-            if ln < 0.5 { continue }
-            let a: Double = lift * Double.pi / 180
-            let dx: Double = ft.0 * cos(a) + ft.2 * sin(a), dy: Double = ft.1 * cos(a) + ft.3 * sin(a)
-            var pts: [(Double, Double)] = [], ws: [Double] = []
-            for kk in 0...24 {
-                let u: Double = Double(kk) / 24
-                pts.append((ex + dx * ln * u + ft.2 * ln * 0.18 * u * u, ey + dy * ln * u + ft.3 * ln * 0.18 * u * u))
-                ws.append(wd * (1 - u))
-            }
-            path.addPath(strand(pts, ws, -dy, dx))
-        }
         return path
     }
 
@@ -662,6 +636,8 @@ nonisolated enum KeeperFaces {
         }
         var brows = Path()
         for b in face.brows { brows.addPath(browPath(b)) }
+        ctx.stroke(brows, with: .color(browKey.color.opacity(0.72)),
+                   style: StrokeStyle(lineWidth: 9, lineCap: .round, lineJoin: .round))
         ctx.fill(brows, with: .color(browGrey.color))
         let m = face.mouth
         if m.oval < 0.999 {

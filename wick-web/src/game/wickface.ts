@@ -161,8 +161,8 @@ export type FaceName = "sly" | "flustered" | "shocked" | "calm" | "serious" | "f
  *  and how far it sags in the middle). closed 1 = shut (the Calm face); bow and
  *  tilt shape the shut lash line. pdx/pdy/pr: the pupil. */
 export interface EyeP { cx: number; cy: number; rx: number; ry: number; lidL: number; lidR: number; sag: number; pdx: number; pdy: number; pr: number; closed: number; bow: number; tilt: number }
-/** One bushy grey brow: a curve from the INNER end to the OUTER end, its weight
- *  and taper, two loose hairs [t, length, lean] and two tip wisps [lift, length, width]. */
+/** One sculpted silver brow: a curve from the INNER end to the OUTER end, its
+ *  weight and taper, and two broad integrated crown tufts [t, height, lean]. */
 export interface BrowP { c: number[][]; th: number; taper: number; peak: number; hairs: number[][]; tail: number[][] }
 /** The mouth: a white stroke through `pts`, or (oval 1) the small dark "o". */
 export interface MouthP { pts: number[][]; w: number; oval: number; ocx: number; ocy: number; orx: number; ory: number }
@@ -260,7 +260,10 @@ export const FACE_TRANSFORM = `translate(${FACE_TX.toFixed(3)} ${FACE_TY.toFixed
 
 export const EYE_WHITE: RGB = [245, 243, 254];
 export const PUPIL: RGB = [31, 23, 59];
-export const BROW_GREY: RGB = [214, 210, 228];
+// Mid-silver reads as hair rather than another white eyelid. The stronger
+// aubergine keyline stays clear on every heat colour.
+export const BROW_GREY: RGB = [197, 193, 209];
+export const BROW_KEY: RGB = [68, 55, 91];
 
 /** The inner flame (lighter core) in art units, for clipping the face shading. */
 export const PLATE_ART = "M511.5 448.0 C585.0 490.4 655.9 540.0 655.9 657.5 C655.9 776.5 598.8 841.0 511.5 841.0 C425.2 841.0 368.1 776.5 368.1 657.5 C368.1 540.0 439.0 490.4 511.5 448.0 Z";
@@ -398,9 +401,10 @@ function bez(c: number[][], t: number): Pt {
   const a = (1 - t) ** 3, b = 3 * (1 - t) ** 2 * t, d = 3 * (1 - t) * t * t, e = t ** 3;
   return [a * p0[0]! + b * p1[0]! + d * p2[0]! + e * p3[0]!, a * p0[1]! + b * p1[1]! + d * p2[1]! + e * p3[1]!];
 }
-/** A bushy grey brow: tapered body with a soft uneven top, loose hairs and tip wisps. */
+/** A silver-fox brow built as one strong silhouette. Broad integrated tufts
+ *  keep the hand-drawn character without sub-pixel loose hairs. */
 export function browPath(b: BrowP): string {
-  const n = 120, th = b.th, C = b.c;
+  const n = 64, th = b.th, C = b.c;
   const cen: Pt[] = [];
   for (let i = 0; i <= n; i++) cen.push(bez(C, i / n));
   const fr = (i: number): [number, number, number, number] => {
@@ -414,43 +418,33 @@ export function browPath(b: BrowP): string {
   const width = (t: number): number => {
     const rise = b.peak > 0 ? Math.min(1, t / b.peak) : 1;
     const fall = Math.max(0, (t - b.peak) / (1 - b.peak));
-    return th * (0.72 + 0.28 * Math.sin((rise * Math.PI) / 2)) * (1 - b.taper * fall ** 1.4);
+    const smoothRise = rise * rise * (3 - 2 * rise);
+    // Heavy at the glabella, then commit to a sharp outside taper. The old
+    // near-constant width made every expression look like two pasted bars.
+    return th * (0.96 + 0.12 * smoothRise) * (1 - b.taper * 0.98 * fall ** 1.15);
   };
-  const ph = ((C[0]![0]! * 0.37 + C[0]![1]! * 0.11) % 6.28);
+  const tuft = (t: number): number => b.hairs.reduce((lift, hair) => {
+    const at = hair[0] ?? 0, height = hair[1] ?? 0;
+    const d = (t - at) / 0.065;
+    return lift + Math.min(th * 0.24, height * 0.42) * Math.exp(-d * d);
+  }, 0);
   const top: Pt[] = [], bot: Pt[] = [];
   for (let i = 0; i <= n; i++) {
     const [, , nx, ny] = fr(i); const t = i / n; const w = width(t) / 2;
-    const rough = th * 0.055 * (Math.sin(2 * Math.PI * 2.4 * t + ph) + 0.5 * Math.sin(2 * Math.PI * 5.3 * t + ph * 1.7)) * (0.3 + 0.7 * t);
+    const rough = th * 0.018 * Math.sin(2 * Math.PI * 2.2 * t) * (0.25 + 0.75 * t);
     const [x, y] = cen[i]!;
-    top.push([x + nx * (w + rough), y + ny * (w + rough)]); bot.push([x - nx * w, y - ny * w]);
+    const crown = w + rough + tuft(t);
+    top.push([x + nx * crown, y + ny * crown]); bot.push([x - nx * w, y - ny * w]);
   }
   const [tx0, ty0, nx0, ny0] = fr(0); const [x0, y0] = cen[0]!; const w0 = width(0) / 2;
+  const [txn, tyn] = fr(n); const [xn, yn] = cen[n]!; const wn = width(1) / 2;
+  const outerTip: Pt = [xn + txn * wn * 0.9, yn + tyn * wn * 0.9];
   const cap: Pt[] = [];
   for (let k = 1; k < 20; k++) {
     const a = (Math.PI * k) / 20;
     cap.push([x0 + nx0 * w0 * Math.cos(a) - tx0 * w0 * Math.sin(a), y0 + ny0 * w0 * Math.cos(a) - ty0 * w0 * Math.sin(a)]);
   }
-  let d = polyPath([...top, ...bot.reverse(), ...cap.reverse()]);
-  const strand = (pts: Pt[], ws: number[], px: number, py: number): string =>
-    polyPath([...pts.map((p, k): Pt => [p[0] + px * ws[k]!, p[1] + py * ws[k]!]), ...pts.map((p, k): Pt => [p[0] - px * ws[k]!, p[1] - py * ws[k]!]).reverse()]);
-  for (const [t, ln, lean] of b.hairs as [number, number, number][]) {
-    if (ln < 0.5) continue;
-    const i = Math.floor(t * n); const [tx, ty, nx, ny] = fr(i); const w = width(t) / 2;
-    const bx = cen[i]![0] + nx * (w - 3), by = cen[i]![1] + ny * (w - 3);
-    const a = (lean * Math.PI) / 180; const dx = nx * Math.cos(a) + tx * Math.sin(a), dy = ny * Math.cos(a) + ty * Math.sin(a);
-    const L = ln * 1.4; const pts: Pt[] = [], ws: number[] = [];
-    for (let k = 0; k <= 20; k++) { const u = k / 20; pts.push([bx + dx * L * u + tx * L * 0.35 * u * u, by + dy * L * u + ty * L * 0.35 * u * u]); ws.push(3.2 * (1 - u) + 0.4); }
-    d += strand(pts, ws, -dy, dx);
-  }
-  const [tx, ty, nx, ny] = fr(n - 6); const [ex, ey] = cen[n - 6]!;
-  for (const [lift, ln, wd] of b.tail as [number, number, number][]) {
-    if (ln < 0.5) continue;
-    const a = (lift * Math.PI) / 180; const dx = tx * Math.cos(a) + nx * Math.sin(a), dy = ty * Math.cos(a) + ny * Math.sin(a);
-    const pts: Pt[] = [], ws: number[] = [];
-    for (let k = 0; k <= 24; k++) { const u = k / 24; pts.push([ex + dx * ln * u + nx * ln * 0.18 * u * u, ey + dy * ln * u + ny * ln * 0.18 * u * u]); ws.push(wd * (1 - u)); }
-    d += strand(pts, ws, -dy, dx);
-  }
-  return d;
+  return polyPath([...top, outerTip, ...bot.reverse(), ...cap.reverse()]);
 }
 /** The sweat drop: a circle and the triangle up to its tip, turned by `tilt`. */
 export function dropPath(dp: DropP): string {
@@ -485,7 +479,7 @@ export function shadeRGB(base: RGB, c: RGB, steps: number): RGB {
 /** One shape to draw, in art units. `plate` = clip to the inner flame. */
 export interface DrawItem { d: string; fill?: string; stroke?: string; width?: number; opacity: number; plate?: boolean }
 
-/** Everything in the face, back to front, always the same 18 slots (some may be empty). */
+/** Everything in the face, back to front, always the same 19 slots (some may be empty). */
 export function faceDrawList(p: FaceP, closure: number[], color: RGB): DrawItem[] {
   const plate = plateRGB(color);
   const items: DrawItem[] = [];
@@ -501,7 +495,9 @@ export function faceDrawList(p: FaceP, closure: number[], color: RGB): DrawItem[
     items.push({ d: s.pupil, fill: rgb(PUPIL), opacity: 1 });
     items.push({ d: s.lash, stroke: rgb(EYE_WHITE), width: 16, opacity: s.lashOpacity });
   }
-  items.push({ d: p.brows.map(browPath).join(""), fill: rgb(BROW_GREY), opacity: 1 });
+  const brows = p.brows.map(browPath).join("");
+  items.push({ d: brows, stroke: rgb(BROW_KEY), width: 9, opacity: 0.72 });
+  items.push({ d: brows, fill: rgb(BROW_GREY), opacity: 1 });
   items.push({ d: mouthStrokePath(p.mouth), stroke: rgb(EYE_WHITE), width: p.mouth.w, opacity: 1 - p.mouth.oval });
   items.push({ d: p.mouth.oval > 0.01 ? mouthOvalPath(p.mouth) : "", fill: rgb(PUPIL), opacity: p.mouth.oval });
   items.push({ d: p.drop.on > 0.01 ? dropPath(p.drop) : "", fill: rgb(EYE_WHITE), opacity: p.drop.on });

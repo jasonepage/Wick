@@ -19,7 +19,7 @@
 //
 
 import { pulseAt, type Pulse } from "./game/music.ts";
-import { type WickMood, poseAt } from "./game/wick.ts";
+import { type WickDanceStyle, type WickMood, poseAt } from "./game/wick.ts";
 import { moodRGB } from "./game/wickface.ts";
 import { drawWick } from "./game/wickcanvas.ts";
 import { zipStore, type ZipEntry } from "./game/zip.ts";
@@ -45,6 +45,8 @@ const RACE_KIAI_AT = 240;
 
 interface Plan {
   mood: WickMood;
+  style: WickDanceStyle;
+  intensity: number;
   section: Section;
   bars: number;
   seconds: number;
@@ -59,10 +61,16 @@ interface Plan {
 const $ = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
 const canvas = $<HTMLCanvasElement>("canvas");
 const status = $<HTMLDivElement>("status");
+const timeline = $<HTMLInputElement>("timeline");
+const timeValue = $<HTMLOutputElement>("time-value");
+const intensityValue = $<HTMLOutputElement>("intensity-value");
+const poseReadout = $<HTMLPreElement>("pose-readout");
 const ctx = canvas.getContext("2d")!;
 
 function readPlan(): Plan {
   const mood = $<HTMLSelectElement>("mood").value as WickMood;
+  const style = $<HTMLSelectElement>("style").value as WickDanceStyle;
+  const intensity = Math.max(0.35, Math.min(1.65, Number($<HTMLInputElement>("intensity").value) || 1));
   const section = $<HTMLSelectElement>("section").value as Section;
   let bars = Math.max(1, Math.min(64, Math.round(Number($<HTMLInputElement>("bars").value) || 8)));
   // The drop needs 2 bars of chill, the 2 bar riser, and at least 2 bars of kiai.
@@ -72,7 +80,11 @@ function readPlan(): Plan {
   const audio = $<HTMLSelectElement>("audio").value !== "none";
   const riserAt = section === "drop" ? 2 * BAR : section === "race" ? RACE_RISER_AT : section === "kiai" ? -10 : null;
   const kiaiAt = section === "drop" ? 4 * BAR : section === "race" ? RACE_KIAI_AT : section === "kiai" ? -10 : null;
-  return { mood, section, bars, seconds: bars * BAR, riserAt, kiaiAt, green, audio };
+  const seconds = bars * BAR;
+  timeline.max = String(seconds);
+  if (Number(timeline.value) > seconds) timeline.value = String(seconds);
+  intensityValue.value = `${intensity.toFixed(2)}×`;
+  return { mood, style, intensity, section, bars, seconds, riserAt, kiaiAt, green, audio };
 }
 
 /** The music pulse `t` seconds into the clip. */
@@ -101,13 +113,28 @@ function blinkAt(times: number[], t: number): number {
   return 0;
 }
 
-/** Paint frame at time `t` of the clip. */
-function drawFrame(plan: Plan, blinks: number[], t: number): void {
+/** Paint frame at time `t` of the clip. `studio` updates the scrubber/readout;
+ *  exports leave it false so thousands of frames do no extra DOM work. */
+function drawFrame(plan: Plan, blinks: number[], t: number, studio = false): void {
   ctx.clearRect(0, 0, W, H);
   if (plan.green) { ctx.fillStyle = GREEN; ctx.fillRect(0, 0, W, H); }
   const blink = plan.mood === "celebrating" || plan.mood === "unamused" ? 0 : blinkAt(blinks, t);
-  const pose = poseAt({ t, mood: plan.mood, pokeAt: null, reduceMotion: false, pulse: pulseFor(plan, t) });
+  const pulse = pulseFor(plan, t);
+  const pose = poseAt({
+    t, mood: plan.mood, pokeAt: null, reduceMotion: false, pulse,
+    danceStyle: plan.style, danceIntensity: plan.intensity,
+  });
   drawWick(ctx, { x: W / 2, y: FEET_Y, scale: SCALE, mood: plan.mood, color: moodRGB(plan.mood), pose, blink, t });
+  if (studio) {
+    timeline.value = String(Math.max(0, Math.min(plan.seconds, t)));
+    timeValue.value = `${Math.max(0, t).toFixed(2)} s`;
+    poseReadout.textContent = [
+      `${plan.style} · ${plan.intensity.toFixed(2)}× · beat ${Math.floor(t / 0.5) + 1}`,
+      `position  x ${pose.x.toFixed(2)}   y ${pose.y.toFixed(2)}   rot ${pose.rot.toFixed(1)}°`,
+      `scale     x ${pose.sx.toFixed(3)}  y ${pose.sy.toFixed(3)}  flame ${pose.flicker.toFixed(3)}`,
+      `music     beat ${pulse.beat.toFixed(3)}  energy ${pulse.energy.toFixed(3)}  drop ${pulse.flash.toFixed(3)}`,
+    ].join("\n");
+  }
 }
 
 // ── music ───────────────────────────────────────────────────────────────────
@@ -173,6 +200,7 @@ async function mixMusic(plan: Plan): Promise<AudioBuffer> {
 
 let previewCtx: AudioContext | null = null;
 let previewRaf = 0;
+let replayFrom = 0;
 
 async function startPreview(): Promise<void> {
   stopPreview();
@@ -186,17 +214,25 @@ async function startPreview(): Promise<void> {
   src.buffer = music;
   src.connect(ac.destination);
   const startAt = ac.currentTime + 0.1;
-  src.start(startAt);
+  const requested = Number(timeline.value) || 0;
+  const from = requested >= plan.seconds - 1 / FPS
+    ? Math.max(0, Math.min(plan.seconds - 1 / FPS, replayFrom))
+    : Math.max(0, Math.min(plan.seconds - 1 / FPS, requested));
+  src.start(startAt, from);
   const blinks = blinkTimes(plan.seconds);
   $<HTMLButtonElement>("stop").disabled = false;
+  $<HTMLButtonElement>("preview").textContent = "↻ Restart";
   say(`Playing ${plan.bars} bars.`);
   const frame = (): void => {
     if (previewCtx !== ac) return;
     const lag = (ac as AudioContext & { outputLatency?: number }).outputLatency ?? ac.baseLatency ?? 0;
-    const t = ac.currentTime - lag - startAt;
-    drawFrame(plan, blinks, Math.max(0, t));
+    // Audio is scheduled a fraction ahead so the first sample is reliable.
+    // Hold the selected pose during that lead-in instead of letting output
+    // latency make the studio scrubber visibly jump backwards.
+    const t = Math.max(from, from + ac.currentTime - lag - startAt);
+    drawFrame(plan, blinks, t, true);
     if (t < plan.seconds) previewRaf = requestAnimationFrame(frame);
-    else stopPreview();
+    else { stopPreview(); say("Ready. Pick a move or press Play."); }
   };
   previewRaf = requestAnimationFrame(frame);
 }
@@ -205,6 +241,7 @@ function stopPreview(): void {
   cancelAnimationFrame(previewRaf);
   if (previewCtx) { void previewCtx.close(); previewCtx = null; }
   $<HTMLButtonElement>("stop").disabled = true;
+  $<HTMLButtonElement>("preview").textContent = "▶ Play";
 }
 
 // ── export ──────────────────────────────────────────────────────────────────
@@ -223,7 +260,7 @@ function download(blob: Blob, name: string): void {
 }
 
 function clipName(plan: Plan): string {
-  return `wick-${plan.mood}-${plan.section}-${plan.bars}bars${plan.audio ? "" : "-silent"}`;
+  return `wick-${plan.mood}-${plan.style}-${plan.section}-${plan.bars}bars${plan.audio ? "" : "-silent"}`;
 }
 
 async function exportVideo(): Promise<void> {
@@ -303,7 +340,7 @@ async function exportPngs(): Promise<void> {
   }
   entries.push({ name: "info.txt", data: new TextEncoder().encode(
     `Wick dance PNG sequence\n${frames} frames at ${FPS} frames per second, ${plan.seconds} seconds (${plan.bars} bars at 120 BPM).\n` +
-    `Mood: ${plan.mood}. Section: ${plan.section}. 1080 x 1920, transparent background.\n`) });
+    `Mood: ${plan.mood}. Choreography: ${plan.style} at ${plan.intensity.toFixed(2)}x. Section: ${plan.section}. 1080 x 1920, transparent background.\n`) });
   const zip = zipStore(entries);
   download(new Blob([zip], { type: "application/zip" }), `${clipName(plan)}-png.zip`);
   say(`Done: ${frames} PNG frames (${(zip.length / 1e6).toFixed(1)} MB).`);
@@ -315,9 +352,55 @@ $("preview").addEventListener("click", () => { startPreview().catch((e) => say(S
 $("stop").addEventListener("click", stopPreview);
 $("export-video").addEventListener("click", () => { exportVideo().catch((e) => say(String(e))); });
 $("export-png").addEventListener("click", () => { exportPngs().catch((e) => say(String(e))); });
-for (const id of ["mood", "section", "bars", "background", "audio"]) {
-  $(id).addEventListener("change", () => { const p = readPlan(); canvas.classList.toggle("clear", !p.green); drawFrame(p, [], 0); });
+function redrawStudio(): void {
+  const p = readPlan();
+  canvas.classList.toggle("clear", !p.green);
+  drawFrame(p, blinkTimes(p.seconds), Number(timeline.value) || 0, true);
 }
+
+const PRESETS: Record<string, { style: WickDanceStyle; intensity: number; section: Section; start: number }> = {
+  groove: { style: "groove", intensity: 0.78, section: "chill", start: 0 },
+  swagger: { style: "swagger", intensity: 1, section: "chill", start: 0 },
+  drop: { style: "hype", intensity: 1.2, section: "drop", start: 7.1 },
+};
+
+// Presets are the normal interface: one click configures the hidden studio
+// controls and starts playback. The detailed editor remains available below.
+for (const button of document.querySelectorAll<HTMLButtonElement>("[data-preset]")) {
+  button.addEventListener("click", () => {
+    const name = button.dataset.preset ?? "swagger";
+    const preset = PRESETS[name] ?? PRESETS.swagger!;
+    stopPreview();
+    $<HTMLSelectElement>("style").value = preset.style;
+    $<HTMLInputElement>("intensity").value = String(preset.intensity);
+    $<HTMLSelectElement>("section").value = preset.section;
+    $<HTMLInputElement>("bars").value = "8";
+    timeline.value = String(preset.start);
+    replayFrom = preset.start;
+    for (const other of document.querySelectorAll<HTMLButtonElement>("[data-preset]")) {
+      const active = other === button;
+      other.classList.toggle("active", active);
+      other.setAttribute("aria-pressed", String(active));
+    }
+    redrawStudio();
+    startPreview().catch((e) => say(String(e)));
+  });
+}
+
+for (const id of ["mood", "style", "section", "bars", "background", "audio"]) {
+  $(id).addEventListener("change", redrawStudio);
+}
+$<HTMLInputElement>("intensity").addEventListener("input", redrawStudio);
+timeline.addEventListener("input", () => { stopPreview(); redrawStudio(); });
+const step = (direction: number): void => {
+  stopPreview();
+  const p = readPlan();
+  timeline.value = String(Math.max(0, Math.min(p.seconds, (Number(timeline.value) || 0) + direction / FPS)));
+  redrawStudio();
+};
+$<HTMLButtonElement>("step-back").addEventListener("click", () => step(-1));
+$<HTMLButtonElement>("step-forward").addEventListener("click", () => step(1));
 // Hooks for scripted runs (Playwright): draw a frame at a time, or build a plan.
 (window as unknown as { wickDance: unknown }).wickDance = { readPlan, drawFrame, blinkTimes, exportVideo, exportPngs };
-drawFrame(readPlan(), [], 0);
+redrawStudio();
+say("Pick a move or press Play.");

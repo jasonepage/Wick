@@ -83,17 +83,18 @@ test("each game state wears its face", () => {
   assert.equal(faceFor({ mood: "unamused" }), "calm");
 });
 
-test("every face draws the same 18 slots; Calm's eyes are shut, the others open", () => {
+test("every face draws the same 19 slots; Calm's eyes are shut, the others open", () => {
   for (const [name, f] of Object.entries(FACES)) {
     const items = faceDrawList(f, f.eyes.map((e) => e.closed), PALETTE.keeper);
-    assert.equal(items.length, 18, name);
+    assert.equal(items.length, 19, name);
     const whites = [items[8]!, items[11]!];
     if (name === "calm") assert.ok(whites.every((w) => w.d === ""), "shut eyes show no white");
     else assert.ok(whites.every((w) => w.d.length > 20), `${name} has open eyes`);
-    assert.ok(items[14]!.d.length > 100, `${name} has brows`);
+    assert.ok(items[14]!.d.length > 100, `${name} has a brow keyline`);
+    assert.ok(items[15]!.d.length > 100, `${name} has silver brows`);
   }
-  assert.ok(faceDrawList(FACES.flustered, [0, 0], PALETTE.keeper)[17]!.d.length > 0, "Flustered sweats");
-  assert.equal(faceDrawList(FACES.sly, [0, 0], PALETTE.keeper)[17]!.d, "", "Sly does not");
+  assert.ok(faceDrawList(FACES.flustered, [0, 0], PALETTE.keeper)[18]!.d.length > 0, "Flustered sweats");
+  assert.equal(faceDrawList(FACES.sly, [0, 0], PALETTE.keeper)[18]!.d, "", "Sly does not");
 });
 
 test("a blink shuts the eye fully and the lash line shows only when shut", () => {
@@ -145,6 +146,23 @@ test("the dance builds with energy and the drop is a big spin", () => {
   assert.ok(drop.rot > 90 && drop.rot < 360, "spinning");
   const later = danceAt(pulseAt(96.0, 90, 94));
   assert.ok(Math.abs(later.rot) < 20, "the spin is over");
+});
+
+test("authored dance clips have distinct weight and flame follow-through", () => {
+  const p = pulseAt(4.25, null, null);
+  const groove = danceAt(p, SIZE, "groove");
+  const swagger = danceAt(p, SIZE, "swagger");
+  const hype = danceAt(p, SIZE, "hype");
+  assert.ok(Math.abs(swagger.x) > Math.abs(groove.x), "swagger travels farther than groove");
+  assert.ok(Math.abs(hype.y) > Math.abs(swagger.y), "hype jumps harder than swagger");
+  for (const move of [groove, swagger, hype]) assert.ok(Math.abs(move.tip) <= 1, "tip motion stays normalized");
+  assert.notEqual(groove.tip, hype.tip, "clips have distinct secondary motion");
+});
+
+test("the riser anticipates the drop with a grounded crouch", () => {
+  const crouch = danceAt({ beat: 0, down: 0, energy: 0.96, flash: 0, time: 4 }, SIZE, "swagger");
+  assert.ok(crouch.y > 0, "Wick lowers before the launch");
+  assert.ok(crouch.sx > 1 && crouch.sy < 1, "the anticipation compresses him");
 });
 
 test("no music means no dance", () => {

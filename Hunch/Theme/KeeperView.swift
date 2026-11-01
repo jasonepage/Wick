@@ -122,6 +122,10 @@ struct KeeperView: View {
     /// Dance to the race music when it plays (see WickDance). Only the live
     /// race screen sets this; everywhere else Wick just bobs.
     var dances: Bool = false
+    /// Authored choreography clip and blend strength. The game defaults to the
+    /// confident swagger; the web motion studio can audition the same set.
+    var danceStyle: WickDance.Style = .swagger
+    var danceIntensity: Double = 1
     /// Race mode: the Serious face. Defaults to on whenever he dances (the live race).
     var race: Bool? = nil
     /// Show off every face: a new one every few seconds, with the usual blink
@@ -147,9 +151,13 @@ struct KeeperView: View {
             // Boiling is a hard shake (jitter plus a little rotation), shared with the web.
             let shake = (mood == .boiling && !reduceMotion) ? WickDance.boilingShake(t: t, size: size) : .still
             // In a live race Wick dances to the music, locked to the beat the player hears.
-            let dance = (dances && !reduceMotion) ? WickDance.move(for: RaceMusic.shared.pulse(), size: size) : .still
+            let dance = (dances && !reduceMotion)
+                ? WickDance.move(for: RaceMusic.shared.pulse(), size: size,
+                                 style: danceStyle, intensity: danceIntensity)
+                : .still
             // Hold the flame tip centered when Reduce Motion is on (no side-to-side sway).
-            let flick = reduceMotion ? 0.5 : 0.5 + sin(t * 2 * .pi / (mood.bobPeriod * 0.8)) / 2
+            let idleFlick = 0.5 + sin(t * 2 * .pi / (mood.bobPeriod * 0.8)) / 2
+            let flick = reduceMotion ? 0.5 : min(1, max(0, idleFlick + dance.tip * 0.16))
             // Subtle breathing scale only when motion is allowed.
             let breathe = reduceMotion ? 1 : 1 + sin(t * 2 * .pi / (mood.bobPeriod * 1.7)) * 0.03
             // Opacity-only "breath" under Reduce Motion so it reads as alive, not frozen.

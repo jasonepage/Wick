@@ -162,6 +162,7 @@ nonisolated enum KeeperFaceCG {
         }
         var brows = Path()
         for b in face.brows { brows.addPath(KeeperFaces.browPath(b)) }
+        stroke(brows, cgColor(KeeperFaces.browKey, 0.72), 9)
         fill(brows, cgColor(KeeperFaces.browGrey))
         let m: KeeperMouth = face.mouth
         if m.oval < 0.999 {

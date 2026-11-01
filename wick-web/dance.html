@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex">
-  <title>Wick dance clips (developer page)</title>
+  <title>Wick Motion Studio</title>
   <!--
     Developer-only page: makes dance clips of Wick for TikTok (CapCut templates).
     It is not part of the normal build; open it with `npm run dev` at /dance.html.
@@ -12,66 +12,125 @@
   -->
   <style>
     :root { color-scheme: dark; }
+    * { box-sizing: border-box; }
     body { margin: 0; font: 15px/1.4 -apple-system, "SF Pro Rounded", system-ui, sans-serif; background: #0f121a; color: #eef0f6; }
-    main { max-width: 980px; margin: 0 auto; padding: 20px; display: grid; grid-template-columns: 300px 1fr; gap: 24px; }
-    h1 { font-size: 1.3rem; margin: 0 0 12px; }
+    main { max-width: 1080px; margin: 0 auto; padding: 20px; display: grid; grid-template-columns: minmax(330px, 390px) 1fr; grid-template-areas: "controls stage"; gap: 28px; }
+    .controls { grid-area: controls; }
+    h1 { font-size: 1.65rem; line-height: 1.1; margin: 0 0 6px; }
+    .lead { margin: 0 0 18px; color: #aeb6cc; }
+    h2 { margin: 20px 0 8px; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.09em; color: #aeb6cc; }
     label { display: block; margin: 12px 0 4px; opacity: 0.8; font-size: 0.85rem; }
     select, input { width: 100%; padding: 8px 10px; border-radius: 10px; border: 1px solid #333a4d; background: #171b26; color: inherit; font: inherit; }
-    button { margin: 12px 8px 0 0; padding: 10px 14px; border-radius: 12px; border: 0; font: inherit; font-weight: 700; cursor: pointer; background: #7d5ceb; color: white; }
+    button { padding: 11px 14px; border-radius: 12px; border: 0; font: inherit; font-weight: 750; cursor: pointer; background: #7d5ceb; color: white; }
     button.secondary { background: #262c3c; }
     button:disabled { opacity: 0.5; cursor: default; }
+    .preset-grid { display: grid; gap: 8px; }
+    .preset { display: grid; grid-template-columns: 42px 1fr; align-items: center; gap: 10px; width: 100%; text-align: left; background: #1a1f2d; border: 1px solid #30374b; }
+    .preset:hover, .preset.active { border-color: #9b82ff; background: #25203c; transform: translateY(-1px); }
+    .preset-icon { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 12px; background: #302854; font-size: 1.15rem; }
+    .preset strong, .preset small { display: block; }
+    .preset small { margin-top: 2px; color: #aeb6cc; font-weight: 500; }
+    .transport { display: grid; grid-template-columns: 1fr auto; gap: 8px; margin-top: 12px; }
+    #preview { min-height: 52px; font-size: 1.05rem; }
+    #stop { min-width: 76px; }
+    output { float: right; font-variant-numeric: tabular-nums; color: #b9a8ff; }
+    .steps { display: flex; gap: 8px; }
+    .steps button { flex: 1; }
+    #pose-readout { margin: 12px 0 0; padding: 10px; min-height: 4.8em; border: 1px solid #2d3446; border-radius: 10px; background: #141925; color: #b8c0d6; font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; }
     #status { margin-top: 14px; min-height: 1.4em; opacity: 0.85; white-space: pre-line; }
-    #stage { display: flex; justify-content: center; align-items: flex-start; }
-    canvas { width: 405px; height: 720px; border-radius: 14px; background: #00ff00; }
+    details { margin-top: 14px; border: 1px solid #2d3446; border-radius: 14px; background: #141925; }
+    summary { padding: 13px 14px; cursor: pointer; font-weight: 750; color: #c8cee0; }
+    .advanced-body { padding: 0 14px 14px; }
+    #stage { grid-area: stage; display: flex; justify-content: center; align-items: flex-start; position: sticky; top: 20px; }
+    canvas { width: 405px; height: 720px; max-height: calc(100vh - 40px); object-fit: contain; border-radius: 18px; background: #00ff00; box-shadow: 0 18px 60px #0008; }
     canvas.clear { background: repeating-conic-gradient(#2a2f3d 0 25%, #1a1e29 0 50%) 0 0 / 24px 24px; }
     .hint { font-size: 0.8rem; opacity: 0.6; margin-top: 16px; }
-    @media (max-width: 760px) { main { grid-template-columns: 1fr; } canvas { width: 270px; height: 480px; } }
+    @media (max-width: 760px) {
+      main { grid-template-columns: 1fr; grid-template-areas: "stage" "controls"; padding: 12px; gap: 18px; }
+      #stage { position: static; }
+      canvas { width: min(100%, 315px); height: auto; max-height: 54vh; }
+    }
   </style>
 </head>
 <body>
   <main>
-    <section>
-      <h1>Wick dance clips</h1>
-      <label for="mood">Mood (colour)</label>
-      <select id="mood">
-        <option value="idle">Idle (purple)</option>
-        <option value="freezing">Freezing (blue)</option>
-        <option value="cold">Cold (teal)</option>
-        <option value="warm">Warm (amber)</option>
-        <option value="hot">Hot (coral)</option>
-        <option value="boiling">Boiling (red, shakes)</option>
-        <option value="celebrating">Celebrating (green, star eyes)</option>
-        <option value="unamused">Unamused (grey)</option>
-      </select>
-      <label for="section">Music section</label>
-      <select id="section">
-        <option value="chill">Chill (groove)</option>
-        <option value="drop">Riser into the kiai drop</option>
-        <option value="kiai">Kiai (last minute)</option>
-        <option value="race">Whole race (5 minutes: chill, riser at 3:56, kiai for the last minute)</option>
-      </select>
-      <label for="bars">Length in bars (one bar is 2 seconds)</label>
-      <input id="bars" type="number" min="1" max="64" value="8">
-      <label for="audio">Audio in the video</label>
-      <select id="audio">
-        <option value="music">Race music (to sync in CapCut)</option>
-        <option value="none">None (silent, for your own track)</option>
-      </select>
-      <label for="background">Background</label>
-      <select id="background">
-        <option value="green">Chroma green #00FF00 (for CapCut Chroma Key)</option>
-        <option value="clear">Transparent (PNG sequence)</option>
-      </select>
-      <div>
-        <button id="preview">Preview with music</button>
+    <section class="controls">
+      <h1>Wick Motion Studio</h1>
+      <p class="lead">Pick a move. It plays immediately.</p>
+
+      <div class="preset-grid" aria-label="Dance presets">
+        <button class="preset" data-preset="groove">
+          <span class="preset-icon">01</span><span><strong>Chill Groove</strong><small>Small, relaxed bounce</small></span>
+        </button>
+        <button class="preset active" data-preset="swagger">
+          <span class="preset-icon">02</span><span><strong>Wick Swagger</strong><small>Confident signature move</small></span>
+        </button>
+        <button class="preset" data-preset="drop">
+          <span class="preset-icon">03</span><span><strong>Big Drop</strong><small>Crouch, launch and spin</small></span>
+        </button>
+      </div>
+
+      <div class="transport">
+        <button id="preview">▶ Play</button>
         <button id="stop" class="secondary" disabled>Stop</button>
       </div>
-      <div>
-        <button id="export-video">Export video with audio</button>
-        <button id="export-png" class="secondary">Export PNG sequence (zip)</button>
-      </div>
+      <label for="timeline">Timeline <output id="time-value">0.00 s</output></label>
+      <input id="timeline" type="range" min="0" max="16" step="0.01" value="0">
       <div id="status"></div>
-      <p class="hint">1080 x 1920, 30 frames per second, rendered frame by frame from the beat math so every move lands exactly on the beat. The video is MP4 where this browser can encode H.264 (Safari and Chrome on a Mac), otherwise WebM. Drop the MP4 on a CapCut track and use Chroma Key on the green.</p>
+
+      <details>
+        <summary>Advanced controls</summary>
+        <div class="advanced-body">
+          <label for="mood">Wick color and face</label>
+          <select id="mood">
+            <option value="idle">Purple (confident)</option>
+            <option value="freezing">Blue (stern)</option>
+            <option value="cold">Teal</option>
+            <option value="warm">Amber</option>
+            <option value="hot">Coral</option>
+            <option value="boiling">Red (flustered)</option>
+            <option value="celebrating">Green (shocked)</option>
+            <option value="unamused">Grey (unamused)</option>
+          </select>
+          <label for="style">Choreography</label>
+          <select id="style">
+            <option value="groove">Groove</option>
+            <option value="swagger" selected>Swagger</option>
+            <option value="hype">Hype</option>
+          </select>
+          <label for="intensity">Intensity <output id="intensity-value">1.00×</output></label>
+          <input id="intensity" type="range" min="0.35" max="1.65" step="0.05" value="1">
+          <label for="section">Music section</label>
+          <select id="section">
+            <option value="chill">Chill loop</option>
+            <option value="drop">Riser into drop</option>
+            <option value="kiai">Full-power kiai</option>
+            <option value="race">Whole five-minute race</option>
+          </select>
+          <label for="bars">Length in bars</label>
+          <input id="bars" type="number" min="1" max="64" value="8">
+          <label for="audio">Audio</label>
+          <select id="audio"><option value="music">Race music</option><option value="none">Silent</option></select>
+          <label for="background">Background</label>
+          <select id="background"><option value="green">Chroma green</option><option value="clear" selected>Transparent</option></select>
+          <div class="steps">
+            <button id="step-back" class="secondary">− 1 frame</button>
+            <button id="step-forward" class="secondary">+ 1 frame</button>
+          </div>
+          <pre id="pose-readout">pose</pre>
+        </div>
+      </details>
+
+      <details>
+        <summary>Export</summary>
+        <div class="advanced-body">
+          <div class="steps">
+            <button id="export-video">Video</button>
+            <button id="export-png" class="secondary">PNG zip</button>
+          </div>
+          <p class="hint">1080 by 1920 at 30 fps. Video includes beat-synced audio; PNG export is transparent.</p>
+        </div>
+      </details>
     </section>
     <section id="stage">
       <canvas id="canvas" width="1080" height="1920"></canvas>

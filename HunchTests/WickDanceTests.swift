@@ -58,4 +58,22 @@ struct WickDanceTests {
         let later = WickDance.move(for: pulse(96.0, riserAt: 90, kiaiAt: 94), size: 100)
         #expect(abs(later.rotation) < 20)
     }
+
+    @Test func authoredClipsHaveDistinctWeightAndFlameFollowThrough() {
+        let p = pulse(4.25)
+        let groove = WickDance.move(for: p, size: 100, style: .groove)
+        let swagger = WickDance.move(for: p, size: 100, style: .swagger)
+        let hype = WickDance.move(for: p, size: 100, style: .hype)
+        #expect(abs(swagger.x) > abs(groove.x))
+        #expect(abs(hype.y) > abs(swagger.y))
+        #expect(abs(groove.tip) <= 1 && abs(swagger.tip) <= 1 && abs(hype.tip) <= 1)
+        #expect(groove.tip != hype.tip)
+    }
+
+    @Test func riserAnticipatesTheDropWithAGroundedCrouch() {
+        let p = RaceMusic.Pulse(beat: 0, down: 0, energy: 0.96, flash: 0, time: 4)
+        let crouch = WickDance.move(for: p, size: 100, style: .swagger)
+        #expect(crouch.y > 0)
+        #expect(crouch.scaleX > 1 && crouch.scaleY < 1)
+    }
 }
