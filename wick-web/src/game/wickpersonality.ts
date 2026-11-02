@@ -1,7 +1,9 @@
 import type { FaceName } from "./wickface.ts";
 
 export type WickTopic = "food" | "animal" | "romance" | "money" | "gross" | "danger" | "tech" | "games" | "space";
-export type WickReactionKind = "topic" | "leap" | "near" | "stuck" | "repeat" | "wild";
+/** 3.8: the six rare beats from the personality brief come first; the topic
+ *  and question beats stay as the quiet fallback. */
+export type WickReactionKind = "topic" | "leap" | "near" | "stuck" | "repeat" | "regress" | "stall" | "wild";
 
 export interface WickReaction {
   kind: WickReactionKind;
@@ -12,6 +14,8 @@ export interface WickReaction {
   /** Reactions deliberately clear quickly so the heat face remains primary. */
   durationMs: number;
   topic?: WickTopic;
+  /** Grey deadpan for the beat (the long stall), then back to the heat color. */
+  neutral?: boolean;
   /** Human-readable direction for the local personality lab. */
   reason: string;
 }
@@ -22,10 +26,41 @@ export interface WickPersonalityState {
   topicRun: number;
   lastReactionGuess: number;
   lastWords: string[];
+  /** All the words tried this round, cleaned, for the exact repeat beat. */
+  allWords: Set<string>;
+  /** Once-per-round beats that have fired. */
+  usedOnce: Set<WickReactionKind>;
+  /** Guess number each kind last fired on, for the per-kind cooldowns. */
+  lastByKind: Partial<Record<WickReactionKind, number>>;
 }
 
 export function newWickPersonalityState(): WickPersonalityState {
-  return { seenTopics: new Set(), lastTopic: null, topicRun: 0, lastReactionGuess: -99, lastWords: [] };
+  return {
+    seenTopics: new Set(), lastTopic: null, topicRun: 0, lastReactionGuess: -99, lastWords: [],
+    allWords: new Set(), usedOnce: new Set(), lastByKind: {},
+  };
+}
+
+/** The rare beats, in priority order, with their cooldowns (guesses). */
+export const RARE_COOLDOWN: Record<"repeat" | "leap" | "near" | "regress" | "stall", number | "round"> = {
+  repeat: "round", leap: 4, near: 3, regress: "round", stall: "round",
+};
+/** No two reactions closer than this many guesses (the solve is exempt). */
+export const GLOBAL_COOLDOWN = 3;
+/** Warmth thresholds (0...100). */
+export const LEAP_GAIN = 24;
+export const NEAR_SCORE = 82;
+export const REGRESS_FROM = 45;
+export const REGRESS_TO = 18;
+export const STALL_GUESSES = 15;
+
+/** The solved screen's line pool. `null` means stay quiet this time. */
+export function solvedLine(guessCount: number, seed: string): string | null {
+  if (guessCount === 1) return "...on the first guess?";
+  const h = hash(`solved:${seed}:${guessCount}`);
+  if (h % 3 === 0) return null;
+  const pool = ["You actually got it.", "Fine. That was good.", "I knew you would. Eventually."];
+  return pool[h % pool.length]!;
 }
 
 const TOPICS: Record<WickTopic, ReadonlySet<string>> = {
@@ -90,40 +125,59 @@ export interface GuessReactionInput {
 }
 
 /**
- * Wick's restrained reaction director. Priority is dramatic game information,
- * then repeated behavior, then a once-per-round topic beat. A two-guess global
- * cooldown prevents him from becoming a notification system with eyebrows.
+ * Wick's reaction director (3.8). At most one beat per guess. The rare beats
+ * come first, most specific first: exact repeat, large jump, near solve,
+ * regression, long stall. The topic beats are the quiet fallback. Nothing but
+ * the solve can fire within GLOBAL_COOLDOWN guesses of the last beat, and each
+ * rare beat has its own cooldown on top. The solve itself is not a beat here:
+ * the renderer owns the solved sequence.
  */
 export function reactionForGuess(state: WickPersonalityState, input: GuessReactionInput): WickReaction | null {
   const word = cleanWord(input.word);
   const topic = topicForGuess(word);
   state.topicRun = topic && topic === state.lastTopic ? state.topicRun + 1 : topic ? 1 : 0;
   state.lastTopic = topic;
-  const repeatedWord = state.lastWords.includes(word);
+  const repeatedWord = state.allWords.has(word);
+  state.allWords.add(word);
   state.lastWords = [word, ...state.lastWords.filter((w) => w !== word)].slice(0, 5);
 
-  const gap = input.guessCount - state.lastReactionGuess;
-  let reaction: WickReaction | null = null;
+  const n = input.guessCount;
+  const gap = n - state.lastReactionGuess;
   const gain = input.previousBest === null ? 0 : input.score - input.previousBest;
+  const best = input.previousBest;
 
-  if (input.score >= 82) {
-    reaction = { kind: "near", face: "shocked", poke: true, durationMs: 1250, reason: `${Math.round(input.score)} warmth is close enough to break Wick's composure` };
-  } else if (gain >= 24) {
-    reaction = { kind: "leap", face: "shocked", line: gain >= 38 ? "Okay. That was a real move." : undefined, poke: true, durationMs: 1050, reason: `dramatic +${Math.round(gain)} warmth leap` };
-  } else if (repeatedWord) {
-    reaction = { kind: "repeat", face: "calm", line: "You already tried that angle.", poke: false, durationMs: 1500, reason: `the player repeated “${word}”` };
-  } else if (state.topicRun === 3 && topic) {
-    reaction = { kind: "repeat", face: "calm", line: `Still on ${topic}? Commit to the theory, then.`, poke: false, durationMs: 1700, topic, reason: `third consecutive ${topic} guess` };
-  } else if (input.coldStreak >= 4 && input.coldStreak % 3 === 1) {
-    reaction = { kind: "stuck", face: "calm", line: "New angle. You're circling.", poke: false, durationMs: 1650, reason: `${input.coldStreak} guesses without a new best` };
-  } else if (topic && !state.seenTopics.has(topic) && gap >= 2) {
-    reaction = { kind: "topic", face: TOPIC_FACE[topic], line: authoredLine(topic, word, input.guessCount), poke: topic === "gross" || topic === "danger" || topic === "space", durationMs: 1200, topic, reason: `first ${topic} detour this round` };
-  } else if (input.previousBest !== null && input.score <= 8 && input.previousBest >= 55 && gap >= 3) {
-    reaction = { kind: "wild", face: "calm", line: "That was a spectacular detour.", poke: false, durationMs: 1500, reason: `fell from a ${Math.round(input.previousBest)} best to ${Math.round(input.score)}` };
+  const ready = (kind: "repeat" | "leap" | "near" | "regress" | "stall"): boolean => {
+    const cd = RARE_COOLDOWN[kind];
+    if (cd === "round") return !state.usedOnce.has(kind);
+    const last = state.lastByKind[kind];
+    return last === undefined || n - last >= cd;
+  };
+  // A line shows less often than the face: about every other time.
+  const quiet = hash(`${word}:${n}`) % 2 === 1;
+
+  let reaction: WickReaction | null = null;
+  if (gap >= GLOBAL_COOLDOWN) {
+    if (repeatedWord && ready("repeat")) {
+      reaction = { kind: "repeat", face: "focus", line: quiet ? undefined : "We did this one.", poke: false, durationMs: 1500, reason: `the player repeated “${word}”` };
+    } else if (gain >= LEAP_GAIN && ready("leap")) {
+      reaction = { kind: "leap", face: "warm", line: quiet ? undefined : "Now we're moving.", poke: true, durationMs: 1100, reason: `+${Math.round(gain)} warmth jump` };
+    } else if (input.score >= NEAR_SCORE && ready("near")) {
+      reaction = { kind: "near", face: "flustered", line: quiet ? undefined : "Careful.", poke: false, durationMs: 1300, reason: `${Math.round(input.score)} warmth, one step from the word` };
+    } else if (best !== null && best >= REGRESS_FROM && input.score <= REGRESS_TO && ready("regress")) {
+      reaction = { kind: "regress", face: "serious", line: quiet ? undefined : "Bold strategy.", poke: false, durationMs: 1400, reason: `fell from a ${Math.round(best)} best to ${Math.round(input.score)}` };
+    } else if (input.coldStreak >= STALL_GUESSES && ready("stall")) {
+      reaction = { kind: "stall", face: "calm", neutral: true, line: quiet ? undefined : "Take a breath.", poke: false, durationMs: 1400, reason: `${input.coldStreak} guesses without a new best` };
+    } else if (topic && !state.seenTopics.has(topic)) {
+      reaction = { kind: "topic", face: TOPIC_FACE[topic], line: authoredLine(topic, word, n), poke: topic === "gross" || topic === "danger" || topic === "space", durationMs: 1200, topic, reason: `first ${topic} detour this round` };
+    }
   }
 
   if (topic) state.seenTopics.add(topic);
-  if (reaction) state.lastReactionGuess = input.guessCount;
+  if (reaction) {
+    state.lastReactionGuess = n;
+    state.lastByKind[reaction.kind] = n;
+    if (RARE_COOLDOWN[reaction.kind as keyof typeof RARE_COOLDOWN] === "round") state.usedOnce.add(reaction.kind);
+  }
   return reaction;
 }
 

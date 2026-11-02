@@ -16,17 +16,17 @@ import { WickMatchClient } from "./net/client.ts";
 import type { MatchMode, OpponentKind, StateSnapshot, MatchResult } from "./net/protocol.ts";
 import { ringSVG, scoreLabel, scoreColor, scoreColorA } from "./game/wickface.ts";
 import { ensureWick, type Wick, type WickOptions } from "./game/wick.ts";
-import { newWickPersonalityState, reactionForGuess, reactionForQuestion, type WickReaction } from "./game/wickpersonality.ts";
+import { newWickPersonalityState, reactionForGuess, reactionForQuestion, solvedLine, type WickReaction } from "./game/wickpersonality.ts";
 import { todaysDaily, randomPracticeAt, practiceAt, wordText, pastPuzzles, POOL_SIZE } from "./game/daily.ts";
 import type { DailyWord, PastPuzzle } from "./game/daily.ts";
 import { fetchWarmth, httpBaseFrom, askKeeper, fetchReveal, fetchLiveCounts } from "./net/api.ts";
-import type { RevealPointDTO, WarmthResult } from "./net/api.ts";
+import type { WarmthResult } from "./net/api.ts";
 import { computeStats } from "./game/stats.ts";
 import { revealSVG, shareRevealCard } from "./game/revealcard.ts";
 import { buildTimeline, bandToken, toneFor, HIDE_ANSWER, STANDARD_PACING, type ReplayEvent, type WordPolicy } from "./game/replay/timeline.ts";
 import { ReplayScene, W as REPLAY_W, H as REPLAY_H, type ReplayCopy } from "./game/replay/scene.ts";
 import { canRecord, canShareFile, downloadVideo, recordReplay, shareVideo, type Recording } from "./game/replay/record.ts";
-import { initEvents, track } from "./net/events.ts";
+import { initEvents, track, WICK_BEAT_CODES } from "./net/events.ts";
 import { submitBoard, fetchBoard, flushBoard, rerollBoardName, myBoardId, myBoardName, fmtBoardTime, BOARD_FLAG, recordResult, recordedResult, notSubmitted, type BoardSnapshot, type BoardResult } from "./net/board.ts";
 import { initPwa, promptInstall } from "./pwa.ts";
 import { decodeRun } from "./game/ghost.ts";
@@ -115,6 +115,9 @@ const sp = {
   coldReactionStreak: 0,
   personalityLabOpen: false,
   personalityHistory: [] as { label: string; reaction: WickReaction }[],
+  /** 3.8: true from the winning guess until the solved sequence ends, so the
+   *  result actions fade in on the button-pose beat (not on a reopened round). */
+  solveFresh: false,
 };
 
 let reactionTimer: ReturnType<typeof setTimeout> | null = null;
@@ -147,8 +150,17 @@ function resetWickPersonality(): void {
   sp.reactionPokePending = false;
   sp.coldReactionStreak = 0;
   sp.personalityHistory = [];
+  sp.solveFresh = false;
   if (reactionTimer !== null) clearTimeout(reactionTimer);
   reactionTimer = null;
+}
+
+/** 3.8: the solved sequence just ended (or was skipped): let the actions in. */
+function onSolveSequenceDone(skipped: boolean): void {
+  track("solve_seq", { n: sp.puzzleNumber, g: skipped ? 1 : 0 });
+  if (!sp.solveFresh) return;
+  sp.solveFresh = false;
+  document.querySelector("#latest")?.classList.remove("solve-enter");
 }
 
 function playWickReaction(reaction: WickReaction | null, label = "Beat"): void {
@@ -156,6 +168,7 @@ function playWickReaction(reaction: WickReaction | null, label = "Beat"): void {
   sp.personalityHistory = [{ label, reaction }, ...sp.personalityHistory].slice(0, 8);
   sp.reaction = reaction;
   sp.reactionPokePending = reaction.poke;
+  track("wick_beat", { g: WICK_BEAT_CODES[reaction.kind] ?? 0 });
   if (reaction.line && getLang() === "en") toast(reaction.line);
   if (reactionTimer !== null) clearTimeout(reactionTimer);
   reactionTimer = setTimeout(() => {
@@ -1162,21 +1175,29 @@ function renderSuggest(over: boolean): void {
 /** Build the spoiler-free card and hand it to the share sheet (or save it).
  *  The word and the guess labels are withheld inside revealcard.ts, not here —
  *  one flag, one place, so a future caller can't leak the answer by forgetting. */
-async function shareMap(points: RevealPointDTO[]): Promise<void> {
+async function shareMap(): Promise<void> {
   track("share_map", { n: sp.puzzleNumber });
   const daily = sp.mode === "daily";
   const outcome = await shareRevealCard(
-    points,
     {
       puzzleNumber: daily ? sp.puzzleNumber : 0,
-      badge: daily ? `#${sp.puzzleNumber}` : t("practice"),
-      resultLine: sp.solved ? t("revealShareSolved", sp.guesses.length) : t("revealShareUnsolved"),
+      brand: daily ? t("cardBrandDaily", sp.puzzleNumber) : t("cardBrandPractice"),
+      guesses: sp.guesses.length,
+      solved: sp.solved,
+      heat: cardHeat(),
       host: location.host,
     },
     dailyShareText(),
   );
+  if (outcome === "shared") track("share_card", { n: sp.puzzleNumber, g: 1 });
+  else if (outcome === "downloaded") track("share_card", { n: sp.puzzleNumber, g: 2 });
   if (outcome === "downloaded") toast(t("revealShareSaved"));
   else if (outcome === "failed") toast(t("revealShareFail"));
+}
+
+/** Every scored guess, oldest first, as 0...100 warmth; the word is 100. */
+function cardHeat(): number[] {
+  return [...sp.guesses].reverse().filter((g) => g.warmth !== null).map((g) => g.correct ? 100 : (g.warmth as number) * 100);
 }
 
 async function screenReveal(): Promise<void> {
@@ -1213,7 +1234,7 @@ async function screenReveal(): Promise<void> {
   if (points.length > 0) {
     kids.push(el("button", {
       class: "btn primary",
-      onclick: () => { void playSound("tap"); void shareMap(points); },
+      onclick: () => { void playSound("tap"); void shareMap(); },
     }, [t("revealShare")]));
   }
   host.replaceChildren(...kids);
@@ -1409,7 +1430,14 @@ function screenSolo(): void {
     sp.guesses.unshift(g);
     if (correct) {
       sp.solved = true;
+      sp.solveFresh = true;
+      sp.reaction = null;
+      sp.reactionPokePending = false;
+      if (reactionTimer !== null) { clearTimeout(reactionTimer); reactionTimer = null; }
       void playSound("solved");
+      // The line lands on the recovery beat, after the shock, never before the result.
+      const line = solvedLine(sp.guesses.length, `${sp.mode}:${sp.puzzleNumber}`);
+      if (line && getLang() === "en") window.setTimeout(() => { if (sp.solved) toast(line); }, 900);
       if (sp.mode === "daily") {
         track("daily_solve", { n: sp.puzzleNumber, g: sp.guesses.length });
         // 3.6: remember the day's result. It is posted only if the player taps Submit.
@@ -1492,7 +1520,11 @@ function renderSolo(): void {
   const latest = sp.guesses[0];
   const over = sp.solved || sp.revealed;
   setBackdropHeat(sp.revealed ? null : bestScore(sp.guesses));
-  const heroWick = renderHero("#hero", "solo", latest, sp.revealed, false, soloThinking(), sp.reaction?.face ?? null);
+  const heroWick = renderHero("#hero", "solo", latest, sp.revealed, false, soloThinking(), sp.reaction?.face ?? null, {
+    neutral: !!sp.reaction?.neutral,
+    firstGuess: sp.guesses.length === 1,
+    onSolveDone: onSolveSequenceDone,
+  });
   if (heroWick && sp.reactionPokePending) {
     sp.reactionPokePending = false;
     heroWick.poke();
@@ -1535,6 +1567,7 @@ function renderSolo(): void {
       } else {
         actions.push(el("button", { class: `btn ${hasMap ? "secondary" : "primary"}`, onclick: startPractice }, [t("newWord")]));
       }
+      latestEl.classList.toggle("solve-enter", sp.solveFresh);
       latestEl.replaceChildren(
         el("span", { class: "word" }, [`${t("solvedTitle")} ${t("theWordWas")} "${withGloss(sp.secret, soloAnswerMeaning())}".`]),
         el("div", { class: "row-actions" }, actions),
@@ -1744,7 +1777,11 @@ function questionRowEl(r: SoloReply): HTMLElement {
  *  Wick is built once per screen and only told his new mood here, so a
  *  re-render every second (live races) never restarts his motion. `dance` is
  *  on for the live race, where he moves to the race music. */
-function renderHero(sel: string, id: string, latest: Guess | undefined, revealed = false, dance = false, thinking = false, reactionFace: WickOptions["face"] = null): Wick | undefined {
+function renderHero(
+  sel: string, id: string, latest: Guess | undefined, revealed = false, dance = false, thinking = false,
+  reactionFace: WickOptions["face"] = null,
+  extra: { neutral?: boolean; firstGuess?: boolean; onSolveDone?: (skipped: boolean) => void } = {},
+): Wick | undefined {
   const hero = document.querySelector<HTMLDivElement>(sel);
   if (!hero) return undefined;
   let gauge = hero.querySelector<HTMLDivElement>(".gauge");
@@ -1779,7 +1816,12 @@ function renderHero(sel: string, id: string, latest: Guess | undefined, revealed
   // Serious in a live race, Focus while an Ask Wick question is being answered.
   // Before the first guess of a solo round he shows off every face (3.7).
   const showcase = !latest && !dance && !thinking;
-  return ensureWick(wrap, { score, size: 116, id, dance, race: dance, focus: thinking, showcase, face: thinking ? null : reactionFace });
+  // A grey beat (the long stall) borrows the gave-up color for a moment.
+  const neutral = !!extra.neutral && !(latest?.correct);
+  return ensureWick(wrap, {
+    score, neutral, size: 116, id, dance, race: dance, focus: thinking, showcase, face: thinking ? null : reactionFace,
+    firstGuess: extra.firstGuess, onSolveDone: extra.onSolveDone,
+  });
 }
 
 function renderLatestChip(latestEl: HTMLDivElement, latest: Guess | undefined): void {

@@ -237,6 +237,12 @@ struct Loc {
         f(n == 1 ? "shareHints.one" : "shareHints.other", n)
     }
     var shareTagline: String { s("shareTagline") }
+    // 3.8 share card
+    func cardBrandDaily(_ n: Int) -> String { f("cardBrandDaily", n) }
+    var cardBrandPractice: String { s("cardBrandPractice") }
+    var cardGuesses: String { s("cardGuesses") }
+    var cardUnsolved: String { s("cardUnsolved") }
+    var cardTease: String { s("cardTease") }
     var playRandom: String { s("playRandom") }
     var easy: String { s("easy") }
     var medium: String { s("medium") }
@@ -657,6 +663,11 @@ struct Loc {
         "shareHints.one": "%d hint",
         "shareHints.other": "%d hints",
         "shareTagline": "Wick · ask 20 questions, race to reveal the secret word",
+        "cardBrandDaily": "WICK DAILY #%d",
+        "cardBrandPractice": "WICK PRACTICE",
+        "cardGuesses": "GUESSES",
+        "cardUnsolved": "UNSOLVED",
+        "cardTease": "Can you turn Wick green?",
         "playRandom": "Play a random word",
         "easy": "Easy",
         "medium": "Medium",
@@ -1039,6 +1050,11 @@ struct Loc {
         "shareHints.one": "%d pista",
         "shareHints.other": "%d pistas",
         "shareTagline": "Wick · haz 20 preguntas, corre a revelar la palabra secreta",
+        "cardBrandDaily": "WICK DIARIO #%d",
+        "cardBrandPractice": "WICK PRÁCTICA",
+        "cardGuesses": "INTENTOS",
+        "cardUnsolved": "SIN RESOLVER",
+        "cardTease": "¿Puedes poner a Wick verde?",
         "playRandom": "Jugar una palabra al azar",
         "easy": "Fácil",
         "medium": "Media",
@@ -1418,6 +1434,11 @@ struct Loc {
         "shareHints.one": "%d indice",
         "shareHints.other": "%d indices",
         "shareTagline": "Wick · pose 20 questions, révèle le mot secret avant les autres",
+        "cardBrandDaily": "WICK DU JOUR #%d",
+        "cardBrandPractice": "WICK ENTRAÎNEMENT",
+        "cardGuesses": "ESSAIS",
+        "cardUnsolved": "NON RÉSOLU",
+        "cardTease": "Peux-tu rendre Wick vert ?",
         "playRandom": "Jouer un mot au hasard",
         "easy": "Facile",
         "medium": "Moyen",
@@ -1797,6 +1818,11 @@ struct Loc {
         "shareHints.one": "%d indizio",
         "shareHints.other": "%d indizi",
         "shareTagline": "Wick · fai 20 domande, svela per primo la parola segreta",
+        "cardBrandDaily": "WICK DEL GIORNO #%d",
+        "cardBrandPractice": "WICK ALLENAMENTO",
+        "cardGuesses": "TENTATIVI",
+        "cardUnsolved": "NON RISOLTO",
+        "cardTease": "Riesci a far diventare verde Wick?",
         "playRandom": "Gioca una parola a caso",
         "easy": "Facile",
         "medium": "Media",
@@ -2175,6 +2201,11 @@ struct Loc {
         "shareHints.one": "%d Hinweis",
         "shareHints.other": "%d Hinweise",
         "shareTagline": "Wick · stell 20 Fragen, deck als Erster das geheime Wort auf",
+        "cardBrandDaily": "WICK TÄGLICH #%d",
+        "cardBrandPractice": "WICK ÜBUNG",
+        "cardGuesses": "VERSUCHE",
+        "cardUnsolved": "UNGELÖST",
+        "cardTease": "Kannst du Wick grün machen?",
         "playRandom": "Zufälliges Wort spielen",
         "easy": "Leicht",
         "medium": "Mittel",

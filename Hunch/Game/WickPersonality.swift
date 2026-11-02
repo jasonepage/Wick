@@ -17,8 +17,10 @@ nonisolated enum WickTopic: String, CaseIterable {
     case food, animal, romance, money, gross, danger, tech, games, space
 }
 
+/// 3.8: the six rare beats from the personality brief come first; the topic
+/// and question beats stay as the quiet fallback.
 nonisolated enum WickReactionKind: String {
-    case topic, leap, near, stuck, `repeat`, wild
+    case topic, leap, near, stuck, `repeat`, regress, stall, wild
 }
 
 nonisolated struct WickReaction: Equatable {
@@ -30,6 +32,8 @@ nonisolated struct WickReaction: Equatable {
     /// Reactions clear quickly so the warmth face stays in charge.
     var durationMs: Int
     var topic: WickTopic? = nil
+    /// Grey deadpan for the beat (the long stall), then back to the heat color.
+    var neutral: Bool = false
 
     var duration: Duration { .milliseconds(durationMs) }
 }
@@ -40,6 +44,12 @@ nonisolated struct WickPersonalityState {
     var topicRun = 0
     var lastReactionGuess = -99
     var lastWords: [String] = []
+    /// All the words tried this round, cleaned, for the exact repeat beat.
+    var allWords: Set<String> = []
+    /// Once-per-round beats that have fired.
+    var usedOnce: Set<WickReactionKind> = []
+    /// Guess number each kind last fired on, for the per-kind cooldowns.
+    var lastByKind: [WickReactionKind: Int] = [:]
 }
 
 nonisolated struct WickGuessReactionInput {
@@ -52,6 +62,27 @@ nonisolated struct WickGuessReactionInput {
 }
 
 nonisolated enum WickPersonality {
+
+    /// Cooldowns in guesses; nil means once per round. Same as RARE_COOLDOWN on the web.
+    static let rareCooldown: [WickReactionKind: Int?] = [
+        .repeat: nil, .leap: 4, .near: 3, .regress: nil, .stall: nil,
+    ]
+    /// No two reactions closer than this many guesses (the solve is exempt).
+    static let globalCooldown = 3
+    static let leapGain: Double = 24
+    static let nearScore: Double = 82
+    static let regressFrom: Double = 45
+    static let regressTo: Double = 18
+    static let stallGuesses = 15
+
+    /// The solved screen's line pool. Nil means stay quiet this time.
+    static func solvedLine(guessCount: Int, seed: String) -> String? {
+        if guessCount == 1 { return "...on the first guess?" }
+        let h = hash("solved:\(seed):\(guessCount)")
+        if h % 3 == 0 { return nil }
+        let pool = ["You actually got it.", "Fine. That was good.", "I knew you would. Eventually."]
+        return pool[Int(h % UInt32(pool.count))]
+    }
 
     // Same order as the TypeScript TOPICS record: the first topic that matches wins.
     private static let topics: [(WickTopic, Set<String>)] = [
@@ -117,8 +148,12 @@ nonisolated enum WickPersonality {
         return lines[Int(h % UInt32(lines.count))]
     }
 
-    /// Wick's restrained reaction director. Priority is dramatic game
-    /// information, then repeated behavior, then a once per round topic beat.
+    /// Wick's reaction director (3.8). At most one beat per guess. The rare
+    /// beats come first, most specific first: exact repeat, large jump, near
+    /// solve, regression, long stall. The topic beats are the quiet fallback.
+    /// Nothing but the solve can fire within globalCooldown guesses of the last
+    /// beat, and each rare beat has its own cooldown on top. The solve itself
+    /// is not a beat here: KeeperView owns the solved sequence.
     static func reaction(forGuess input: WickGuessReactionInput, state: inout WickPersonalityState) -> WickReaction? {
         let word = cleanWord(input.word)
         let topic = topic(forGuess: word)
@@ -128,37 +163,52 @@ nonisolated enum WickPersonality {
             state.topicRun = topic == nil ? 0 : 1
         }
         state.lastTopic = topic
-        let repeatedWord = state.lastWords.contains(word)
+        let repeatedWord = state.allWords.contains(word)
+        state.allWords.insert(word)
         var words = [word]
         words.append(contentsOf: state.lastWords.filter { $0 != word })
         state.lastWords = Array(words.prefix(5))
 
-        let gap = input.guessCount - state.lastReactionGuess
+        let n = input.guessCount
+        let gap = n - state.lastReactionGuess
         let gain: Double = input.previousBest.map { input.score - $0 } ?? 0
-        var reaction: WickReaction? = nil
+        let best = input.previousBest
 
-        if input.score >= 82 {
-            reaction = WickReaction(kind: .near, face: .shocked, poke: true, durationMs: 1250)
-        } else if gain >= 24 {
-            let line: String? = gain >= 38 ? "Okay. That was a real move." : nil
-            reaction = WickReaction(kind: .leap, face: .shocked, line: line, poke: true, durationMs: 1050)
-        } else if repeatedWord {
-            reaction = WickReaction(kind: .repeat, face: .calm, line: "You already tried that angle.", poke: false, durationMs: 1500)
-        } else if state.topicRun == 3, let topic {
-            reaction = WickReaction(kind: .repeat, face: .calm, line: "Still on \(topic.rawValue)? Commit to the theory, then.", poke: false, durationMs: 1700, topic: topic)
-        } else if input.coldStreak >= 4, input.coldStreak % 3 == 1 {
-            reaction = WickReaction(kind: .stuck, face: .calm, line: "New angle. You're circling.", poke: false, durationMs: 1650)
-        } else if let topic, !state.seenTopics.contains(topic), gap >= 2 {
-            let face = topicFace[topic] ?? .sly
-            let poke = topic == .gross || topic == .danger || topic == .space
-            let line = authoredLine(topic: topic, word: word, guessCount: input.guessCount)
-            reaction = WickReaction(kind: .topic, face: face, line: line, poke: poke, durationMs: 1200, topic: topic)
-        } else if let best = input.previousBest, input.score <= 8, best >= 55, gap >= 3 {
-            reaction = WickReaction(kind: .wild, face: .calm, line: "That was a spectacular detour.", poke: false, durationMs: 1500)
+        func ready(_ kind: WickReactionKind) -> Bool {
+            guard let cd = rareCooldown[kind] else { return true }
+            guard let cd else { return !state.usedOnce.contains(kind) }
+            guard let last = state.lastByKind[kind] else { return true }
+            return n - last >= cd
+        }
+        // A line shows less often than the face: about every other time.
+        let quiet: Bool = hash("\(word):\(n)") % 2 == 1
+
+        var reaction: WickReaction? = nil
+        if gap >= globalCooldown {
+            if repeatedWord, ready(.repeat) {
+                reaction = WickReaction(kind: .repeat, face: .focus, line: quiet ? nil : "We did this one.", poke: false, durationMs: 1500)
+            } else if gain >= leapGain, ready(.leap) {
+                reaction = WickReaction(kind: .leap, face: .warm, line: quiet ? nil : "Now we're moving.", poke: true, durationMs: 1100)
+            } else if input.score >= nearScore, ready(.near) {
+                reaction = WickReaction(kind: .near, face: .flustered, line: quiet ? nil : "Careful.", poke: false, durationMs: 1300)
+            } else if let best, best >= regressFrom, input.score <= regressTo, ready(.regress) {
+                reaction = WickReaction(kind: .regress, face: .serious, line: quiet ? nil : "Bold strategy.", poke: false, durationMs: 1400)
+            } else if input.coldStreak >= stallGuesses, ready(.stall) {
+                reaction = WickReaction(kind: .stall, face: .calm, line: quiet ? nil : "Take a breath.", poke: false, durationMs: 1400, neutral: true)
+            } else if let topic, !state.seenTopics.contains(topic) {
+                let face = topicFace[topic] ?? .sly
+                let poke = topic == .gross || topic == .danger || topic == .space
+                let line = authoredLine(topic: topic, word: word, guessCount: n)
+                reaction = WickReaction(kind: .topic, face: face, line: line, poke: poke, durationMs: 1200, topic: topic)
+            }
         }
 
         if let topic { state.seenTopics.insert(topic) }
-        if reaction != nil { state.lastReactionGuess = input.guessCount }
+        if let r = reaction {
+            state.lastReactionGuess = n
+            state.lastByKind[r.kind] = n
+            if let cd = rareCooldown[r.kind], cd == nil { state.usedOnce.insert(r.kind) }
+        }
         return reaction
     }
 

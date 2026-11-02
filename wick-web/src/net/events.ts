@@ -18,7 +18,15 @@ export type WickEvent =
   | "duel_open" | "practice_start"
   | "race_link_created" | "race_link_opened" | "race_finished"
   // 3.6 tutorial funnel. Skip sends the step it was skipped on (1 to 4) as `n`.
-  | "tutorial_start" | "tutorial_done" | "tutorial_skip";
+  | "tutorial_start" | "tutorial_done" | "tutorial_skip"
+  // 3.8 personality. solve_seq: g 0 watched, 1 skipped. share_card: g 1 shared,
+  // 2 saved. wick_beat: g = WICK_BEAT_CODES[kind]. Never guess text or the word.
+  | "solve_seq" | "share_card" | "wick_beat";
+
+/** The rare beat kinds as small numbers for `g` (same table in Events.swift). */
+export const WICK_BEAT_CODES: Record<string, number> = {
+  repeat: 1, leap: 2, near: 3, regress: 4, stall: 5, topic: 6, wild: 7, stuck: 8,
+};
 
 interface EventBody {
   e: WickEvent;

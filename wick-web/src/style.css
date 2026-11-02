@@ -427,6 +427,11 @@ a.btn { display: block; box-sizing: border-box; text-align: center; text-decorat
   background: rgba(255,255,255,0.08); color: inherit; font-size: 1.1rem; font-family: inherit; }
 .icon-btn.dark { background: rgba(120,100,160,0.14); color: inherit; }
 .row-actions { display: flex; flex-wrap: wrap; gap: 10px; width: 100%; margin-top: 6px; }
+/* 3.8: on a fresh solve the answer shows at once and the actions wait for
+   Wick's button pose (1.28 s). A reopened round has no .solve-enter. */
+.latest.solve-enter .row-actions { animation: solve-actions-in 0.4s ease-out 1.28s both; }
+@keyframes solve-actions-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .latest.solve-enter .row-actions { animation-duration: 0.2s; animation-delay: 0.6s; transform: none; } }
 /* Each button takes half a row, so three or four actions stack into a tidy grid
    instead of shrinking into pills too narrow to read. */
 .row-actions .btn { flex: 1 1 calc(50% - 5px); width: auto; min-width: 0; }

@@ -24,13 +24,14 @@
 
 import { t } from "../i18n.ts";
 import type { RevealPointDTO } from "../net/api.ts";
+import { PALETTE, wickStillMarkup } from "./wickface.ts";
 
-/** Wick's dark card, so the PNG looks the same wherever it is posted. */
-const INK = "#0d0a14";
 const FONT = "ui-rounded, -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif";
 
 export const CARD_W = 540;
 export const CARD_H = 640;
+/** 3.8: the postable card is square. */
+export const CARD_SIZE = 600;
 
 function esc(s: string): string {
   return s.replace(/[&<>"]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[ch] ?? ch));
@@ -136,31 +137,78 @@ export function revealSVG(points: RevealPointDTO[], word: string): string {
 export interface CardMeta {
   /** Only used to name the downloaded file. */
   puzzleNumber: number;
-  /** Orange chip under the wordmark: "#1355", or the word for Practice. */
-  badge: string;
-  /** Shown beside the badge, e.g. "solved in 7". Already localised. */
-  resultLine: string;
+  /** "WICK DAILY #1436" or "WICK PRACTICE". Already localised. */
+  brand: string;
+  /** Number of guesses. */
+  guesses: number;
+  /** Solved, or given up. */
+  solved: boolean;
+  /** Every scored guess, oldest to newest, as 0...100 warmth (100 = the word). */
+  heat: number[];
   /** Bare host, e.g. "guesswick.com". */
   host: string;
 }
 
+/** One node of the heat trail: color, size and a ring that mark the band, so
+ *  the trail reads without color too. */
+export interface TrailNode { score: number; color: string; r: number; ring: boolean }
+
+/** Pick 5 to 8 nodes from the real guesses: the first, the last (always kept,
+ *  so a solve ends green), and the ones in between spread evenly. Fewer than
+ *  five guesses show as they are. */
+export function heatTrail(heat: number[]): TrailNode[] {
+  const picked: number[] = [];
+  if (heat.length <= 8) picked.push(...heat);
+  else {
+    const n = 8;
+    for (let i = 0; i < n; i++) picked.push(heat[Math.round((i * (heat.length - 1)) / (n - 1))]!);
+    picked[n - 1] = heat[heat.length - 1]!;
+  }
+  return picked.map((score) => {
+    const band = score >= 100 ? 6 : score >= 60 ? 5 : score >= 45 ? 4 : score >= 30 ? 3 : score >= 18 ? 2 : score >= 8 ? 1 : 0;
+    return { score, color: revealBandColor(score), r: 5 + band * 1.3, ring: score >= 100 };
+  });
+}
+
 /**
- * The postable card. Standalone: carries its own xmlns, background and font
- * stack, because once rasterised it has no page and no stylesheet to inherit.
+ * The postable card (3.8): brand line, the guess count, the heat trail, and
+ * the solved green Wick on the right. Standalone: carries its own xmlns,
+ * background and font stack, because once rasterised it has no page and no
+ * stylesheet to inherit. The word is never on it.
  */
-export function shareCardSVG(points: RevealPointDTO[], m: CardMeta): string {
-  const cx = CARD_W / 2;
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${CARD_W}" height="${CARD_H}" viewBox="0 0 ${CARD_W} ${CARD_H}" font-family="${FONT}">
-  <rect width="${CARD_W}" height="${CARD_H}" fill="${INK}"/>
-  <rect x="10" y="10" width="${CARD_W - 20}" height="${CARD_H - 20}" rx="28" fill="none" stroke="rgba(255,255,255,0.07)" stroke-width="1"/>
-  ${GLOW_DEF}
-  <text x="${cx}" y="62" text-anchor="middle" fill="#f5ede2" font-size="38" font-weight="800" letter-spacing="-0.5">Wick</text>
-  <text x="${cx}" y="92" text-anchor="middle" font-size="16" font-weight="700">
-    <tspan fill="#ED6B2E">${esc(m.badge)}</tspan><tspan fill="#6f7a89"> · </tspan><tspan fill="#9aa4b2">${esc(m.resultLine)}</tspan>
-  </text>
-  ${mapMarkup(points, { cx, cy: 340, r: 186, spoiler: true, ringOpacity: 0.38, sparseLabels: true })}
-  <text x="${cx}" y="578" text-anchor="middle" fill="#6f7a89" font-size="13" font-weight="600">${esc(t("revealShareTease"))}</text>
-  <text x="${cx}" y="606" text-anchor="middle" fill="#ED6B2E" font-size="15" font-weight="800">${esc(m.host)}</text>
+export function shareCardSVG(m: CardMeta): string {
+  const S = CARD_SIZE, margin = S * 0.08;
+  const left = margin, textW = S * 0.44;
+  const nodes = heatTrail(m.heat);
+  const wickColor = m.solved ? PALETTE.solved : PALETTE.neutral;
+  const wickFace = m.solved ? "sly" : "calm";
+  const wickSize = S * 0.50;
+  const wickX = S - margin - wickSize + 10, wickY = S * 0.24;
+  // Heat trail: nodes spaced across the text column, joined by a faint line.
+  const trailY = S * 0.56;
+  const gapX = nodes.length > 1 ? Math.min(28, (textW - 40) / (nodes.length - 1)) : 0;
+  const trail = nodes.map((nd, i) => {
+    const x = left + 8 + i * gapX;
+    const ring = nd.ring ? `<circle cx="${x}" cy="${trailY}" r="${(nd.r + 5).toFixed(1)}" fill="none" stroke="${nd.color}" stroke-width="2" opacity="0.8"/>` : "";
+    return `<circle cx="${x}" cy="${trailY}" r="${nd.r.toFixed(1)}" fill="${nd.color}"/>${ring}`;
+  }).join("");
+  const trailLine = nodes.length > 1
+    ? `<line x1="${left + 8}" y1="${trailY}" x2="${(left + 8 + (nodes.length - 1) * gapX).toFixed(1)}" y2="${trailY}" stroke="rgba(255,255,255,0.14)" stroke-width="2"/>`
+    : "";
+  const result = m.solved ? `${m.guesses} ${esc(t("cardGuesses", m.guesses))}` : esc(t("revealShareUnsolved")).toUpperCase();
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${S}" height="${S}" viewBox="0 0 ${S} ${S}" font-family="${FONT}">
+  <defs>
+    <radialGradient id="card-bg" cx="72%" cy="42%" r="70%"><stop offset="0%" stop-color="#2a1d4e"/><stop offset="100%" stop-color="#120c22"/></radialGradient>
+    <radialGradient id="card-glow"><stop offset="0%" stop-color="rgba(77,158,71,0.45)"/><stop offset="100%" stop-color="rgba(77,158,71,0)"/></radialGradient>
+  </defs>
+  <rect width="${S}" height="${S}" fill="url(#card-bg)"/>
+  <circle cx="${wickX + wickSize / 2}" cy="${wickY + wickSize * 0.55}" r="${wickSize * 0.7}" fill="${m.solved ? "url(#card-glow)" : "none"}"/>
+  <text x="${left}" y="${margin + 18}" fill="#b9a8ff" font-size="17" font-weight="800" letter-spacing="2.5">${esc(m.brand)}</text>
+  <text x="${left}" y="${margin + 86}" fill="#fff6ea" font-size="${m.solved ? 56 : 40}" font-weight="900" letter-spacing="-1">${result}</text>
+  ${trailLine}${trail}
+  <text x="${left}" y="${S - margin - 30}" fill="#d9d0f0" font-size="19" font-weight="700">${esc(t("cardTease"))}</text>
+  <text x="${left}" y="${S - margin}" fill="#b9a8ff" font-size="17" font-weight="800">${esc(m.host)}</text>
+  <svg x="${wickX}" y="${wickY}" width="${wickSize}" height="${wickSize * 128 / 120}" viewBox="0 0 120 128" overflow="visible">${wickStillMarkup(wickFace, wickColor, m.solved ? "card-s" : "card-u", { sparks: m.solved })}</svg>
 </svg>`;
 }
 
@@ -197,11 +245,10 @@ export type ShareOutcome = "shared" | "downloaded" | "cancelled" | "failed";
  * the clipboard, which is the best a desktop browser can do.
  */
 export async function shareRevealCard(
-  points: RevealPointDTO[],
   meta: CardMeta,
   text: string,
 ): Promise<ShareOutcome> {
-  const png = await svgToPng(shareCardSVG(points, meta), CARD_W, CARD_H, 2);
+  const png = await svgToPng(shareCardSVG(meta), CARD_SIZE, CARD_SIZE, 2);
   if (!png) return "failed";
 
   const file = new File([png], `wick-${meta.puzzleNumber}.png`, { type: "image/png" });

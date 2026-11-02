@@ -157,6 +157,8 @@ final class GameViewModel {
     private(set) var reactionFace: KeeperFaceName?
     /// Goes up by one each time a reaction wants Wick to bounce (the view watches it).
     private(set) var reactionPokeTick = 0
+    /// 3.8: the long stall beat turns him grey for a moment.
+    private(set) var reactionNeutral = false
     @ObservationIgnored private var reactionTask: Task<Void, Never>?
     @ObservationIgnored private var personality = WickPersonalityState()
 
@@ -931,6 +933,7 @@ final class GameViewModel {
         reactionTask?.cancel()
         reactionTask = nil
         reactionFace = nil
+        reactionNeutral = false
         personality = WickPersonalityState()
         ensureRanking()   // start building the rank list now, off the main thread
     }
@@ -950,16 +953,25 @@ final class GameViewModel {
     /// one, and its line (English only, like the web toast).
     private func play(_ reaction: WickReaction?) {
         guard let reaction else { return }
+        if solved { return }                       // the solved sequence owns the face
         reactionTask?.cancel()
         reactionFace = reaction.face
+        reactionNeutral = reaction.neutral
         if reaction.poke { reactionPokeTick += 1 }
         if let line = reaction.line, language == .english { transientMessage = line }
+        Events.track(.wickBeat, g: Events.beatCode(reaction.kind))
         let wait = reaction.duration
         reactionTask = Task { [weak self] in
             try? await Task.sleep(for: wait)
             guard !Task.isCancelled else { return }
             self?.reactionFace = nil
+            self?.reactionNeutral = false
         }
+    }
+
+    /// 3.8: the solved sequence ended (or the player skipped it).
+    func solveSequenceDone(skipped: Bool) {
+        Events.track(.solveSeq, n: mode == .daily ? puzzleNumber : nil, g: skipped ? 1 : 0)
     }
 
     // MARK: - Rank
@@ -1327,7 +1339,19 @@ final class GameViewModel {
     private func markSolved() {
         solved = true
         Feedback.play(.solved)
-        if guesses.count == 1 { wickEggFlicker &+= 1 }   // first-guess solve — Wick pops with delight
+        // 3.8: a reaction never outlives the solve; the sequence owns his face.
+        reactionTask?.cancel()
+        reactionFace = nil
+        reactionNeutral = false
+        // The line lands on the recovery beat, after the shock, never before the result.
+        let seedMode: String = mode == .daily ? "daily" : "practice"
+        if language == .english, let line = WickPersonality.solvedLine(guessCount: guesses.count, seed: "\(seedMode):\(puzzleNumber)") {
+            Task { [weak self] in
+                try? await Task.sleep(for: .milliseconds(900))
+                guard let self, self.solved else { return }
+                self.transientMessage = line
+            }
+        }
         // The tutorial ends here, before anything is recorded or rewarded.
         if mode == .tutorial {
             finishTutorialBySolving()
@@ -2012,23 +2036,28 @@ final class GameViewModel {
         return "\(shareTitle): \(shareStats)\n\(grid)\n\(loc.shareTagline)"
     }
 
-    /// The semantic map as a flat image, for the share sheet.
+    /// The result card as a flat image, for the share sheet (3.8).
     ///
-    /// Spoiler-free by construction — `RevealShareCard` drops the guess words at
-    /// its initializer, so nothing downstream can print one. See that file's
-    /// header before changing what goes on the card.
+    /// Spoiler free by construction: RevealShareCard takes only numbers (the
+    /// guess count and each guess's warmth). See that file's header before
+    /// changing what goes on the card.
     ///
-    /// Returns nil when there is nothing worth plotting (fewer than two scored
-    /// guesses makes a bullseye with one dot on it, which reads as a mistake) or
-    /// if `ImageRenderer` fails. Callers fall back to sharing the text alone.
+    /// Returns nil when there is nothing to show (no scored guess) or if
+    /// ImageRenderer fails. Callers fall back to sharing the text alone.
     func shareImage() -> UIImage? {
-        let plotted = revealPoints
-        guard plotted.filter({ $0.score < 100 }).count >= 2 else { return nil }
-        return RevealShareCard(title: shareTitle,
-                               stats: shareStats,
-                               points: plotted,
-                               solved: solved,
-                               loc: loc).rendered()
+        let heat = cardHeat()
+        guard !heat.isEmpty else { return nil }
+        let brand: String
+        switch mode {
+        case .daily, .archive: brand = loc.cardBrandDaily(puzzleNumber)
+        default: brand = loc.cardBrandPractice
+        }
+        return RevealShareCard(brand: brand, guesses: guessCount, solved: solved, heat: heat, loc: loc).rendered()
+    }
+
+    /// Every scored guess, oldest first, as 0...100 warmth; the word is 100.
+    func cardHeat() -> [Double] {
+        guesses.filter(\.known).sorted { $0.order < $1.order }.map { $0.score }
     }
 
     /// Everything the share sheet should carry: the emoji-grid text always, plus
@@ -2037,7 +2066,10 @@ final class GameViewModel {
     func shareItems() -> [Any] {
         Events.track(.shareGrid, n: mode == .daily ? puzzleNumber : nil)
         var items: [Any] = [shareText()]
-        if let image = shareImage() { items.append(image) }
+        if let image = shareImage() {
+            items.append(image)
+            Events.track(.shareCard, n: mode == .daily ? puzzleNumber : nil, g: 1)
+        }
         return items
     }
 }

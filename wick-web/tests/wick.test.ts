@@ -7,7 +7,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { poseAt, danceAt, boilingShake, pokeEnvelope, flamePath, blinkAmount, bobPeriod, SIZE } from "../src/game/wick.ts";
-import { FACES, faceFor, faceDrawList, eyeShapes, lerpFace, swapBlink, swapMorph, PALETTE } from "../src/game/wickface.ts";
+import { FACES, faceFor, faceDrawList, eyeShapes, lerpFace, swapBlink, swapMorph, PALETTE, moodFor } from "../src/game/wickface.ts";
 import { pulseAt } from "../src/game/music.ts";
 
 const still = { pokeAt: null, reduceMotion: false, pulse: null };
@@ -182,4 +182,55 @@ test("showcase walks through all six faces in order, then starts over", async ()
   assert.equal(showcaseFace(5), "flustered");
   assert.equal(showcaseFace(27), "focus");
   assert.equal(showcaseFace(30), "sly");
+});
+
+
+// ── 3.8: the solved sequence and the share card ───────────────────────────────
+import { solveFace, solveScale, solveRing, SOLVE_DONE, SOLVE_RELEASE, wickStillMarkup } from "../src/game/wickface.ts";
+import { heatTrail, shareCardSVG } from "../src/game/revealcard.ts";
+
+test("solved: Shocked through the release, then Sly, and never leaves green", () => {
+  assert.equal(solveFace(0.05, false), "shocked");
+  assert.equal(solveFace(SOLVE_RELEASE - 0.01, false), "shocked");
+  assert.equal(solveFace(SOLVE_RELEASE + 0.01, false), "sly");
+  assert.equal(solveFace(SOLVE_DONE + 10, false), "sly");
+  assert.equal(solveFace(1.0, false, true), "shocked", "a first guess holds the shock longer");
+  assert.equal(solveFace(0.2, true), "shocked");
+  assert.equal(solveFace(0.6, true), "sly");
+  // The color never changes during the sequence: it is the celebrating mood,
+  // which is solved green for every face.
+  assert.equal(faceFor({ mood: "celebrating" }), "shocked");
+  assert.equal(moodFor({ score: 100 }), "celebrating");
+});
+
+test("solved: one squash, a rebound to 1.08, no spin, and one ring", () => {
+  assert.deepEqual(solveScale(0.1), { sx: 1, sy: 1 });
+  let maxSy = 0, minSy = 9;
+  for (let e = 0.42; e < 0.82; e += 0.01) { const s = solveScale(e); maxSy = Math.max(maxSy, s.sy); minSy = Math.min(minSy, s.sy); }
+  assert.ok(Math.abs(maxSy - 1.08) < 0.02, `rebounds to ${maxSy}`);
+  assert.ok(minSy < 0.92, `compresses to ${minSy}`);
+  assert.deepEqual(solveScale(0.9), { sx: 1, sy: 1 });
+  assert.equal(solveRing(0.1, false), null);
+  const r = solveRing(0.5, false)!;
+  assert.ok(r.opacity > 0 && r.r > 0.5);
+  assert.equal(solveRing(0.9, false), null);
+  assert.ok(solveRing(0.5, true), "reduced motion still gets the ring");
+});
+
+test("share card: 5 to 8 nodes from real guesses, ending green on a solve", () => {
+  const many = [3, 5, 9, 12, 20, 25, 33, 40, 48, 55, 61, 70, 100];
+  const trail = heatTrail(many);
+  assert.equal(trail.length, 8);
+  assert.equal(trail[0]!.score, 3);
+  assert.equal(trail[7]!.score, 100);
+  assert.ok(trail[7]!.ring, "the solve node carries a ring, not only a color");
+  assert.ok(trail[7]!.r > trail[0]!.r, "size changes with heat");
+  assert.equal(heatTrail([10, 20, 30]).length, 3);
+  const svg = shareCardSVG({ puzzleNumber: 248, brand: "WICK DAILY #248", guesses: 7, solved: true, heat: many, host: "guesswick.com" });
+  assert.match(svg, /WICK DAILY #248/);
+  assert.match(svg, /7 GUESSES/);
+  assert.match(svg, /guesswick\.com/);
+  assert.match(svg, /Can you turn Wick green\?/);
+  assert.ok(svg.includes(wickStillMarkup("sly", PALETTE.solved, "card-s", { sparks: true })), "green Sly Wick with sparks");
+  assert.ok(!svg.includes("secret"), "no word on the card");
 });

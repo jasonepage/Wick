@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  newWickPersonalityState, reactionForGuess, reactionForQuestion, topicForGuess,
+  newWickPersonalityState, reactionForGuess, reactionForQuestion, solvedLine, topicForGuess,
 } from "../src/game/wickpersonality.ts";
 
 test("topic recognition is narrow and intentional", () => {
@@ -11,30 +11,74 @@ test("topic recognition is narrow and intentional", () => {
   assert.equal(topicForGuess("ordinary"), null);
 });
 
-test("dramatic semantic information beats flavor reactions", () => {
+const g = (word: string, score: number, previousBest: number | null, guessCount: number, coldStreak = 0) =>
+  ({ word, score, previousBest, guessCount, coldStreak });
+
+test("near solve wears the flustered face and beats a topic beat", () => {
   const state = newWickPersonalityState();
-  const near = reactionForGuess(state, { word: "pizza", score: 88, previousBest: 20, guessCount: 4, coldStreak: 0 });
+  const near = reactionForGuess(state, g("pizza", 88, 80, 4));
   assert.equal(near?.kind, "near");
-  assert.equal(near?.face, "shocked");
-  assert.match(near?.reason ?? "", /88 warmth/);
+  assert.equal(near?.face, "flustered");
 });
 
-test("a topic performs once instead of nagging every guess", () => {
-  const state = newWickPersonalityState();
-  const first = reactionForGuess(state, { word: "pizza", score: 15, previousBest: 18, guessCount: 3, coldStreak: 1 });
-  const second = reactionForGuess(state, { word: "cake", score: 16, previousBest: 18, guessCount: 4, coldStreak: 2 });
-  assert.equal(first?.kind, "topic");
-  assert.equal(second, null);
+test("priority: repeat beats leap beats near beats regression beats stall beats topic", () => {
+  // Each case is built so several triggers are true at once.
+  let s = newWickPersonalityState();
+  reactionForGuess(s, g("rock", 10, null, 1));
+  assert.equal(reactionForGuess(s, g("rock", 90, 10, 5, 0))?.kind, "repeat", "repeat first");
+  s = newWickPersonalityState();
+  assert.equal(reactionForGuess(s, g("tree", 90, 50, 4))?.kind, "leap", "leap before near");
+  s = newWickPersonalityState();
+  assert.equal(reactionForGuess(s, g("tree", 85, 80, 4))?.kind, "near", "near before regression");
+  s = newWickPersonalityState();
+  assert.equal(reactionForGuess(s, g("tree", 5, 50, 4, 16))?.kind, "regress", "regression before stall");
+  s = newWickPersonalityState();
+  assert.equal(reactionForGuess(s, g("pizza", 12, 14, 20, 16))?.kind, "stall", "stall before topic");
+  assert.equal(reactionForGuess(newWickPersonalityState(), g("pizza", 12, 14, 4, 2))?.kind, "topic", "topic last");
 });
 
-test("three guesses in one genre earns a deliberate callout", () => {
-  const state = newWickPersonalityState();
-  reactionForGuess(state, { word: "cat", score: 10, previousBest: null, guessCount: 1, coldStreak: 0 });
-  reactionForGuess(state, { word: "dog", score: 11, previousBest: 10, guessCount: 2, coldStreak: 0 });
-  const third = reactionForGuess(state, { word: "horse", score: 9, previousBest: 11, guessCount: 3, coldStreak: 1 });
-  assert.equal(third?.kind, "repeat");
-  assert.match(third?.line ?? "", /animal/);
-  assert.match(third?.reason ?? "", /third consecutive animal/);
+test("global cooldown: nothing within three guesses of the last beat", () => {
+  const s = newWickPersonalityState();
+  assert.equal(reactionForGuess(s, g("a", 90, 50, 1))?.kind, "leap");
+  assert.equal(reactionForGuess(s, g("b", 95, 90, 2)), null);
+  assert.equal(reactionForGuess(s, g("c", 96, 95, 3)), null);
+  assert.equal(reactionForGuess(s, g("d", 97, 96, 4))?.kind, "near");
+});
+
+test("per beat cooldowns: once per round, every 4, every 3", () => {
+  const s = newWickPersonalityState();
+  reactionForGuess(s, g("x", 10, null, 1));
+  assert.equal(reactionForGuess(s, g("x", 10, 10, 4))?.kind, "repeat");
+  assert.equal(reactionForGuess(s, g("x", 10, 10, 8)), null, "repeat only once a round");
+  const l = newWickPersonalityState();
+  assert.equal(reactionForGuess(l, g("a", 40, 10, 1))?.kind, "leap");
+  assert.equal(reactionForGuess(l, g("b", 70, 40, 4)), null, "leap waits four guesses");
+  assert.equal(reactionForGuess(l, g("c", 95, 70, 5))?.kind, "leap");
+  const n = newWickPersonalityState();
+  assert.equal(reactionForGuess(n, g("a", 85, 80, 1))?.kind, "near");
+  assert.equal(reactionForGuess(n, g("b", 86, 85, 4))?.kind, "near", "near every three");
+});
+
+test("the stall beat goes grey and lines show less often than faces", () => {
+  const s = newWickPersonalityState();
+  const stall = reactionForGuess(s, g("q", 10, 12, 20, 15));
+  assert.equal(stall?.kind, "stall");
+  assert.equal(stall?.neutral, true);
+  let withLine = 0, total = 0;
+  for (let i = 0; i < 40; i++) {
+    const r = reactionForGuess(newWickPersonalityState(), g(`w${i}`, 85, 80, i + 1));
+    total++;
+    if (r?.line) withLine++;
+  }
+  assert.ok(withLine > 0 && withLine < total, `lines on ${withLine} of ${total}`);
+});
+
+test("the solved line pool: first guess always speaks, otherwise sometimes", () => {
+  assert.equal(solvedLine(1, "daily:5"), "...on the first guess?");
+  const seen = new Set<string | null>();
+  for (let i = 2; i < 40; i++) seen.add(solvedLine(i, "daily:5"));
+  assert.ok(seen.has(null), "sometimes quiet");
+  assert.ok(seen.size >= 3, "uses the pool");
 });
 
 test("weird questions direct a performance without inventing an answer", () => {

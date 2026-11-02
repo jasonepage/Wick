@@ -40,6 +40,7 @@
 import {
   type Mood, type RGB, type FaceName, type FaceP, type TipP, moodFor, moodRGB, lighten, rgb, starPath, PALETTE,
   FACES, FACE_TRANSFORM, PLATE_ART, PLATE_PATH, chunkyFlamePath, faceDrawList, faceFor, lerpFace, swapBlink, swapMorph,
+  SOLVE_DONE, SOLVE_HIT, SOLVE_RM_DONE, solveFace, solveRing, solveScale, solveSparks,
 } from "./wickface.ts";
 import { musicPulse } from "./music.ts";
 
@@ -95,8 +96,9 @@ export function flamePath(flicker: number, tip?: TipP): string {
 }
 
 /** The four sparkles around a celebrating Wick: where they sit and how big. */
+/** 3.8: three gold sparks, no more (the personality brief). */
 export const SPARKLES: { x: number; y: number; r: number }[] = [
-  { x: 22, y: 40, r: 4 }, { x: 100, y: 34, r: 3.4 }, { x: 104, y: 88, r: 3 }, { x: 16, y: 84, r: 3 },
+  { x: 22, y: 40, r: 4 }, { x: 100, y: 34, r: 3.4 }, { x: 104, y: 88, r: 3 },
 ];
 export const SPARKLE_COLOR = rgb(PALETTE.warm);
 
@@ -400,6 +402,10 @@ export interface WickOptions {
   focus?: boolean;
   /** Short authored personality beat. Color still comes from score/mood. */
   face?: FaceName | null;
+  /** 3.8: the solve was the first guess, so Shocked holds a little longer. */
+  firstGuess?: boolean;
+  /** 3.8: called once when the solved sequence ends (not on a reopened round). */
+  onSolveDone?: (skipped: boolean) => void;
   /** Show off every face: a new one every SHOWCASE_SECONDS, with the usual
    *  blink between them (3.7). Home and the round's welcome use it. */
   showcase?: boolean;
@@ -422,6 +428,13 @@ export interface Wick {
   setFlags(flags: { race?: boolean; focus?: boolean; showcase?: boolean }): void;
   /** Temporarily override only the expression; null returns control to heat. */
   setFace(face: FaceName | null): void;
+  /** 3.8: jump to the end of the solved sequence (the player tapped). Returns
+   *  true when a sequence was running and got skipped. */
+  settleSolve(): boolean;
+  /** 3.8: what the next solved sequence should know (set before the solving score lands). */
+  setSolveOptions(o: { firstGuess?: boolean; onSolveDone?: ((skipped: boolean) => void) | null }): void;
+  /** Seconds into the solved sequence, or null when none is running. */
+  readonly solveElapsed: number | null;
   /** The face he is wearing. */
   readonly face: FaceName;
   /** Stop animating and remove the SVG. */
@@ -500,6 +513,13 @@ interface Inst {
   faceKey: string;            // what was last painted, to skip repaints
   sparkles: SVGPathElement[];
   pokeAt: number | null;
+  /** 3.8: when the solved sequence began; -Infinity when he was already
+   *  solved at mount (a reopened round), so the final pose shows at once. */
+  solvedAt: number | null;
+  solvedFirst: boolean;
+  ring: SVGCircleElement;
+  onSolveDone: ((skipped: boolean) => void) | null;     // armed for the running sequence
+  solveDoneOpt: ((skipped: boolean) => void) | null;    // what the next sequence will call
   nextBlinkAt: number;
   blinkAt: number | null;
   visible: boolean;
@@ -579,6 +599,7 @@ export function showcaseFace(elapsed: number): FaceName {
 /** The face the game state calls for right now (or the showcase's next one).
  *  No showcase with reduced motion: the swaps would be instant jumps. */
 function wantFace(i: Inst, t: number, rm: boolean): FaceName {
+  if (i.mood === "celebrating" && i.solvedAt !== null) return solveFace(t - i.solvedAt, rm, i.solvedFirst);
   if (i.overrideFace) return i.overrideFace;
   if (i.showcase && !rm) {
     if (i.showStart === null) i.showStart = t;
@@ -631,6 +652,26 @@ function frame(i: Inst, t: number, rm: boolean): void {
     pose.sx *= 1 - 0.06 * pop;
     if (i.face === "shocked") pose.y -= 5 * pop;
   }
+  // 3.8: the solved sequence. Freeze on the hit, squash and rebound on the
+  // release, one ring, and the sparks only from the release on.
+  const se = i.mood === "celebrating" && i.solvedAt !== null ? t - i.solvedAt : null;
+  let sparksOn = true;
+  if (se !== null) {
+    if (!rm && se < SOLVE_HIT) { pose.x = 0; pose.y = 0; pose.rot = 0; pose.sx = 1; pose.sy = 1; }
+    if (!rm) { const sc = solveScale(se); pose.sx *= sc.sx; pose.sy *= sc.sy; }
+    const ring = solveRing(se, rm);
+    if (ring) {
+      const c = mixRGB(PALETTE.keeper, PALETTE.solved, ring.mix);
+      i.ring.setAttribute("r", (ring.r * 60).toFixed(1));
+      i.ring.setAttribute("stroke", rgb(c));
+      i.ring.setAttribute("opacity", ring.opacity.toFixed(3));
+    } else if (i.ring.getAttribute("opacity") !== "0") {
+      i.ring.setAttribute("opacity", "0");
+    }
+    sparksOn = solveSparks(se, rm);
+    const done = rm ? SOLVE_RM_DONE : SOLVE_DONE;
+    if (se >= done && i.onSolveDone) { const cb = i.onSolveDone; i.onSolveDone = null; cb(false); }
+  }
   i.rig.setAttribute("transform", poseTransform(pose));
   i.el.style.opacity = pose.opacity < 1 ? pose.opacity.toFixed(3) : "";
 
@@ -668,7 +709,7 @@ function frame(i: Inst, t: number, rm: boolean): void {
     const ph = rm ? 0.4 * sparklePhase(t, k) : sparklePhase(t, k);
     const sp = i.sparkles[k]!;
     const { x, y } = SPARKLES[k]!;
-    sp.setAttribute("opacity", (0.25 + 0.75 * ph).toFixed(3));
+    sp.setAttribute("opacity", sparksOn ? (0.25 + 0.75 * ph).toFixed(3) : "0");
     const sc = rm ? 1 : 0.7 + 0.45 * ph;
     sp.setAttribute("transform", `translate(${x} ${y}) scale(${sc.toFixed(3)}) rotate(${(ph * 36).toFixed(1)}) translate(${-x} ${-y})`);
   }
@@ -719,8 +760,10 @@ export function mountWick(host: HTMLElement, opts: WickOptions): Wick {
   // The inner flame: one tone step lighter than the body (white at 22%).
   const plate = svgEl("path", { class: "flame-core", d: PLATE_PATH, fill: WHITE, opacity: 0.22 });
   const sparkG = svgEl("g", { class: "sparkles", fill: SPARKLE_COLOR });
+  // 3.8: the one solved ring, drawn behind him and invisible until the solve.
+  const ring = svgEl("circle", { class: "solve-ring", cx: BASE_X, cy: 64, r: 0, fill: "none", "stroke-width": 3, opacity: 0 });
   const face = buildFace(id);
-  rig.append(glow, body, plate, sparkG, face.g);
+  rig.append(ring, glow, body, plate, sparkG, face.g);
   el.append(defs, rig);
   host.append(el);
 
@@ -729,6 +772,8 @@ export function mountWick(host: HTMLElement, opts: WickOptions): Wick {
     plate, id, faceSlots: face.slots, face: startFace, faceFrom: FACES[startFace], faceTo: FACES[startFace],
     faceAt: t0 - 10, race, focus, overrideFace: opts.face ?? null, showcase: !!opts.showcase, showStart: null, faceKey: "",
     sparkles: [], pokeAt: null,
+    solvedAt: mood === "celebrating" ? -Infinity : null, solvedFirst: !!opts.firstGuess, ring, onSolveDone: null,
+    solveDoneOpt: opts.onSolveDone ?? null,
     nextBlinkAt: t0 + nextBlinkDelay(), blinkAt: null, visible: true, dance: !!opts.dance,
     danceStyle: opts.danceStyle ?? "swagger", danceIntensity: opts.danceIntensity ?? 1,
     pulse: opts.pulse ?? musicPulse, io: null, lastFlicker: 0.5, lastPath: d0,
@@ -753,7 +798,7 @@ export function mountWick(host: HTMLElement, opts: WickOptions): Wick {
     inst.io.observe(el);
   }
   el.style.cursor = "pointer";
-  el.addEventListener("pointerdown", () => { handle.poke(); opts.onPoke?.(); });
+  el.addEventListener("pointerdown", () => { if (handle.settleSolve()) return; handle.poke(); opts.onPoke?.(); });
 
   instances.add(inst);
   hookDocument();
@@ -773,6 +818,8 @@ export function mountWick(host: HTMLElement, opts: WickOptions): Wick {
       // The face follows on the next frame (wantFace), with a blink and a morph.
       el.classList.remove(`mood-${inst.mood}`);
       el.classList.add(`mood-${m}`);
+      if (m === "celebrating") { inst.solvedAt = t; inst.onSolveDone = inst.solveDoneOpt; }
+      else inst.solvedAt = null;
       inst.mood = m;
       setSparkles(m);
       wake();
@@ -795,6 +842,23 @@ export function mountWick(host: HTMLElement, opts: WickOptions): Wick {
       wake();
     },
     setFace(face) { inst.overrideFace = face; wake(); },
+    setSolveOptions(o) {
+      if (o.firstGuess !== undefined) inst.solvedFirst = o.firstGuess;
+      if (o.onSolveDone !== undefined) inst.solveDoneOpt = o.onSolveDone;
+    },
+    settleSolve() {
+      const e = handle.solveElapsed;
+      if (e === null || e >= SOLVE_DONE) return false;
+      if (e < SOLVE_HIT) return false;            // the hit itself cannot be skipped
+      inst.solvedAt = now() - SOLVE_DONE;
+      if (inst.onSolveDone) { const cb = inst.onSolveDone; inst.onSolveDone = null; cb(true); }
+      wake();
+      return true;
+    },
+    get solveElapsed() {
+      if (inst.mood !== "celebrating" || inst.solvedAt === null || inst.solvedAt === -Infinity) return null;
+      return now() - inst.solvedAt;
+    },
     get face() { return inst.face; },
     destroy() { teardown(inst); el.remove(); },
   };
@@ -811,6 +875,7 @@ const mounted = new WeakMap<Element, Wick>();
 export function ensureWick(host: HTMLElement, opts: WickOptions): Wick {
   const have = mounted.get(host);
   if (have && have.el.isConnected && have.el.parentElement === host) {
+    have.setSolveOptions({ firstGuess: opts.firstGuess, onSolveDone: opts.onSolveDone });
     have.setScore(opts.score, opts.neutral);
     have.setFlags({ race: !!opts.race, focus: !!opts.focus, showcase: !!opts.showcase });
     have.setFace(opts.face ?? null);

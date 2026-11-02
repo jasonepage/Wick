@@ -17,6 +17,19 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   warmth, a new topic (food, animals, space and so on), a repeat, or a cold
   streak. It clears on its own and the warmth face stays in charge. Same
   rules on iPhone and web.
+- **"You got me": the solved moment.** A five beat sequence (1.8 seconds):
+  a freeze and a shock, Wick turns solved green, one squash and rebound
+  with a violet to green ring and three gold sparks, then the reluctant
+  impressed smirk. He stays green. A tap skips to the end. Reduced Motion
+  gets a crossfade. One line from a small pool lands after the shock.
+- **New share card.** Square, dark violet: "WICK DAILY #n", the guess
+  count, a heat trail of your real guesses ending in green (size and a
+  ring mark the bands, not only color), and the green Wick head. Never
+  the word.
+- **Rare reactions, one per guess at most.** Exact repeat, big warmth
+  jump, near solve, a cold guess after a warm one, and a long stall, each
+  with its own cooldown and a three guess gap between beats. Lines show
+  less often than faces. Same rules on iPhone and web.
 - **Race dance.** Wick's dance in a live race is now three authored moves
   (Groove, Swagger, Hype) with a crouch before the drop and the flame tip
   swaying against the body. Same numbers on iPhone and web.

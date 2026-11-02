@@ -136,6 +136,11 @@ struct KeeperView: View {
     /// Bump this to make Wick bounce without a tap (a reaction's poke).
     /// No haptic and no quip: those belong to a real tap.
     var pokeTick: Int = 0
+    /// 3.8: the solve was the first guess, so Shocked holds a little longer.
+    var firstGuess: Bool = false
+    /// 3.8: called once when the solved sequence ends; true when the player
+    /// skipped it with a tap. Not called for a round that opens already solved.
+    var onSolveDone: ((Bool) -> Void)? = nil
 
     /// Picks his face from the mood and runs the blink-and-morph between faces.
     @State private var animator = KeeperFaceAnimator()
@@ -175,17 +180,22 @@ struct KeeperView: View {
 
             // The face for this frame, and the pop as he opens on a new one
             // (squash and stretch, plus a little hop for Shocked).
+            animator.firstGuess = firstGuess
             let face = animator.frame(t: t, mood: mood, race: race ?? dances, reduceMotion: reduceMotion,
                                       showcase: showcase, override: faceOverride)
             let popX: Double = 1 - 0.06 * face.pop
             let popY: Double = 1 + 0.10 * face.pop
             let hop: CGFloat = face.name == .shocked ? -size * 0.04 * CGFloat(face.pop) : 0
+            // 3.8: the hit beat holds everything still; the release squashes and rebounds.
+            let fz: Double = face.freeze ? 0 : 1
+            let sx: Double = face.freeze ? 1 : breathe * pokeScale * dance.scaleX * popX * face.solveScale.sx
+            let sy: Double = face.freeze ? 1 : breathe * pokeScale * dance.scaleY * popY * face.solveScale.sy
+            let _ = reportSolveDone(t: t)
 
             keeperBody(flicker: flick, face: face)
-                .scaleEffect(x: breathe * pokeScale * dance.scaleX * popX,
-                             y: breathe * pokeScale * dance.scaleY * popY, anchor: .bottom)
-                .rotationEffect(.degrees(pokeWiggle + shake.rotation + dance.rotation), anchor: .bottom)
-                .offset(x: shiver + shake.x + dance.x, y: bob + shake.y + dance.y + hop)
+                .scaleEffect(x: sx, y: sy, anchor: .bottom)
+                .rotationEffect(.degrees((pokeWiggle + shake.rotation + dance.rotation) * fz), anchor: .bottom)
+                .offset(x: (shiver + shake.x + dance.x) * fz, y: (bob + shake.y + dance.y + hop) * fz)
                 .opacity(glow)
                 .shadow(color: mood.bodyColor.opacity(mood == .defeated ? 0 : 0.35),
                         radius: size * 0.12, y: size * 0.05)
@@ -197,6 +207,13 @@ struct KeeperView: View {
         .accessibilityHidden(true)
     }
 
+    /// 3.8: fire the done callback once, on the main queue after the frame.
+    private func reportSolveDone(t: Double) -> Bool {
+        guard animator.takeSolveDone(at: t, reduceMotion: reduceMotion) else { return false }
+        if let cb = onSolveDone { DispatchQueue.main.async { cb(false) } }
+        return true
+    }
+
     /// 0...1 decaying envelope for the poke bounce (about 0.45s long).
     private func pokeProgress(now: Date) -> Double {
         guard let start = pokeStart else { return 0 }
@@ -206,6 +223,12 @@ struct KeeperView: View {
     }
 
     private func poke() {
+        // During the solved sequence a tap skips to the button pose instead.
+        let t = Date().timeIntervalSinceReferenceDate
+        if animator.settleSolve(at: t) {
+            if animator.takeSolveDone(at: t, reduceMotion: reduceMotion), let cb = onSolveDone { cb(true) }
+            return
+        }
         pokeStart = Date()
         Haptics.selection()
         onPoke?()
@@ -245,8 +268,19 @@ struct KeeperView: View {
             // The face: brows, heavy lids, under-eye bags, eyes, mouth
             KeeperFaceCanvas(face: face.face, closure: face.closure, color: face.color)
 
-            if mood == .celebrating {
+            if mood == .celebrating && face.sparksOn {
                 sparkles
+            }
+            // 3.8: the one solved ring, violet to green, behind nothing and over everything.
+            if let ring = face.solveRing {
+                Circle()
+                    .stroke(Color(red: 0.455 + (0.302 - 0.455) * ring.mix,
+                                  green: 0.267 + (0.620 - 0.267) * ring.mix,
+                                  blue: 0.941 + (0.278 - 0.941) * ring.mix),
+                            lineWidth: 3)
+                    .frame(width: size * ring.r * 2, height: size * ring.r * 2)
+                    .opacity(ring.opacity)
+                    .offset(y: -size * 0.05)
             }
         }
         .animation(.easeInOut(duration: 0.5), value: mood)
@@ -259,14 +293,15 @@ struct KeeperView: View {
             let t = ctx.date.timeIntervalSinceReferenceDate
             let amp = reduceMotion ? 0.4 : 1.0
             ZStack {
-                ForEach(0..<5, id: \.self) { i in
+                // 3.8: three gold sparks, no more (the personality brief).
+                ForEach(0..<3, id: \.self) { i in
                     let phase = (sin(t * 2 * .pi / 0.6 - Double(i) * 0.75) + 1) / 2
                     Image(systemName: "sparkle")
                         .font(.system(size: size * 0.10))
                         .foregroundStyle(HunchTheme.Palette.coin)
                         .offset(
-                            x: cos(Double(i) / 5 * 2 * .pi) * size * 0.55,
-                            y: sin(Double(i) / 5 * 2 * .pi) * size * 0.55 - size * 0.05
+                            x: cos(Double(i) / 3 * 2 * .pi - 0.6) * size * 0.55,
+                            y: sin(Double(i) / 3 * 2 * .pi - 0.6) * size * 0.55 - size * 0.05
                         )
                         .opacity(0.25 + 0.75 * phase * amp)
                 }

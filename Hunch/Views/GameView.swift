@@ -16,6 +16,8 @@ struct GameView: View {
     @State private var showGiveUpConfirm = false
     @State private var showSettings = false
     @State private var wickEggScale: CGFloat = 1
+    /// 3.8: the result actions wait for Wick's button pose on a fresh solve.
+    @State private var solveActionsIn = false
     @FocusState private var guessFocused: Bool
     /// Drives the guess-row reflow at accessibility text sizes — the fixed-width
     /// word column below cannot hold a word at AX5.
@@ -207,7 +209,8 @@ struct GameView: View {
     @ViewBuilder
     private var celebration: some View {
         if game.solved {
-            ConfettiView()
+            // 3.8: a light burst, not a storm. Wick's own ring and sparks lead.
+            ConfettiView(count: 12)
                 .id(game.target)          // replay for each newly solved word
                 .ignoresSafeArea()
                 .allowsHitTesting(false)
@@ -224,6 +227,7 @@ struct GameView: View {
     private var keeperMood: KeeperMood {
         if game.solved { return .celebrating }
         if game.revealed { return .defeated }
+        if game.reactionNeutral { return .defeated }   // 3.8: the long stall beat, grey for a moment
         if let last = game.lastSubmitted, last.known {
             return .forScore(last.score)
         }
@@ -427,7 +431,12 @@ struct GameView: View {
 
                     KeeperView(mood: keeperMood, size: 72, onPoke: pokeWick,
                                faceOverride: game.reactionFace,
-                               pokeTick: game.reactionPokeTick)
+                               pokeTick: game.reactionPokeTick,
+                               firstGuess: game.guessCount == 1,
+                               onSolveDone: { skipped in
+                                   game.solveSequenceDone(skipped: skipped)
+                                   withAnimation(.easeOut(duration: 0.4)) { solveActionsIn = true }
+                               })
                         .scaleEffect(wickEggScale)
                         .onChange(of: game.wickEggFlicker) { _, _ in
                             withAnimation(.easeOut(duration: 0.12)) { wickEggScale = 1.3 }
@@ -836,10 +845,18 @@ struct GameView: View {
                 }
             }
             endActions
+                .opacity(solveActionsIn ? 1 : 0)
         }
         .padding(HunchTheme.Spacing.xl)
         .frame(maxWidth: .infinity)
         .hunchCard(tint: HunchTheme.Palette.solved, radius: HunchTheme.Radius.hero)
+        .onAppear {
+            // A round that opens already solved (or a solve the hero Wick is not
+            // on screen for) shows the actions right away.
+            if game.lastSubmitted == nil { solveActionsIn = true }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2.2) { solveActionsIn = true }
+        }
+        .onChange(of: game.target) { _, _ in solveActionsIn = false }
     }
 
     // MARK: - Revealed (gave up)
@@ -901,8 +918,8 @@ struct GameView: View {
     /// Three ways to share, side by side: the emoji grid (text), the semantic
     /// map (an image), and the solve replay (a video). All spoiler-free.
     private var shareRow: some View {
-        // Mirrors shareImage(): the map needs at least two scored guesses.
-        let canMap = game.guesses.filter { $0.known && $0.score < 100 }.count >= 2
+        // Mirrors shareImage(): the card needs at least one scored guess.
+        let canMap = !game.cardHeat().isEmpty
         return VStack(alignment: .leading, spacing: HunchTheme.Spacing.s) {
             Text(game.loc.shareSectionTitle)
                 .font(.caption.weight(.semibold))
@@ -920,6 +937,7 @@ struct GameView: View {
                               tint: HunchTheme.Palette.hot) {
                         guard let image = game.shareImage() else { return }
                         Events.track(.shareMap, n: game.mode == .daily ? game.puzzleNumber : nil)
+                        Events.track(.shareCard, n: game.mode == .daily ? game.puzzleNumber : nil, g: 1)
                         ShareSheet.present([image])
                     }
                 }

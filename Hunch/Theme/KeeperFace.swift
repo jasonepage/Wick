@@ -750,6 +750,41 @@ final class KeeperFaceAnimator {
         let pop: Double
         let name: KeeperFaceName
         let color: KeeperRGB
+        /// 3.8: the solved sequence, when one is running.
+        let solveScale: KeeperSolve.Scale
+        let solveRing: KeeperSolve.Ring?
+        let sparksOn: Bool
+        /// The hit beat: hold every other motion still.
+        let freeze: Bool
+    }
+
+    /// 3.8: when the solved sequence began. -infinity when the first mood seen
+    /// was already celebrating (a reopened round), so the final pose shows at once.
+    private var solvedAt: Double? = nil
+    private var solveDoneFired = false
+    var firstGuess = false
+
+    /// Seconds into a running solved sequence, or nil.
+    func solveElapsed(at t: Double) -> Double? {
+        guard lastMood == .celebrating, let s = solvedAt, s.isFinite else { return nil }
+        return t - s
+    }
+
+    /// Jump to the end of the sequence (the player tapped). The hit itself cannot
+    /// be skipped. Returns true when a sequence was running.
+    func settleSolve(at t: Double) -> Bool {
+        guard let e = solveElapsed(at: t), e >= KeeperSolve.hit, e < KeeperSolve.done else { return false }
+        solvedAt = t - KeeperSolve.done
+        return true
+    }
+
+    /// True exactly once, on the first frame after the sequence has ended.
+    func takeSolveDone(at t: Double, reduceMotion: Bool) -> Bool {
+        guard !solveDoneFired, let e = solveElapsed(at: t) else { return false }
+        let end: Double = reduceMotion ? KeeperSolve.rmDone : KeeperSolve.done
+        guard e >= end else { return false }
+        solveDoneFired = true
+        return true
     }
 
     private var name: KeeperFaceName? = nil
@@ -780,9 +815,24 @@ final class KeeperFaceAnimator {
             } else {
                 colorFrom = color(at: t); colorTo = target; colorAt = t
             }
+            // 3.8: entering the solved color starts the sequence; a Wick that
+            // was born solved shows the final pose.
+            if mood == .celebrating {
+                solvedAt = lastMood == nil ? -Double.infinity : t
+                solveDoneFired = lastMood == nil
+            } else {
+                solvedAt = nil
+                solveDoneFired = false
+            }
             lastMood = mood
         }
+        let solveE: Double? = solveElapsed(at: t)
         var want: KeeperFaceName = override ?? KeeperFaces.faceFor(mood: mood, race: race)
+        if mood == .celebrating, let sAt = solvedAt {
+            // The sequence owns the face while it runs; afterwards he holds Sly.
+            let e: Double = sAt.isFinite ? t - sAt : KeeperSolve.done + 1
+            want = KeeperSolve.face(e, reduceMotion: reduceMotion, firstGuess: firstGuess)
+        }
         // Showcase: walk through every face in order, one every few seconds.
         // Not with Reduce Motion on (the swaps would be instant jumps).
         if override == nil && showcase && !reduceMotion {
@@ -826,6 +876,79 @@ final class KeeperFaceAnimator {
         let current = name ?? want
         let strength: Double = current == .shocked ? 1.6 : 1
         let pop: Double = reduceMotion ? 0 : KeeperFaces.popEnvelope(e - 0.3) * strength
-        return Frame(face: face, closure: closure, pop: pop, name: current, color: color(at: t))
+        let sScale: KeeperSolve.Scale = (solveE != nil && !reduceMotion) ? KeeperSolve.scale(solveE!) : KeeperSolve.Scale(sx: 1, sy: 1)
+        let sRing: KeeperSolve.Ring? = solveE.flatMap { KeeperSolve.ring($0, reduceMotion: reduceMotion) }
+        let sparks: Bool = solveE.map { KeeperSolve.sparks($0, reduceMotion: reduceMotion) } ?? true
+        let freeze: Bool = (solveE != nil && !reduceMotion) ? solveE! < KeeperSolve.hit : false
+        return Frame(face: face, closure: closure, pop: pop, name: current, color: color(at: t),
+                     solveScale: sScale, solveRing: sRing, sparksOn: sparks, freeze: freeze)
+    }
+}
+
+
+// MARK: - 3.8: the solved sequence "You got me"
+
+/// Five beats, 1.8 seconds, the same numbers as wickface.ts (SOLVE_*).
+///   hit        0.00 to 0.12  freeze, Shocked
+///   disbelief  0.12 to 0.42  green, Shocked
+///   release    0.42 to 0.82  compress then rebound to 1.08, one ring, sparks
+///   recovery   0.82 to 1.28  Sly: the reluctant impressed look
+///   button     1.28 to 1.80  hold green Sly, normal blinks
+/// A first-guess solve holds Shocked longer (firstHold).
+nonisolated enum KeeperSolve {
+    static let hit: Double = 0.12
+    static let disbelief: Double = 0.42
+    static let release: Double = 0.82
+    static let recovery: Double = 1.28
+    static let done: Double = 1.8
+    static let firstHold: Double = 0.5
+    /// Reduced Motion: a crossfade to green Shocked, one ring fades, then Sly.
+    static let rmSwap: Double = 0.4
+    static let rmDone: Double = 0.8
+    static let rebound: Double = 1.08
+
+    struct Scale: Equatable { var sx: Double; var sy: Double }
+    struct Ring: Equatable { var r: Double; var opacity: Double; var mix: Double }
+
+    /// The face Wick wears `e` seconds into the sequence.
+    static func face(_ e: Double, reduceMotion: Bool, firstGuess: Bool = false) -> KeeperFaceName {
+        if reduceMotion { return e < rmSwap ? .shocked : .sly }
+        let swap: Double = release + (firstGuess ? firstHold : 0)
+        return e < swap ? .shocked : .sly
+    }
+
+    /// Squash and rebound during the release beat.
+    static func scale(_ e: Double) -> Scale {
+        if e < disbelief || e >= release { return Scale(sx: 1, sy: 1) }
+        let u: Double = (e - disbelief) / (release - disbelief)
+        if u < 0.3 {
+            let k: Double = u / 0.3
+            return Scale(sx: 1 + 0.06 * k, sy: 1 - 0.10 * k)
+        }
+        if u < 0.65 {
+            let k: Double = (u - 0.3) / 0.35
+            return Scale(sx: 1.06 - 0.10 * k, sy: 0.90 + (rebound - 0.90) * k)
+        }
+        let k: Double = (u - 0.65) / 0.35
+        return Scale(sx: 0.96 + 0.04 * k, sy: rebound - (rebound - 1) * k)
+    }
+
+    /// The one ring: radius as a factor of Wick's size, opacity, and the mix
+    /// from violet (0) to solved green (1). Nil outside the release beat.
+    static func ring(_ e: Double, reduceMotion: Bool) -> Ring? {
+        if reduceMotion {
+            let start: Double = rmSwap * 0.5
+            if e < start || e >= rmDone { return nil }
+            let u: Double = (e - start) / (rmDone - start)
+            return Ring(r: 0.75, opacity: 0.5 * sin(u * .pi), mix: u)
+        }
+        if e < disbelief || e >= release { return nil }
+        let u: Double = (e - disbelief) / (release - disbelief)
+        return Ring(r: 0.55 + 0.6 * u, opacity: 0.7 * (1 - u), mix: u)
+    }
+
+    /// The gold sparks show from the release beat on.
+    static func sparks(_ e: Double, reduceMotion: Bool) -> Bool {
+        reduceMotion ? e >= rmSwap : e >= disbelief
     }
 }

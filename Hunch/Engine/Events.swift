@@ -31,9 +31,28 @@ enum WickEvent: String {
     case tutorialStart = "tutorial_start"
     case tutorialDone = "tutorial_done"
     case tutorialSkip = "tutorial_skip"
+    // 3.8 personality. solveSeq: g 0 watched, 1 skipped. shareCard: g 1 shared,
+    // 2 saved. wickBeat: g = Events.beatCode. Never guess text or the word.
+    case solveSeq = "solve_seq"
+    case shareCard = "share_card"
+    case wickBeat = "wick_beat"
 }
 
 enum Events {
+    /// The rare beat kinds as small numbers for `g` (same table as the web).
+    static func beatCode(_ kind: WickReactionKind) -> Int {
+        switch kind {
+        case .repeat: return 1
+        case .leap: return 2
+        case .near: return 3
+        case .regress: return 4
+        case .stall: return 5
+        case .topic: return 6
+        case .wild: return 7
+        case .stuck: return 8
+        }
+    }
+
     /// Random per-install id. Not the Apple identifier, not tied to an account,
     /// and reset by deleting the app. The server hashes it before writing.
     private static let anonId: String = {

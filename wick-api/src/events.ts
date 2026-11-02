@@ -41,6 +41,12 @@ const ALLOWED = new Set([
   "tutorial_start",
   "tutorial_done",
   "tutorial_skip",
+  // 3.8 personality. solve_seq: g 0 = watched, 1 = skipped. share_card: g 1 =
+  // shared, 2 = saved. wick_beat: g = the beat kind (see WICK_BEAT_CODES in
+  // wick-web/src/net/events.ts). Never the guess text or the word.
+  "solve_seq",
+  "share_card",
+  "wick_beat",
 ]);
 
 export function isTrackedEvent(name: unknown): name is string {

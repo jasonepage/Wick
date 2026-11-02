@@ -538,3 +538,105 @@ export function faceDrawList(p: FaceP, closure: number[], color: RGB): DrawItem[
   items.push({ d: p.drop.on > 0.01 ? dropPath(p.drop) : "", fill: rgb(EYE_WHITE), opacity: p.drop.on });
   return items;
 }
+
+
+// ── 3.8: the solved sequence "You got me" ─────────────────────────────────────
+// Five beats, 1.8 seconds, shared with KeeperFace.swift (same numbers).
+//   hit        0.00 to 0.12  freeze, Shocked
+//   disbelief  0.12 to 0.42  green, Shocked
+//   release    0.42 to 0.82  compress then rebound to 1.08, one ring, sparks
+//   recovery   0.82 to 1.28  Sly: the reluctant impressed look
+//   button     1.28 to 1.80  hold green Sly, normal blinks
+// A first-guess solve holds Shocked longer (SOLVE_FIRST_HOLD).
+
+export const SOLVE_HIT = 0.12;
+export const SOLVE_DISBELIEF = 0.42;
+export const SOLVE_RELEASE = 0.82;
+export const SOLVE_RECOVERY = 1.28;
+export const SOLVE_DONE = 1.8;
+export const SOLVE_FIRST_HOLD = 0.5;
+/** Reduced Motion: a crossfade to green Shocked, one ring fades, then Sly. */
+export const SOLVE_RM_SWAP = 0.4;
+export const SOLVE_RM_DONE = 0.8;
+export const SOLVE_REBOUND = 1.08;
+
+/** The face Wick wears `e` seconds into the solved sequence. */
+export function solveFace(e: number, reduceMotion: boolean, firstGuess = false): FaceName {
+  if (reduceMotion) return e < SOLVE_RM_SWAP ? "shocked" : "sly";
+  const swap = SOLVE_RELEASE + (firstGuess ? SOLVE_FIRST_HOLD : 0);
+  return e < swap ? "shocked" : "sly";
+}
+
+/** Squash and rebound during the release beat: x and y scale factors. */
+export function solveScale(e: number): { sx: number; sy: number } {
+  if (e < SOLVE_DISBELIEF || e >= SOLVE_RELEASE) return { sx: 1, sy: 1 };
+  const u = (e - SOLVE_DISBELIEF) / (SOLVE_RELEASE - SOLVE_DISBELIEF);   // 0..1
+  if (u < 0.3) {
+    const k = u / 0.3;                                       // compress
+    return { sx: 1 + 0.06 * k, sy: 1 - 0.10 * k };
+  }
+  if (u < 0.65) {
+    const k = (u - 0.3) / 0.35;                              // rebound past 1
+    return { sx: 1.06 - 0.10 * k, sy: 0.90 + (SOLVE_REBOUND - 0.90) * k };
+  }
+  const k = (u - 0.65) / 0.35;                               // settle
+  return { sx: 0.96 + 0.04 * k, sy: SOLVE_REBOUND - (SOLVE_REBOUND - 1) * k };
+}
+
+/** The one ring: radius as a factor of Wick's size, opacity, and the mix from
+ *  violet (0) to solved green (1). Null outside the release beat. */
+export function solveRing(e: number, reduceMotion: boolean): { r: number; opacity: number; mix: number } | null {
+  if (reduceMotion) {
+    if (e < SOLVE_RM_SWAP * 0.5 || e >= SOLVE_RM_DONE) return null;
+    const u = (e - SOLVE_RM_SWAP * 0.5) / (SOLVE_RM_DONE - SOLVE_RM_SWAP * 0.5);
+    return { r: 0.75, opacity: 0.5 * Math.sin(u * Math.PI), mix: u };
+  }
+  if (e < SOLVE_DISBELIEF || e >= SOLVE_RELEASE) return null;
+  const u = (e - SOLVE_DISBELIEF) / (SOLVE_RELEASE - SOLVE_DISBELIEF);
+  return { r: 0.55 + 0.6 * u, opacity: 0.7 * (1 - u), mix: u };
+}
+
+/** The gold sparks show from the release beat on. */
+export function solveSparks(e: number, reduceMotion: boolean): boolean {
+  return reduceMotion ? e >= SOLVE_RM_SWAP : e >= SOLVE_DISBELIEF;
+}
+
+
+// ── 3.8: a still Wick as SVG markup (the share card) ─────────────────────────
+
+function escAttr(v: string): string { return v.replace(/"/g, "&quot;"); }
+
+/**
+ * Wick drawn once, no animation, as inner SVG markup in his own 120 by 128
+ * box. `id` keeps gradient and clip ids unique on a page. The card and any
+ * other static picture of him come from here so he always matches the game.
+ */
+export function wickStillMarkup(face: FaceName, color: RGB, id: string, opts: { sparks?: boolean } = {}): string {
+  const f = FACES[face];
+  const d = chunkyFlamePath(0, f.tip);
+  const top = lighten(color, 0.12), bot = rgb(color);
+  const items = faceDrawList(f, f.eyes.map((e) => e.closed), color);
+  const paths = items.map((it) => {
+    if (!it.d) return "";
+    const a: string[] = [`d="${escAttr(it.d)}"`];
+    if (it.stroke) a.push(`fill="none" stroke="${it.stroke}" stroke-width="${it.width ?? 24}" stroke-linecap="round" stroke-linejoin="round"`);
+    else if (it.fill) a.push(`fill="${it.fill}"`);
+    if (it.opacity < 0.999) a.push(`opacity="${it.opacity.toFixed(3)}"`);
+    if (it.plate) a.push(`clip-path="url(#plate-${id})"`);
+    return `<path ${a.join(" ")}/>`;
+  }).join("");
+  const sparks = opts.sparks
+    ? `<g fill="${rgb(PALETTE.warm)}">` + [{ x: 22, y: 40, r: 4 }, { x: 100, y: 34, r: 3.4 }, { x: 104, y: 88, r: 3 }]
+        .map((sp) => `<path d="${starPath(sp.x, sp.y, sp.r)}"/>`).join("") + `</g>`
+    : "";
+  return `<defs>` +
+    `<linearGradient id="body-${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="${top}"/><stop offset="55%" stop-color="${bot}"/><stop offset="100%" stop-color="${bot}"/></linearGradient>` +
+    `<filter id="soft-${id}" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="6"/></filter>` +
+    `<clipPath id="plate-${id}"><path d="${PLATE_ART}"/></clipPath>` +
+    `</defs>` +
+    `<path d="${d}" fill="${bot}" opacity="0.30" filter="url(#soft-${id})" transform="translate(60 124) scale(1.12) translate(-60 -124)"/>` +
+    `<path d="${d}" fill="url(#body-${id})"/>` +
+    `<path d="${PLATE_PATH}" fill="#ffffff" opacity="0.22"/>` +
+    sparks +
+    `<g transform="${FACE_TRANSFORM}">${paths}</g>`;
+}
