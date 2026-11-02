@@ -426,7 +426,8 @@ struct GameView: View {
                     .animation(.spring(response: 0.5, dampingFraction: 0.8), value: g.id)
 
                     KeeperView(mood: keeperMood, size: 72, onPoke: pokeWick,
-                               faceOverride: game.reactionFace)
+                               faceOverride: game.reactionFace,
+                               pokeTick: game.reactionPokeTick)
                         .scaleEffect(wickEggScale)
                         .onChange(of: game.wickEggFlicker) { _, _ in
                             withAnimation(.easeOut(duration: 0.12)) { wickEggScale = 1.3 }

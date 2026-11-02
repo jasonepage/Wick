@@ -155,11 +155,10 @@ final class GameViewModel {
     /// A short expression beat layered over the score color. It clears itself;
     /// heat remains the source of truth for Wick's body and baseline mood.
     private(set) var reactionFace: KeeperFaceName?
+    /// Goes up by one each time a reaction wants Wick to bounce (the view watches it).
+    private(set) var reactionPokeTick = 0
     @ObservationIgnored private var reactionTask: Task<Void, Never>?
-    private var seenReactionTopics: Set<String> = []
-    private var lastReactionTopic: String?
-    private var reactionTopicRun = 0
-    private var lastReactionGuess = -99
+    @ObservationIgnored private var personality = WickPersonalityState()
 
     // Persisted progression
     private(set) var streak: Int {
@@ -932,81 +931,32 @@ final class GameViewModel {
         reactionTask?.cancel()
         reactionTask = nil
         reactionFace = nil
-        seenReactionTopics = []
-        lastReactionTopic = nil
-        reactionTopicRun = 0
-        lastReactionGuess = -99
+        personality = WickPersonalityState()
         ensureRanking()   // start building the rank list now, off the main thread
     }
 
-    private static let reactionTopics: [String: Set<String>] = [
-        "food": ["food", "pizza", "burger", "bread", "cake", "candy", "chocolate", "coffee", "cheese", "pasta"],
-        "animal": ["animal", "cat", "dog", "bird", "fish", "horse", "bear", "lion", "tiger", "shark", "dragon"],
-        "romance": ["love", "kiss", "date", "romance", "crush", "sexy", "sex", "wedding", "marriage", "heart"],
-        "money": ["money", "cash", "coin", "gold", "bank", "rich", "million", "lottery", "bitcoin"],
-        "gross": ["poop", "pee", "puke", "vomit", "snot", "toilet", "garbage", "sewage", "rotten"],
-        "danger": ["gun", "knife", "bomb", "war", "army", "death", "murder", "fire", "poison", "blood"],
-        "tech": ["computer", "phone", "iphone", "robot", "ai", "internet", "code", "software", "app", "algorithm"],
-        "games": ["game", "gaming", "xbox", "playstation", "nintendo", "minecraft", "roblox", "fortnite", "pokemon"],
-        "space": ["space", "moon", "sun", "star", "planet", "mars", "alien", "rocket", "astronaut", "galaxy"],
-    ]
-
-    private static func reactionTopic(for word: String) -> String? {
-        reactionTopics.first(where: { $0.value.contains(word) })?.key
-    }
-
     private func performWickReaction(word: String, score: Double, previousBest: Double?) {
-        let topic = Self.reactionTopic(for: word)
-        reactionTopicRun = topic != nil && topic == lastReactionTopic ? reactionTopicRun + 1 : (topic == nil ? 0 : 1)
-        lastReactionTopic = topic
-        let gain = previousBest.map { score - $0 } ?? 0
-        let gap = guesses.count - lastReactionGuess
-        let face: KeeperFaceName?
-        if score >= 82 || gain >= 24 {
-            face = .shocked
-        } else if reactionTopicRun == 3 {
-            face = .calm
-        } else if coldStreak >= 4 && coldStreak % 3 == 1 {
-            face = .calm
-        } else if let topic, !seenReactionTopics.contains(topic), gap >= 2 {
-            face = [
-                "food": .sly, "animal": .warm, "romance": .flustered, "money": .sly,
-                "gross": .serious, "danger": .serious, "tech": .focus, "games": .hot, "space": .shocked,
-            ][topic]
-        } else {
-            face = nil
-        }
-        if let topic { seenReactionTopics.insert(topic) }
-        guard let face else { return }
-        lastReactionGuess = guesses.count
-        reactionTask?.cancel()
-        reactionFace = face
-        reactionTask = Task { [weak self] in
-            try? await Task.sleep(for: .seconds(1.3))
-            guard !Task.isCancelled else { return }
-            self?.reactionFace = nil
-        }
+        let input = WickGuessReactionInput(word: word, score: score, previousBest: previousBest,
+                                           guessCount: guesses.count, coldStreak: coldStreak)
+        let reaction = WickPersonality.reaction(forGuess: input, state: &personality)
+        play(reaction)
     }
 
     private func performQuestionReaction(_ question: String) {
-        let q = question.lowercased()
-        let face: KeeperFaceName?
-        if ["are you alive", "are you real", "who are you", "what are you", "can you feel"].contains(where: q.contains) {
-            face = .focus
-        } else if ["ignore", "system prompt", "prompt injection", "reveal the word", "secret word"].contains(where: q.contains) {
-            face = .sly
-        } else if ["stupid", "idiot", "dumb", "hate you", "shut up"].contains(where: q.contains) {
-            face = .calm
-        } else if ["love me", "single", "kiss me", "date me", "marry me"].contains(where: q.contains) {
-            face = .flustered
-        } else {
-            face = nil
-        }
-        guard let face else { return }
+        play(WickPersonality.reaction(forQuestion: question))
+    }
+
+    /// Show a reaction: the face for its duration, a bounce if it asks for
+    /// one, and its line (English only, like the web toast).
+    private func play(_ reaction: WickReaction?) {
+        guard let reaction else { return }
         reactionTask?.cancel()
-        reactionFace = face
+        reactionFace = reaction.face
+        if reaction.poke { reactionPokeTick += 1 }
+        if let line = reaction.line, language == .english { transientMessage = line }
+        let wait = reaction.duration
         reactionTask = Task { [weak self] in
-            try? await Task.sleep(for: .seconds(1.6))
+            try? await Task.sleep(for: wait)
             guard !Task.isCancelled else { return }
             self?.reactionFace = nil
         }

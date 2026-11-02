@@ -133,6 +133,9 @@ struct KeeperView: View {
     var showcase: Bool = false
     /// Brief personality performance layered over the heat-driven face.
     var faceOverride: KeeperFaceName? = nil
+    /// Bump this to make Wick bounce without a tap (a reaction's poke).
+    /// No haptic and no quip: those belong to a real tap.
+    var pokeTick: Int = 0
 
     /// Picks his face from the mood and runs the blink-and-morph between faces.
     @State private var animator = KeeperFaceAnimator()
@@ -190,6 +193,7 @@ struct KeeperView: View {
         .frame(width: size, height: size * 1.18)
         .contentShape(Rectangle())
         .onTapGesture { poke() }
+        .onChange(of: pokeTick) { _, _ in pokeStart = Date() }
         .accessibilityHidden(true)
     }
 
