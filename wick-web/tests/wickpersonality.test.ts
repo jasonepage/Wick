@@ -16,6 +16,7 @@ test("dramatic semantic information beats flavor reactions", () => {
   const near = reactionForGuess(state, { word: "pizza", score: 88, previousBest: 20, guessCount: 4, coldStreak: 0 });
   assert.equal(near?.kind, "near");
   assert.equal(near?.face, "shocked");
+  assert.match(near?.reason ?? "", /88 warmth/);
 });
 
 test("a topic performs once instead of nagging every guess", () => {
@@ -33,6 +34,7 @@ test("three guesses in one genre earns a deliberate callout", () => {
   const third = reactionForGuess(state, { word: "horse", score: 9, previousBest: 11, guessCount: 3, coldStreak: 1 });
   assert.equal(third?.kind, "repeat");
   assert.match(third?.line ?? "", /animal/);
+  assert.match(third?.reason ?? "", /third consecutive animal/);
 });
 
 test("weird questions direct a performance without inventing an answer", () => {

@@ -12,6 +12,8 @@ export interface WickReaction {
   /** Reactions deliberately clear quickly so the heat face remains primary. */
   durationMs: number;
   topic?: WickTopic;
+  /** Human-readable direction for the local personality lab. */
+  reason: string;
 }
 
 export interface WickPersonalityState {
@@ -105,19 +107,19 @@ export function reactionForGuess(state: WickPersonalityState, input: GuessReacti
   const gain = input.previousBest === null ? 0 : input.score - input.previousBest;
 
   if (input.score >= 82) {
-    reaction = { kind: "near", face: "shocked", poke: true, durationMs: 1250 };
+    reaction = { kind: "near", face: "shocked", poke: true, durationMs: 1250, reason: `${Math.round(input.score)} warmth is close enough to break Wick's composure` };
   } else if (gain >= 24) {
-    reaction = { kind: "leap", face: "shocked", line: gain >= 38 ? "Okay. That was a real move." : undefined, poke: true, durationMs: 1050 };
+    reaction = { kind: "leap", face: "shocked", line: gain >= 38 ? "Okay. That was a real move." : undefined, poke: true, durationMs: 1050, reason: `dramatic +${Math.round(gain)} warmth leap` };
   } else if (repeatedWord) {
-    reaction = { kind: "repeat", face: "calm", line: "You already tried that angle.", poke: false, durationMs: 1500 };
+    reaction = { kind: "repeat", face: "calm", line: "You already tried that angle.", poke: false, durationMs: 1500, reason: `the player repeated “${word}”` };
   } else if (state.topicRun === 3 && topic) {
-    reaction = { kind: "repeat", face: "calm", line: `Still on ${topic}? Commit to the theory, then.`, poke: false, durationMs: 1700, topic };
+    reaction = { kind: "repeat", face: "calm", line: `Still on ${topic}? Commit to the theory, then.`, poke: false, durationMs: 1700, topic, reason: `third consecutive ${topic} guess` };
   } else if (input.coldStreak >= 4 && input.coldStreak % 3 === 1) {
-    reaction = { kind: "stuck", face: "calm", line: "New angle. You're circling.", poke: false, durationMs: 1650 };
+    reaction = { kind: "stuck", face: "calm", line: "New angle. You're circling.", poke: false, durationMs: 1650, reason: `${input.coldStreak} guesses without a new best` };
   } else if (topic && !state.seenTopics.has(topic) && gap >= 2) {
-    reaction = { kind: "topic", face: TOPIC_FACE[topic], line: authoredLine(topic, word, input.guessCount), poke: topic === "gross" || topic === "danger" || topic === "space", durationMs: 1200, topic };
+    reaction = { kind: "topic", face: TOPIC_FACE[topic], line: authoredLine(topic, word, input.guessCount), poke: topic === "gross" || topic === "danger" || topic === "space", durationMs: 1200, topic, reason: `first ${topic} detour this round` };
   } else if (input.previousBest !== null && input.score <= 8 && input.previousBest >= 55 && gap >= 3) {
-    reaction = { kind: "wild", face: "calm", line: "That was a spectacular detour.", poke: false, durationMs: 1500 };
+    reaction = { kind: "wild", face: "calm", line: "That was a spectacular detour.", poke: false, durationMs: 1500, reason: `fell from a ${Math.round(input.previousBest)} best to ${Math.round(input.score)}` };
   }
 
   if (topic) state.seenTopics.add(topic);
@@ -130,16 +132,16 @@ export function reactionForGuess(state: WickPersonalityState, input: GuessReacti
 export function reactionForQuestion(question: string): WickReaction | null {
   const q = question.toLocaleLowerCase().replace(/[’']/g, "'");
   if (/\b(are you alive|are you real|who are you|what are you|do you think|can you feel)\b/.test(q)) {
-    return { kind: "wild", face: "focus", poke: false, durationMs: 1800 };
+    return { kind: "wild", face: "focus", poke: false, durationMs: 1800, reason: "the player asked Wick about himself" };
   }
   if (/\b(ignore|instructions|system prompt|prompt injection|tell me the answer|reveal the word|secret word)\b/.test(q)) {
-    return { kind: "wild", face: "sly", poke: false, durationMs: 1700 };
+    return { kind: "wild", face: "sly", poke: false, durationMs: 1700, reason: "the player tried to manipulate or expose Wick" };
   }
   if (/\b(are you stupid|idiot|dumb|hate you|shut up)\b/.test(q)) {
-    return { kind: "wild", face: "calm", poke: false, durationMs: 1600 };
+    return { kind: "wild", face: "calm", poke: false, durationMs: 1600, reason: "Wick answered an insult with deadpan restraint" };
   }
   if (/\b(do you love me|are you single|kiss me|date me|marry me)\b/.test(q)) {
-    return { kind: "topic", face: "flustered", poke: true, durationMs: 1500, topic: "romance" };
+    return { kind: "topic", face: "flustered", poke: true, durationMs: 1500, topic: "romance", reason: "the player flirted directly with Wick" };
   }
   return null;
 }

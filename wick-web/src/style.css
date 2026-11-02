@@ -420,6 +420,9 @@ a.btn { display: block; box-sizing: border-box; text-align: center; text-decorat
 .solo-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 2px; }
 .solo-title { font-weight: 800; font-size: 1.05rem; }
 .solo-title.dark { color: inherit; }
+.personality-lab-toggle { border: 1px solid rgba(var(--p-keeper),0.32); border-radius: 999px; padding: 5px 9px;
+  background: rgba(var(--p-keeper),0.08); color: inherit; font: 750 0.68rem/1 inherit; letter-spacing: 0.04em; cursor: pointer; opacity: 0.72; }
+.personality-lab-toggle:hover, .personality-lab-toggle.on { opacity: 1; background: rgba(var(--p-keeper),0.18); border-color: rgba(var(--p-keeper),0.65); }
 .icon-btn { width: 38px; height: 38px; border-radius: 999px; border: none; cursor: pointer;
   background: rgba(255,255,255,0.08); color: inherit; font-size: 1.1rem; font-family: inherit; }
 .icon-btn.dark { background: rgba(120,100,160,0.14); color: inherit; }
@@ -457,6 +460,38 @@ a.btn { display: block; box-sizing: border-box; text-align: center; text-decorat
   font-weight: 700; padding: 4px 12px; border-radius: 999px; }
 .giveup-yes { background: rgba(232,66,54,0.2); color: #ff8f82; }
 .giveup-no { background: rgba(120,100,160,0.14); color: inherit; }
+
+/* Secret Practice personality lab. The visual language is deliberately closer
+   to a director's monitor than to player-facing game UI. */
+.personality-lab { margin: 8px 0 12px; padding: 13px; border-radius: 16px; border: 1px solid rgba(var(--p-keeper),0.28);
+  background: linear-gradient(145deg, rgba(var(--p-keeper),0.12), rgba(18,20,30,0.08)); box-shadow: inset 0 1px rgba(255,255,255,0.04); }
+.personality-lab-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.personality-lab-head > div { display: flex; flex-direction: column; gap: 2px; }
+.personality-lab-kicker { font-size: 0.61rem; font-weight: 900; letter-spacing: 0.12em; opacity: 0.55; }
+.personality-lab-live { font-size: 0.6rem; font-weight: 900; letter-spacing: 0.08em; padding: 4px 7px; border-radius: 999px;
+  background: rgba(128,128,128,0.12); opacity: 0.58; }
+.personality-lab-live.on { color: rgb(255,190,103); background: rgba(var(--p-hot),0.15); opacity: 1; box-shadow: 0 0 12px rgba(var(--p-hot),0.12); }
+.personality-lab-stats { display: grid; grid-template-columns: 0.75fr 1fr 1.5fr; gap: 6px; margin-top: 10px; }
+.personality-lab-stat { min-width: 0; padding: 7px 8px; border-radius: 10px; background: rgba(127,127,127,0.08); display: flex; flex-direction: column; gap: 2px; }
+.personality-lab-stat span { font-size: 0.61rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.52; }
+.personality-lab-stat strong { font-size: 0.72rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.personality-lab-history { list-style: none; margin: 9px 0 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
+.personality-lab-event { display: flex; align-items: flex-start; gap: 8px; padding-top: 7px; border-top: 1px solid rgba(127,127,127,0.11); }
+.personality-lab-event > div { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.personality-lab-event strong { font-size: 0.78rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.personality-lab-event small { font-size: 0.7rem; line-height: 1.3; opacity: 0.64; }
+.personality-lab-event em { font-size: 0.69rem; line-height: 1.3; color: rgb(178,157,255); font-style: normal; }
+.personality-lab-face { flex: 0 0 auto; min-width: 54px; text-align: center; padding: 3px 6px; border-radius: 7px; font-size: 0.62rem; font-weight: 900;
+  color: #fff; background: rgb(var(--p-keeper)); }
+.personality-lab-face.face-shocked { background: rgb(var(--p-solved)); }
+.personality-lab-face.face-flustered { background: rgb(var(--p-boiling)); }
+.personality-lab-face.face-serious { background: rgb(var(--p-cold)); }
+.personality-lab-face.face-hot { background: rgb(var(--p-hot)); }
+.personality-lab-face.face-warm { background: rgb(var(--p-warm)); color: #2b2412; }
+.personality-lab-face.face-focus { background: rgb(var(--p-cool)); }
+.personality-lab-face.face-calm { background: #666a76; }
+.personality-lab-empty { padding-top: 8px; font-size: 0.72rem; opacity: 0.55; }
+@media (max-width: 420px) { .personality-lab-stats { grid-template-columns: 1fr 1.2fr; } .personality-lab-stat:last-child { grid-column: 1 / -1; } }
 .word.reveal { color: #ff9a8f; }
 
 /* toast */

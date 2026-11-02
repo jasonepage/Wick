@@ -113,21 +113,47 @@ const sp = {
   reaction: null as WickReaction | null,
   reactionPokePending: false,
   coldReactionStreak: 0,
+  personalityLabOpen: false,
+  personalityHistory: [] as { label: string; reaction: WickReaction }[],
 };
 
 let reactionTimer: ReturnType<typeof setTimeout> | null = null;
+let personalityLabUnlockTaps = 0;
+let personalityLabUnlockTimer: ReturnType<typeof setTimeout> | null = null;
+let personalityLabUnlocked = (() => {
+  try { return sessionStorage.getItem("wick.director") === "1"; } catch { return false; }
+})();
+
+/** Secret production affordance: five quick taps on the Practice title. The
+ * unlock lasts only for this browser session and leaves no permanent setting. */
+function tapPracticeTitle(): void {
+  if (sp.mode !== "practice" || personalityLabUnlocked) return;
+  personalityLabUnlockTaps += 1;
+  if (personalityLabUnlockTimer !== null) clearTimeout(personalityLabUnlockTimer);
+  personalityLabUnlockTimer = setTimeout(() => { personalityLabUnlockTaps = 0; }, 2200);
+  if (personalityLabUnlockTaps < 5) return;
+  personalityLabUnlocked = true;
+  personalityLabUnlockTaps = 0;
+  if (personalityLabUnlockTimer !== null) clearTimeout(personalityLabUnlockTimer);
+  personalityLabUnlockTimer = null;
+  try { sessionStorage.setItem("wick.director", "1"); } catch { /* storage off */ }
+  sp.personalityLabOpen = true;
+  screenSolo();
+}
 
 function resetWickPersonality(): void {
   sp.personality = newWickPersonalityState();
   sp.reaction = null;
   sp.reactionPokePending = false;
   sp.coldReactionStreak = 0;
+  sp.personalityHistory = [];
   if (reactionTimer !== null) clearTimeout(reactionTimer);
   reactionTimer = null;
 }
 
-function playWickReaction(reaction: WickReaction | null): void {
+function playWickReaction(reaction: WickReaction | null, label = "Beat"): void {
   if (!reaction) return;
+  sp.personalityHistory = [{ label, reaction }, ...sp.personalityHistory].slice(0, 8);
   sp.reaction = reaction;
   sp.reactionPokePending = reaction.poke;
   if (reaction.line && getLang() === "en") toast(reaction.line);
@@ -783,7 +809,7 @@ function applyGuessWarmth(
         previousBest,
         guessCount: sp.guesses.length,
         coldStreak: sp.coldReactionStreak,
-      }));
+      }), g.word);
     }
   }
   saveDaily();
@@ -1074,7 +1100,7 @@ function askSolo(text: string): void {
   askKeeper(httpBase, sp.secret, q, sp.lang, sp.secretWord?.en, history).then((ans) => {
     if (ans) { r.verdict = ans.verdict; r.reply = ans.reply; showKeeper(ans.verdict, ans.reply); }
     else { r.reply = "Wick is quiet right now."; showKeeper("", "Wick is quiet right now."); }
-    if (ans) playWickReaction(reactionForQuestion(q));
+    if (ans) playWickReaction(reactionForQuestion(q), q);
     saveDaily();
     renderSolo();
   });
@@ -1403,8 +1429,17 @@ function screenSolo(): void {
     el("main", { class: "card" }, [
       el("div", { class: "solo-head" }, [
         el("button", { class: "icon-btn", onclick: goHome, title: "Home" }, ["←"]),
-        el("span", { class: "solo-title" }, [sp.mode === "daily" ? t("dailyTitle", sp.puzzleNumber) : t("practice")]),
-        el("span", {}, [""]),
+        el("span", {
+          class: "solo-title",
+          onclick: sp.mode === "practice" ? tapPracticeTitle : undefined,
+        }, [sp.mode === "daily" ? t("dailyTitle", sp.puzzleNumber) : t("practice")]),
+        personalityLabUnlocked && sp.mode === "practice"
+          ? el("button", {
+              class: `personality-lab-toggle ${sp.personalityLabOpen ? "on" : ""}`,
+              onclick: () => { sp.personalityLabOpen = !sp.personalityLabOpen; renderPersonalityLab(); },
+              title: "Inspect Wick's personality direction",
+            }, ["Director"])
+          : el("span", {}, [""]),
       ]),
       el("div", { id: "hero", class: "hero" }),
       el("div", { id: "latest", class: "latest" }),
@@ -1416,6 +1451,7 @@ function screenSolo(): void {
       el("p", { class: "hint" }, [t("guessOrAskHint")]),
       el("div", { id: "suggest", class: "suggest" }),
       el("div", { id: "giveup-slot", class: "giveup-slot" }),
+      el("div", { id: "personality-lab" }),
       el("div", { id: "solo-log-head", class: "log-head" }),
       el("ul", { id: "my-guesses", class: "guesses" }),
     ]),
@@ -1551,7 +1587,46 @@ function renderSolo(): void {
   if (grow) grow.style.display = over ? "none" : "";
   renderSuggest(over);
   renderGiveUpSlot(over);
+  renderPersonalityLab();
   renderSoloLog();
+}
+
+/** Local-only practice instrumentation. It exposes direction, not player data,
+ * and deliberately stays out of production builds and daily competition. */
+function renderPersonalityLab(): void {
+  const slot = document.querySelector<HTMLDivElement>("#personality-lab");
+  if (!slot) return;
+  if (!personalityLabUnlocked || sp.mode !== "practice" || !sp.personalityLabOpen) {
+    slot.replaceChildren();
+    return;
+  }
+  const active = sp.reaction;
+  const state = sp.personality;
+  const stat = (name: string, value: string) => el("div", { class: "personality-lab-stat" }, [
+    el("span", {}, [name]), el("strong", {}, [value]),
+  ]);
+  const history = sp.personalityHistory.length
+    ? sp.personalityHistory.map(({ label, reaction }) => el("li", { class: "personality-lab-event" }, [
+        el("span", { class: `personality-lab-face face-${reaction.face}` }, [reaction.face]),
+        el("div", {}, [
+          el("strong", {}, [label]),
+          el("small", {}, [reaction.reason]),
+          ...(reaction.line ? [el("em", {}, [`“${reaction.line}”`])] : []),
+        ]),
+      ]))
+    : [el("li", { class: "personality-lab-empty" }, ["No authored beat yet. Keep guessing naturally."])];
+  slot.replaceChildren(el("aside", { class: "personality-lab" }, [
+    el("div", { class: "personality-lab-head" }, [
+      el("div", {}, [el("span", { class: "personality-lab-kicker" }, ["PERSONALITY DIRECTOR"]), el("strong", {}, [active ? `${active.face} · ${active.kind}` : "Wick is listening"])]),
+      el("span", { class: `personality-lab-live ${active ? "on" : ""}` }, [active ? "PERFORMING" : "RESTING"]),
+    ]),
+    el("div", { class: "personality-lab-stats" }, [
+      stat("Cold run", String(sp.coldReactionStreak)),
+      stat("Topic run", state.lastTopic ? `${state.lastTopic} ×${state.topicRun}` : "none"),
+      stat("Seen", state.seenTopics.size ? [...state.seenTopics].join(", ") : "none"),
+    ]),
+    el("ul", { class: "personality-lab-history" }, history),
+  ]));
 }
 
 /** The "Give up" affordance (parity with iOS): a small button while the round is
