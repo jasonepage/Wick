@@ -596,77 +596,95 @@ function screenHome(): void {
 
   const tile = (
     cls: string,
-    icon: string,
+    icon: HomeIcon,
     title: string,
     sub: string,
     onclick: () => void,
   ): HTMLElement =>
     el("button", { class: `tile ${cls}`, onclick: () => { void playSound("tap"); onclick(); } }, [
-      el("div", { class: "tile-icon" }, [icon]),
+      el("div", { class: "tile-icon" }, [homeIcon(icon)]),
       el("div", { class: "tile-title" }, [title]),
       el("div", { class: "tile-sub" }, [sub]),
     ]);
 
   app.append(
     el("main", { class: "home-wrap" }, [
+      // 3.8: Wick is the first thing on the page, big enough that his faces read.
+      wickBox("home-mascot", { score: null, size: 150, id: "home", showcase: true }),
       el("h1", { class: "home-title" }, ["Wick"]),
       landingHeader(),
       ...(shouldAutoStart(storageKeys(), tutorialDone()) ? [howToStrip()] : []),
 
-      // Today's puzzle hero card
+      // Today's puzzle hero card: the play button is the biggest thing on the page.
       el("button", { class: "today-card", onclick: () => { void playSound("tap"); startDaily(); } }, [
-        wickBox("today-mascot", { score: null, size: 92, id: "today", showcase: true }),
         el("div", { class: "today-text" }, [
           el("div", { class: "today-num" }, [`#${today.puzzleNumber}`]),
           el("div", { class: "today-h" }, [t("todaysPuzzle")]),
           el("div", { class: "today-sub" }, [t("homeGuessWord")]),
         ]),
-        el("div", { class: "today-play" }, ["▶"]),
+        el("div", { class: "today-play" }, [homeIcon("play"), el("span", {}, [t("playNow")])]),
       ]),
 
-      // grid
+      // grid: the live race leads, full width
       el("div", { class: "menu-grid" }, [
         raceTile(),
-        tile("practice", "🎲", t("practice"), t("homePlayAnytime"), startPractice),
-        tile("past", "🕓", t("pastPuzzles"), t("homeReplayAnyDay"), screenArchive),
-        tile("stats", "📊", t("statsTitle"), t("statsChip"), screenStats),
-        tile("board", "🏆", t("boardOpen"), t("boardChip"), () => { void screenBoard(); }),
+        tile("practice", "dice", t("practice"), t("homePlayAnytime"), startPractice),
+        tile("past", "clock", t("pastPuzzles"), t("homeReplayAnyDay"), screenArchive),
+        tile("stats", "bars", t("statsTitle"), t("statsChip"), screenStats),
+        tile("board", "trophy", t("boardOpen"), t("boardChip"), () => { void screenBoard(); }),
       ]),
 
-      el("div", { class: "home-foot" }, [
-        el("button", { class: "foot-btn", onclick: () => rerender(() => { cycleTheme(); screenHome(); }) }, [themeLabel()]),
-        el("button", { class: "foot-btn", onclick: () => { void playSound("tap"); screenHowTo(); } }, [t("howToPlay")]),
+      // Footer: plain links, one row that wraps on a phone.
+      el("nav", { class: "home-foot" }, [
+        el("button", { class: "foot-link", onclick: () => rerender(() => { cycleTheme(); screenHome(); }) }, [themeLabel()]),
+        el("button", { class: "foot-link", onclick: () => { void playSound("tap"); screenHowTo(); } }, [t("howToPlay")]),
+        el("button", { class: "foot-link", onclick: screenSettings }, [t("settings")]),
         // 3.5: on Android, Install replaces the App Store link (see pwa.ts).
-        el("a", { class: "foot-btn get-app-btn", href: APP_STORE_URL, target: "_blank", rel: "noopener" }, [t("getApp")]),
-        el("button", { class: "foot-btn install-btn", onclick: () => void promptInstall() }, [t("installApp")]),
-        el("button", { class: "foot-btn", onclick: screenSettings }, [t("settings")]),
-        el("a", { class: "foot-btn", href: "https://github.com/jasonepage/Wick", target: "_blank", rel: "noopener" }, [t("sourceCode")]),
+        el("a", { class: "foot-link get-app-btn", href: APP_STORE_URL, target: "_blank", rel: "noopener" }, [t("getApp")]),
+        el("button", { class: "foot-link install-btn", onclick: () => void promptInstall() }, [t("installApp")]),
+        el("a", { class: "foot-link", href: "https://github.com/jasonepage/Wick", target: "_blank", rel: "noopener" }, [t("sourceCode")]),
+        el("a", { class: "foot-link foot-by", href: "https://jasonepage.github.io", target: "_blank", rel: "noopener" }, [t("madeBy", "Jason Page")]),
       ]),
     ]),
   );
+}
+
+type HomeIcon = "play" | "flag" | "dice" | "clock" | "bars" | "trophy" | "speaker" | "speakerOff";
+
+/** Small one color icons drawn inline, so they look the same on every
+ *  computer and phone (emoji do not). They take the text color. */
+function homeIcon(name: HomeIcon): SVGSVGElement {
+  const paths: Record<HomeIcon, string> = {
+    play: '<path d="M8 5.5v13l11-6.5z" fill="currentColor" stroke="none"/>',
+    flag: '<path d="M5 21V4"/><path d="M5 4h12l-2.5 4L17 12H5"/>',
+    dice: '<rect x="3.5" y="3.5" width="17" height="17" rx="4"/><circle cx="8.5" cy="8.5" r="1.3" fill="currentColor" stroke="none"/><circle cx="15.5" cy="8.5" r="1.3" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.3" fill="currentColor" stroke="none"/><circle cx="8.5" cy="15.5" r="1.3" fill="currentColor" stroke="none"/><circle cx="15.5" cy="15.5" r="1.3" fill="currentColor" stroke="none"/>',
+    clock: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
+    bars: '<path d="M5 20V12"/><path d="M12 20V5"/><path d="M19 20v-6"/>',
+    trophy: '<path d="M7 4h10v5a5 5 0 0 1-10 0z"/><path d="M7 6H4.5v1.5A3 3 0 0 0 7.5 10"/><path d="M17 6h2.5v1.5a3 3 0 0 1-3 2.5"/><path d="M12 14v3"/><path d="M8.5 20h7"/><path d="M10 17h4v3"/>',
+    speaker: '<path d="M4 9.5v5h3.5L12 18.5v-13L7.5 9.5z" fill="currentColor" stroke="none"/><path d="M15.5 9a4 4 0 0 1 0 6"/><path d="M18 6.5a7.5 7.5 0 0 1 0 11"/>',
+    speakerOff: '<path d="M4 9.5v5h3.5L12 18.5v-13L7.5 9.5z" fill="currentColor" stroke="none"/><path d="M15.5 9.5l5 5"/><path d="M20.5 9.5l-5 5"/>',
+  };
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("width", "24");
+  svg.setAttribute("height", "24");
+  svg.setAttribute("fill", "none");
+  svg.setAttribute("stroke", "currentColor");
+  svg.setAttribute("stroke-width", "2");
+  svg.setAttribute("stroke-linecap", "round");
+  svg.setAttribute("stroke-linejoin", "round");
+  svg.setAttribute("aria-hidden", "true");
+  svg.innerHTML = paths[name];
+  return svg;
 }
 
 /** The landing header: what Wick is, who made it, and where to get the app.
  *  Always on Home, so a cold visitor (a stream's chat, a shared link) knows
  *  what they landed on before anything starts. */
 function landingHeader(): HTMLElement {
-  const badgeLang: Record<string, string> = { en: "en-us", es: "es-es", fr: "fr-fr", it: "it-it", de: "de-de", zh: "zh-cn" };
-  const badge = el("img", {
-    class: "appstore-badge",
-    src: `https://tools.applemarketingtools.com/api/badges/download-on-the-app-store/black/${badgeLang[getLang()] ?? "en-us"}?size=250x83`,
-    alt: t("appStoreAlt"),
-    width: 135,
-    height: 45,
-  });
-  // If Apple's badge can't load, the link still reads as text.
-  badge.addEventListener("error", () => { badge.replaceWith(el("span", { class: "appstore-fallback" }, [" " + t("appStoreAlt")])); });
   return el("header", { class: "landing" }, [
     el("p", { class: "landing-tag" }, [t("landingTagline")]),
     el("p", { class: "landing-sub" }, [t("landingSub")]),
-    el("div", { class: "landing-row" }, [
-      el("a", { class: "appstore-link", href: APP_STORE_URL, target: "_blank", rel: "noopener" }, [badge]),
-      el("a", { class: "landing-by", href: "https://jasonepage.github.io", target: "_blank", rel: "noopener" }, [t("madeBy", "Jason Page")]),
-    ]),
   ]);
 }
 
@@ -2228,7 +2246,7 @@ function renderMusicPill(): void {
   if (!pill) return;
   const on = musicEnabled();
   pill.classList.toggle("off", !on);
-  pill.replaceChildren(el("span", { class: "music-pill-icon" }, [on ? "🔊" : "🔇"]), el("span", { class: "music-pill-lbl" }, [on ? t("musicOn") : t("musicOff")]));
+  pill.replaceChildren(el("span", { class: "music-pill-icon" }, [homeIcon(on ? "speaker" : "speakerOff")]), el("span", { class: "music-pill-lbl" }, [on ? t("musicOn") : t("musicOff")]));
   pill.title = t("musicToggleTitle");
   pill.setAttribute("aria-label", t("musicToggleTitle"));
   pill.setAttribute("aria-pressed", on ? "true" : "false");
@@ -2290,7 +2308,7 @@ function raceTile(): HTMLElement {
   const sub = el("div", { class: "tile-sub" }, [t("homeRaceSub")]);
   const tileEl = el("button", { class: "tile duel live-tile", onclick: quickRace, title: "R" }, [
     el("span", { class: "live-badge" }, [el("i", { class: "live-dot" }), t("liveBadge")]),
-    el("div", { class: "tile-icon" }, ["🏁"]),
+    el("div", { class: "tile-icon" }, [homeIcon("flag")]),
     el("div", { class: "tile-title" }, [t("duelRace")]),
     sub,
   ]);
@@ -2299,7 +2317,8 @@ function raceTile(): HTMLElement {
     fetchLiveCounts(httpBase).then((c) => {
       if (!sub.isConnected) return;
       sub.textContent = c && c.racing > 0 ? t("liveRacingNow", c.racing)
-        : c && c.waiting > 0 ? t("liveOneWaiting")
+        : c && c.waiting > 1 ? t("liveWaiting", c.waiting)
+        : c && c.waiting === 1 ? t("liveOneWaiting")
         : t("homeRaceSub");
     });
   };

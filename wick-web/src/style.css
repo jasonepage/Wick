@@ -231,7 +231,17 @@ a.btn { display: block; box-sizing: border-box; text-align: center; text-decorat
 .btn.join { width: auto; flex: 0 0 auto; padding: 14px 20px; }
 
 /* ── home menu (iOS-style) ── */
-.home-wrap { width: 100%; max-width: 460px; display: flex; flex-direction: column; gap: 14px; }
+.home-wrap { width: 100%; max-width: 480px; display: flex; flex-direction: column; gap: 14px; }
+
+/* 3.8: Wick leads the page, in his own pool of light. */
+.home-mascot { align-self: center; position: relative; margin-top: 6px; margin-bottom: -10px; }
+.home-mascot::before {
+  content: ""; position: absolute; left: 50%; top: 55%; width: 140%; aspect-ratio: 1;
+  transform: translate(-50%,-50%); border-radius: 50%; z-index: 0;
+  background: radial-gradient(circle, rgba(var(--p-keeper),0.30) 0%, rgba(var(--p-keeper),0) 68%);
+  animation: glow-pulse 4.2s ease-in-out infinite;
+}
+.home-mascot svg { position: relative; z-index: 1; }
 
 .home-title {
   text-align: center; font-size: 2.1rem; font-weight: 800; margin: 6px 0 2px;
@@ -245,16 +255,9 @@ a.btn { display: block; box-sizing: border-box; text-align: center; text-decorat
 @keyframes title-sheen { 0%, 100% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } }
 
 /* ── landing header: what this is, who made it, where the app is ── */
-.landing { display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; margin-top: -8px; }
+.landing { display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; margin-top: -8px; margin-bottom: 4px; }
 .landing-tag { margin: 0; font-weight: 700; font-size: 1.02rem; line-height: 1.3; text-wrap: balance; }
 .landing-sub { margin: 0; font-size: 0.9rem; opacity: 0.72; line-height: 1.35; text-wrap: balance; }
-.landing-row { display: flex; align-items: center; justify-content: center; gap: 14px; margin-top: 8px; flex-wrap: wrap; }
-.appstore-link { display: inline-flex; line-height: 0; border-radius: 9px; transition: transform 0.18s ease; }
-.appstore-link:hover { transform: translateY(-2px); }
-.appstore-badge { width: 135px; height: 45px; display: block; }
-.appstore-fallback { line-height: 1; font-weight: 700; font-size: 0.85rem; padding: 10px 14px; border-radius: 9px; background: #000; color: #fff; }
-.landing-by { font-size: 0.85rem; opacity: 0.7; color: inherit; text-decoration: none; border-bottom: 1px dotted currentColor; }
-.landing-by:hover { opacity: 1; }
 .theme-light .landing { color: var(--ink-light); }
 .theme-dark .landing { color: var(--ink-dark); }
 
@@ -268,8 +271,8 @@ a.btn { display: block; box-sizing: border-box; text-align: center; text-decorat
 
 /* ── today's puzzle hero ── */
 .today-card {
-  display: flex; align-items: center; gap: 12px; text-align: left; cursor: pointer;
-  border-radius: 24px; padding: 16px 18px; font-family: inherit;
+  display: flex; align-items: center; gap: 14px; text-align: left; cursor: pointer;
+  border-radius: 24px; padding: 18px 20px; font-family: inherit;
   position: relative; overflow: hidden; isolation: isolate;
   transition: transform 0.22s cubic-bezier(0.2,0.7,0.3,1), box-shadow 0.22s ease;
 }
@@ -300,37 +303,26 @@ a.btn { display: block; box-sizing: border-box; text-align: center; text-decorat
 .theme-dark .today-card::after { background: linear-gradient(105deg, transparent 42%, rgba(255,255,255,0.14) 50%, transparent 58%); }
 @keyframes hero-sheen { 0%, 62% { transform: translateX(-70%); } 88%, 100% { transform: translateX(70%); } }
 
-.today-mascot { flex: 0 0 auto; position: relative; }
-/* Wick sits in his own pool of light, tinted to his resting violet. */
-.today-mascot::before {
-  content: ""; position: absolute; left: 50%; top: 52%; width: 130%; aspect-ratio: 1;
-  transform: translate(-50%,-50%); border-radius: 50%; z-index: 0;
-  background: radial-gradient(circle, rgba(var(--p-keeper),0.34) 0%, rgba(var(--p-keeper),0) 68%);
-  animation: glow-pulse 4.2s ease-in-out infinite;
-}
-.today-mascot svg { position: relative; z-index: 1; }
-@keyframes glow-pulse {
-  0%, 100% { opacity: 0.55; transform: translate(-50%,-50%) scale(0.94); }
-  50%      { opacity: 1;    transform: translate(-50%,-50%) scale(1.06); }
-}
-
 .today-text { flex: 1; min-width: 0; }
 .today-num { color: var(--you); font-weight: 800; font-size: 0.95rem; }
 .today-h { font-size: 1.5rem; font-weight: 800; line-height: 1.05; }
 .today-sub { opacity: 0.72; font-size: 0.95rem; }
 
 .today-play {
-  flex: 0 0 auto; width: 46px; height: 46px; border-radius: 999px; background: var(--you);
-  color: #fff; display: flex; align-items: center; justify-content: center; font-size: 1.1rem;
+  flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px;
+  height: 52px; padding: 0 22px 0 16px; border-radius: 999px; background: var(--you);
+  color: #fff; font-weight: 800; font-size: 1.15rem; letter-spacing: 0.01em;
   position: relative; transition: transform 0.22s cubic-bezier(0.2,0.7,0.3,1);
+  box-shadow: 0 10px 24px rgba(0,0,0,0.25);
 }
+.today-play svg { width: 26px; height: 26px; }
 /* Two expanding rings, offset, so the play button always has a heartbeat. */
 .today-play::before, .today-play::after {
-  content: ""; position: absolute; inset: 0; border-radius: 999px;
+  content: ""; position: absolute; inset: 0; border-radius: 999px; pointer-events: none;
   border: 2px solid var(--you); animation: play-ping 2.8s cubic-bezier(0,0,0.2,1) infinite;
 }
 .today-play::after { animation-delay: 1.4s; }
-@keyframes play-ping { 0% { opacity: 0.6; transform: scale(1); } 70%, 100% { opacity: 0; transform: scale(1.75); } }
+@keyframes play-ping { 0% { opacity: 0.6; transform: scale(1); } 70%, 100% { opacity: 0; transform: scale(1.35); } }
 .today-card:hover .today-play { transform: scale(1.06); }
 
 /* ── mode tiles ──
@@ -349,13 +341,26 @@ a.btn { display: block; box-sizing: border-box; text-align: center; text-decorat
    sideways into the title — badly wrong on the double-width .tile.stats. A fixed
    box also normalises the very different baselines of the emoji we use. */
 .tile-icon {
-  font-size: 1.55rem; line-height: 1;
+  line-height: 1;
   display: flex; align-items: center; justify-content: center;
   width: 2.1rem; height: 2.1rem; flex: 0 0 auto;
   transform-origin: 50% 50%;
   transition: transform 0.3s cubic-bezier(0.2,0.7,0.3,1);
 }
+.tile-icon svg { width: 28px; height: 28px; }
 .tile-title { font-weight: 800; font-size: 1.15rem; margin-top: auto; }
+/* The icon takes the title's color, per tile. */
+.theme-dark .tile.duel     .tile-icon { color: rgb(165,142,255); }
+.theme-dark .tile.past     .tile-icon { color: rgb(78,206,184); }
+.theme-dark .tile.practice .tile-icon { color: rgb(126,201,119); }
+.theme-dark .tile.stats    .tile-icon { color: rgb(126,175,255); }
+.theme-light .tile.duel     .tile-icon { color: rgb(88,60,180); }
+.theme-light .tile.past     .tile-icon { color: rgb(21,120,104); }
+.theme-light .tile.practice .tile-icon { color: rgb(53,116,49); }
+.theme-light .tile.stats    .tile-icon { color: rgb(43,96,178); }
+/* The live race leads the grid at full width, with a bigger title. */
+.menu-grid .tile.live-tile { grid-column: 1 / -1; min-height: 112px; }
+.menu-grid .tile.live-tile .tile-title { font-size: 1.4rem; }
 .tile-sub { opacity: 0.72; font-size: 0.85rem; }
 .tile:hover { transform: translateY(-4px); }
 .tile:hover .tile-icon { transform: scale(1.12) rotate(-5deg); }
@@ -396,22 +401,19 @@ a.btn { display: block; box-sizing: border-box; text-align: center; text-decorat
 .tile.practice::before { background: radial-gradient(circle, rgba(var(--p-solved),0.30), transparent 70%); }
 .tile.stats::before    { background: radial-gradient(circle, rgba(var(--p-freezing),0.30), transparent 70%); }
 
-/* ── home footer ── */
-.home-foot { display: flex; gap: 12px; margin-top: 4px; }
-.foot-btn {
-  flex: 1; cursor: pointer; font-family: inherit; font-weight: 700; font-size: 0.9rem;
-  border-radius: 16px; padding: 14px 8px; text-align: center; text-decoration: none;
-  transition: transform 0.18s cubic-bezier(0.2,0.7,0.3,1), background 0.2s ease, box-shadow 0.2s ease;
+/* ── home footer: plain links in one row that wraps on a phone ── */
+.home-foot { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 18px; margin-top: 10px; padding: 0 8px; }
+.foot-link {
+  cursor: pointer; font-family: inherit; font-weight: 700; font-size: 0.88rem; line-height: 1;
+  background: none; border: 0; padding: 8px 0; text-decoration: none; color: inherit; opacity: 0.72;
+  border-bottom: 1px solid transparent; transition: opacity 0.18s ease, border-color 0.18s ease;
 }
-.theme-dark .foot-btn  { border: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.06); color: #f3eefb; backdrop-filter: blur(8px); }
-.theme-light .foot-btn { border: 1px solid rgba(120,100,160,0.14); background: rgba(255,255,255,0.62); color: #3b3357; }
-.foot-btn:hover { transform: translateY(-2px); }
-.theme-dark .foot-btn:hover  { background: rgba(255,255,255,0.12); }
-.theme-light .foot-btn:hover { background: rgba(255,255,255,0.9); box-shadow: 0 8px 20px rgba(120,90,150,0.16); }
-.foot-btn:active { transform: translateY(0) scale(0.98); }
+.foot-link:hover { opacity: 1; border-bottom-color: currentColor; }
+.foot-link:active { opacity: 0.6; }
+.foot-by { font-weight: 500; }
 /* 3.5: Chrome on Android offered an install, so swap the App Store link for it. */
 .install-btn { display: none; }
-.can-install .install-btn { display: block; }
+.can-install .install-btn { display: inline; }
 .can-install .get-app-btn { display: none; }
 
 /* solo header */
@@ -663,6 +665,7 @@ a.btn { display: block; box-sizing: border-box; text-align: center; text-decorat
 .home-wrap > *:nth-child(2) { animation-delay: 0.08s; }
 .home-wrap > *:nth-child(3) { animation-delay: 0.14s; }
 .home-wrap > *:nth-child(4) { animation-delay: 0.22s; }
+.home-wrap > *:nth-child(5) { animation-delay: 0.28s; }
 .menu-grid > * { animation: rise-in 0.52s cubic-bezier(0.2,0.7,0.3,1) both; }
 .menu-grid > *:nth-child(1) { animation-delay: 0.16s; }
 .menu-grid > *:nth-child(2) { animation-delay: 0.21s; }
@@ -680,7 +683,7 @@ a.btn { display: block; box-sizing: border-box; text-align: center; text-decorat
   .blob,
   .home-title,
   .today-card::after,
-  .today-mascot::before,
+  .home-mascot::before,
   .today-play::before,
   .today-play::after,
   .today-play::before { animation: none !important; }
@@ -691,7 +694,7 @@ a.btn { display: block; box-sizing: border-box; text-align: center; text-decorat
     animation: none !important; opacity: 1 !important; transform: none !important;
   }
   .screen-ghost { display: none; }
-  .tile, .today-card, .foot-btn { transition: none; }
+  .tile, .today-card, .foot-link { transition: none; }
 }
 
 /* ── small screens ── */
@@ -699,7 +702,8 @@ a.btn { display: block; box-sizing: border-box; text-align: center; text-decorat
   .today-h { font-size: 1.32rem; }
   .tile { min-height: 116px; padding: 14px; }
   .home-foot { flex-wrap: wrap; }
-  .foot-btn { flex: 1 1 calc(50% - 6px); }
+  .today-card { flex-direction: column; align-items: stretch; }
+  .today-play { justify-content: center; }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -816,10 +820,12 @@ a.btn { display: block; box-sizing: border-box; text-align: center; text-decorat
 .board-num.dim { opacity: 0.7; }
 
 /* The race board tile spans the full width under the 2 by 2 grid. */
-.menu-grid .tile.board { grid-column: 1 / -1; }
+/* 3.8: the board sits next to Statistics now that the race is full width. */
 .theme-light .tile.board { background: linear-gradient(140deg, rgba(255,240,205,0.92), rgba(255,228,214,0.85)); }
 .theme-dark .tile.board  { background: rgba(242,183,64,0.12); border-color: rgba(242,183,64,0.32); }
-.theme-dark .tile.board .tile-title { color: rgb(242,183,64); }
+.theme-dark .tile.board .tile-title, .theme-dark .tile.board .tile-icon { color: rgb(242,183,64); }
+.theme-light .tile.board .tile-title, .theme-light .tile.board .tile-icon { color: rgb(160,105,10); }
+.tile.board::before { background: radial-gradient(circle, rgba(242,183,64,0.30), transparent 70%); }
 
 /* ── 3.6: the tutorial level ──────────────────────────────────────────────
    The real board, with a spotlight: everything on the card that is not part
@@ -952,9 +958,9 @@ a.btn { display: block; box-sizing: border-box; text-align: center; text-decorat
   backdrop-filter: blur(10px); box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25); transition: transform 0.1s ease, background 0.2s ease; }
 .music-pill:hover { background: rgba(20, 16, 30, 0.8); }
 .music-pill:active { transform: scale(0.96); }
-.music-pill.off { opacity: 0.8; }
-.music-pill.off .music-pill-lbl { text-decoration: line-through; text-decoration-thickness: 2px; }
-.music-pill-icon { font-size: 1rem; line-height: 1; }
+.music-pill.off { color: #cfc6e0; border-style: dashed; }
+.music-pill-icon { display: inline-flex; line-height: 1; }
+.music-pill-icon svg { width: 18px; height: 18px; }
 @media (max-width: 480px) { .music-pill-lbl { display: none; } .music-pill { padding: 8px 10px; } }
 
 /* The Race tile's LIVE badge: a red dot that pulses like a broadcast light. */
