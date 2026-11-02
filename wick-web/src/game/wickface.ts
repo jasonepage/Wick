@@ -24,7 +24,7 @@ export const PALETTE = {
   cool: [33, 161, 140] as RGB, // teal
   cold: [89, 189, 181] as RGB, // mint-teal
   freezing: [69, 133, 230] as RGB, // glacier blue
-  keeper: [125, 92, 235] as RGB, // keeper violet, Wick's resting colour
+  keeper: [116, 68, 240] as RGB, // canon Wick violet
   neutral: [120, 122, 134] as RGB, // deadpan grey ("Won't say" / unknown word)
 };
 
@@ -155,13 +155,13 @@ export function ringSVG(fill: number, color: string): string {
 //
 //  KEEP IN LOCKSTEP with Hunch/Theme/KeeperFace.swift.
 
-export type FaceName = "sly" | "flustered" | "shocked" | "calm" | "serious" | "focus";
+export type FaceName = "sly" | "flustered" | "shocked" | "calm" | "serious" | "focus" | "warm" | "hot";
 
 /** One eye. lidL/lidR/sag: the heavy upper lid (y at its left and right ends,
  *  and how far it sags in the middle). closed 1 = shut (the Calm face); bow and
  *  tilt shape the shut lash line. pdx/pdy/pr: the pupil. */
 export interface EyeP { cx: number; cy: number; rx: number; ry: number; lidL: number; lidR: number; sag: number; pdx: number; pdy: number; pr: number; closed: number; bow: number; tilt: number }
-/** One sculpted silver brow: a curve from the INNER end to the OUTER end, its
+/** One sculpted purple brow: a curve from the INNER end to the OUTER end, its
  *  weight and taper, and two broad integrated crown tufts [t, height, lean]. */
 export interface BrowP { c: number[][]; th: number; taper: number; peak: number; hairs: number[][]; tail: number[][] }
 /** The mouth: a white stroke through `pts`, or (oval 1) the small dark "o". */
@@ -171,45 +171,54 @@ export interface DropP { on: number; x: number; y: number; r: number; h: number;
 export interface TipP { dx: number; dy: number; sharp: number }
 export interface FaceP { eyes: EyeP[]; brows: BrowP[]; mouth: MouthP; drop: DropP; tip: TipP }
 
+function mouthLine(x0: number, y0: number, x1: number, y1: number, bend: number, w: number): MouthP {
+  const pts: number[][] = [];
+  for (let i = 0; i <= 32; i++) {
+    const t = i / 32;
+    pts.push([x0 + (x1 - x0) * t, y0 + (y1 - y0) * t + bend * 4 * t * (1 - t)]);
+  }
+  return { pts, w, oval: 0, ocx: 512, ocy: 712, orx: 18, ory: 23 };
+}
+
 export const FACES: Record<FaceName, FaceP> = {
   sly: {
     eyes: [
-      { cx: 413, cy: 578, rx: 54, ry: 42, lidL: 590, lidR: 582, sag: 7, pdx: -24, pdy: 8, pr: 23, closed: 0, bow: 5, tilt: 0 },
-      { cx: 611, cy: 578, rx: 54, ry: 42, lidL: 588, lidR: 583, sag: 7, pdx: -24, pdy: 8, pr: 23, closed: 0, bow: 5, tilt: 0 },
+      { cx: 413, cy: 590, rx: 52, ry: 40, lidL: 584, lidR: 596, sag: 5, pdx: -18, pdy: 9, pr: 19, closed: 0, bow: 5, tilt: 0 },
+      { cx: 611, cy: 590, rx: 52, ry: 40, lidL: 596, lidR: 584, sag: 5, pdx: -18, pdy: 9, pr: 19, closed: 0, bow: 5, tilt: 0 },
     ],
     brows: [
-      { c: [[474, 537], [444, 533], [398, 534], [356, 544]], th: 35.84, taper: 0.5, peak: 0.25, hairs: [[0.18, 10, 40], [0.47, 8, 55]], tail: [[6, 20, 5], [0, 0, 0]] },
-      { c: [[554, 522], [584, 494], [634, 480], [674, 494]], th: 35.84, taper: 0.5, peak: 0.35, hairs: [[0.22, 9, 35], [0.4, 12, 45]], tail: [[18, 28, 6], [-10, 18, 4]] },
+      { c: [[482, 554], [452, 538], [402, 510], [350, 494]], th: 39, taper: 0.68, peak: 0.18, hairs: [[0.18, 10, 40], [0.47, 8, 55]], tail: [[6, 20, 5], [0, 0, 0]] },
+      { c: [[542, 554], [572, 536], [624, 506], [674, 490]], th: 39, taper: 0.68, peak: 0.18, hairs: [[0.22, 9, 35], [0.4, 12, 45]], tail: [[18, 28, 6], [-10, 18, 4]] },
     ],
-    mouth: { pts: [[582.97, 702], [578.54, 703.21], [574.08, 704.35], [569.6, 705.42], [565.11, 706.41], [560.6, 707.33], [556.08, 708.17], [551.54, 708.93], [546.99, 709.61], [542.43, 710.21], [537.86, 710.72], [533.28, 711.13], [528.69, 711.45], [524.09, 711.67], [519.5, 711.78], [514.9, 711.77], [510.3, 711.63], [505.7, 711.35], [501.12, 710.93], [496.56, 710.35], [492.02, 709.59], [487.52, 708.64], [483.07, 707.49], [478.68, 706.1], [474.38, 704.47], [470.19, 702.57], [466.14, 700.39], [462.28, 697.9], [458.62, 695.11], [455.23, 692], [452.14, 688.6], [449.38, 684.92], [446.97, 681]], w: 24, oval: 0, ocx: 512, ocy: 712, orx: 18, ory: 23 },
+    mouth: { pts: [[561.68, 702.36], [558.58, 703.35], [555.46, 704.29], [552.32, 705.16], [549.18, 705.98], [546.02, 706.73], [542.86, 707.42], [539.68, 708.04], [536.49, 708.6], [533.3, 709.09], [530.1, 709.51], [526.9, 709.85], [523.68, 710.11], [520.46, 710.29], [517.25, 710.38], [514.03, 710.37], [510.81, 710.26], [507.59, 710.03], [504.38, 709.68], [501.19, 709.21], [498.01, 708.58], [494.86, 707.8], [491.75, 706.86], [488.68, 705.72], [485.67, 704.39], [482.73, 702.83], [479.9, 701.04], [477.2, 699], [474.63, 696.71], [472.26, 694.16], [470.1, 691.37], [468.17, 688.35], [466.48, 685.14]], w: 21, oval: 0, ocx: 512, ocy: 712, orx: 18, ory: 23 },
     drop: { on: 0, x: 714, y: 560, r: 19, h: 50, tilt: -14 },
     tip: { dx: -4, dy: 0, sharp: 0.92 }, // curl
   },
   flustered: {
     eyes: [
-      { cx: 413, cy: 578, rx: 54, ry: 50, lidL: 558, lidR: 540, sag: 6, pdx: 22, pdy: 14, pr: 23, closed: 0, bow: 5, tilt: 0 },
-      { cx: 611, cy: 578, rx: 54, ry: 50, lidL: 540, lidR: 558, sag: 6, pdx: 22, pdy: 14, pr: 23, closed: 0, bow: 5, tilt: 0 },
+      { cx: 413, cy: 590, rx: 53, ry: 41, lidL: 576, lidR: 594, sag: 4, pdx: -20, pdy: 10, pr: 20, closed: 0, bow: 5, tilt: 0 },
+      { cx: 611, cy: 586, rx: 53, ry: 41, lidL: 590, lidR: 574, sag: 4, pdx: -20, pdy: 10, pr: 20, closed: 0, bow: 5, tilt: 0 },
     ],
     brows: [
-      { c: [[462, 460], [430, 474], [392, 494], [358, 514]], th: 35.84, taper: 0.5, peak: 0.2, hairs: [[0.15, 9, 30], [0.42, 7, 50]], tail: [[10, 18, 4], [0, 0, 0]] },
-      { c: [[564, 468], [592, 474], [628, 492], [662, 512]], th: 35.84, taper: 0.5, peak: 0.3, hairs: [[0.25, 8, 40], [0.55, 9, 55]], tail: [[-4, 16, 4], [0, 0, 0]] },
+      { c: [[484, 550], [452, 530], [402, 504], [352, 494]], th: 39, taper: 0.7, peak: 0.18, hairs: [[0.15, 9, 30], [0.42, 7, 50]], tail: [[10, 18, 4], [0, 0, 0]] },
+      { c: [[540, 530], [574, 510], [624, 488], [674, 486]], th: 39, taper: 0.7, peak: 0.18, hairs: [[0.25, 8, 40], [0.55, 9, 55]], tail: [[-4, 16, 4], [0, 0, 0]] },
     ],
-    mouth: { pts: [[464, 712], [466.6, 714.53], [469.29, 716.96], [472.16, 719.18], [475.31, 720.96], [478.79, 721.93], [482.4, 721.72], [485.78, 720.43], [488.82, 718.47], [491.62, 716.17], [494.27, 713.69], [496.86, 711.15], [499.48, 708.65], [502.22, 706.27], [505.17, 704.17], [508.44, 702.61], [512, 702], [515.56, 702.61], [518.83, 704.17], [521.78, 706.27], [524.52, 708.65], [527.14, 711.15], [529.73, 713.69], [532.38, 716.17], [535.18, 718.47], [538.22, 720.43], [541.6, 721.72], [545.21, 721.93], [548.69, 720.96], [551.84, 719.18], [554.71, 716.96], [557.4, 714.53], [560, 712]], w: 22, oval: 0, ocx: 512, ocy: 712, orx: 18, ory: 23 },
-    drop: { on: 1, x: 714, y: 560, r: 19, h: 50, tilt: -14 },
-    tip: { dx: 3.3, dy: 2.3, sharp: 1.08 }, // droop
+    mouth: mouthLine(478, 704, 548, 711, 5, 19),
+    drop: { on: 0.55, x: 714, y: 560, r: 16, h: 42, tilt: -14 },
+    tip: { dx: 2, dy: -2, sharp: 0.88 }, // hot, resisting reaction
   },
   shocked: {
     eyes: [
-      { cx: 413, cy: 578, rx: 54, ry: 52, lidL: 531, lidR: 531, sag: 4, pdx: 0, pdy: 2, pr: 17, closed: 0, bow: 5, tilt: 0 },
-      { cx: 611, cy: 578, rx: 54, ry: 52, lidL: 531, lidR: 531, sag: 4, pdx: 0, pdy: 2, pr: 17, closed: 0, bow: 5, tilt: 0 },
+      { cx: 410, cy: 584, rx: 60, ry: 59, lidL: 526, lidR: 519, sag: 2, pdx: 12, pdy: -5, pr: 12, closed: 0, bow: 5, tilt: 0 },
+      { cx: 616, cy: 576, rx: 57, ry: 55, lidL: 518, lidR: 528, sag: 2, pdx: -10, pdy: 5, pr: 12, closed: 0, bow: 5, tilt: 0 },
     ],
     brows: [
-      { c: [[470, 488], [446, 466], [400, 458], [360, 472]], th: 35.84, taper: 0.5, peak: 0.3, hairs: [[0.2, 8, 35], [0.5, 10, 50]], tail: [[14, 20, 5], [0, 0, 0]] },
-      { c: [[556, 474], [578, 446], [628, 436], [666, 452]], th: 35.84, taper: 0.5, peak: 0.4, hairs: [[0.3, 11, 40], [0.58, 8, 55]], tail: [[20, 24, 5], [-6, 14, 4]] },
+      { c: [[474, 480], [446, 438], [398, 420], [350, 442]], th: 37, taper: 0.68, peak: 0.18, hairs: [[0.2, 8, 35], [0.5, 10, 50]], tail: [[14, 20, 5], [0, 0, 0]] },
+      { c: [[550, 466], [580, 424], [632, 412], [678, 444]], th: 37, taper: 0.68, peak: 0.18, hairs: [[0.3, 11, 40], [0.58, 8, 55]], tail: [[20, 24, 5], [-6, 14, 4]] },
     ],
-    mouth: { pts: [[512, 712], [512, 712], [512, 712], [512, 712], [512, 712], [512, 712], [512, 712], [512, 712], [512, 712], [512, 712], [512, 712], [512, 712], [512, 712], [512, 712], [512, 712], [512, 712], [512, 712], [512, 712], [512, 712], [512, 712], [512, 712], [512, 712], [512, 712], [512, 712], [512, 712], [512, 712], [512, 712], [512, 712], [512, 712], [512, 712], [512, 712], [512, 712], [512, 712]], w: 24, oval: 1, ocx: 512, ocy: 712, orx: 18, ory: 23 },
+    mouth: { pts: [[512, 712], [512, 712], [512, 712], [512, 712], [512, 712], [512, 712], [512, 712], [512, 712], [512, 712], [512, 712], [512, 712], [512, 712], [512, 712], [512, 712], [512, 712], [512, 712], [512, 712], [512, 712], [512, 712], [512, 712], [512, 712], [512, 712], [512, 712], [512, 712], [512, 712], [512, 712], [512, 712], [512, 712], [512, 712], [512, 712], [512, 712], [512, 712], [512, 712]], w: 24, oval: 1, ocx: 516, ocy: 718, orx: 31, ory: 37 },
     drop: { on: 0, x: 714, y: 560, r: 19, h: 50, tilt: -14 },
-    tip: { dx: 0, dy: -3, sharp: 0.82 }, // spike
+    tip: { dx: -1, dy: -6, sharp: 0.76 }, // explosive spike
   },
   serious: {
     eyes: [
@@ -226,29 +235,57 @@ export const FACES: Record<FaceName, FaceP> = {
   },
   focus: {
     eyes: [
-      { cx: 413, cy: 578, rx: 54, ry: 42, lidL: 592, lidR: 596, sag: 5, pdx: -2, pdy: 26, pr: 21, closed: 0, bow: 5, tilt: 0 },
-      { cx: 611, cy: 578, rx: 54, ry: 42, lidL: 586, lidR: 582, sag: 5, pdx: -2, pdy: 26, pr: 21, closed: 0, bow: 5, tilt: 0 },
+      { cx: 413, cy: 586, rx: 52, ry: 40, lidL: 588, lidR: 598, sag: 4, pdx: 19, pdy: 5, pr: 19, closed: 0, bow: 5, tilt: 0 },
+      { cx: 611, cy: 578, rx: 54, ry: 44, lidL: 568, lidR: 576, sag: 4, pdx: 19, pdy: 5, pr: 19, closed: 0, bow: 5, tilt: 0 },
     ],
     brows: [
-      { c: [[484, 550], [450, 548], [406, 548], [364, 552]], th: 35.84, taper: 0.5, peak: 0.25, hairs: [[0.25, 10, 35], [0.52, 8, 50]], tail: [[4, 18, 4], [0, 0, 0]] },
-      { c: [[540, 548], [574, 544], [620, 542], [660, 546]], th: 35.84, taper: 0.5, peak: 0.3, hairs: [[0.2, 8, 40], [0.48, 10, 45]], tail: [[14, 20, 5], [0, 0, 0]] },
+      { c: [[480, 548], [448, 542], [404, 540], [362, 544]], th: 36, taper: 0.68, peak: 0.18, hairs: [[0.25, 10, 35], [0.52, 8, 50]], tail: [[4, 18, 4], [0, 0, 0]] },
+      { c: [[544, 522], [576, 496], [624, 486], [668, 500]], th: 36, taper: 0.68, peak: 0.18, hairs: [[0.2, 8, 40], [0.48, 10, 45]], tail: [[14, 20, 5], [0, 0, 0]] },
     ],
-    mouth: { pts: [[486.01, 710], [487.63, 709.92], [489.24, 709.86], [490.86, 709.8], [492.48, 709.75], [494.1, 709.72], [495.71, 709.7], [497.33, 709.69], [498.95, 709.7], [500.57, 709.72], [502.19, 709.76], [503.81, 709.82], [505.42, 709.9], [507.04, 710], [508.65, 710.13], [510.26, 710.28], [511.87, 710.46], [513.48, 710.67], [515.08, 710.91], [516.67, 711.19], [518.26, 711.5], [519.84, 711.85], [521.41, 712.24], [522.97, 712.68], [524.52, 713.16], [526.04, 713.69], [527.55, 714.28], [529.04, 714.92], [530.5, 715.61], [531.93, 716.37], [533.33, 717.18], [534.69, 718.06], [536.01, 719]], w: 24, oval: 0, ocx: 512, ocy: 712, orx: 18, ory: 23 },
+    mouth: mouthLine(490, 708, 542, 704, 0, 18),
     drop: { on: 0, x: 714, y: 560, r: 19, h: 50, tilt: -14 },
     tip: { dx: 0, dy: 0, sharp: 1 }, // neutral
   },
   calm: {
     eyes: [
-      { cx: 413, cy: 578, rx: 54, ry: 40, lidL: 587, lidR: 581, sag: 24, pdx: 0, pdy: 0, pr: 20, closed: 1, bow: 24, tilt: 3 },
-      { cx: 611, cy: 578, rx: 54, ry: 40, lidL: 582, lidR: 586, sag: 24, pdx: 0, pdy: 0, pr: 20, closed: 1, bow: 24, tilt: -2 },
+      { cx: 413, cy: 590, rx: 52, ry: 39, lidL: 596, lidR: 600, sag: 5, pdx: -5, pdy: 12, pr: 18, closed: 0, bow: 8, tilt: 1 },
+      { cx: 611, cy: 590, rx: 52, ry: 39, lidL: 600, lidR: 596, sag: 5, pdx: -5, pdy: 12, pr: 18, closed: 0, bow: 8, tilt: -1 },
     ],
     brows: [
-      { c: [[470, 506], [442, 492], [400, 488], [360, 498]], th: 35.84, taper: 0.5, peak: 0.3, hairs: [[0.2, 9, 35], [0.5, 8, 50]], tail: [[12, 20, 5], [0, 0, 0]] },
-      { c: [[556, 498], [586, 482], [630, 476], [666, 488]], th: 35.84, taper: 0.5, peak: 0.35, hairs: [[0.25, 10, 40], [0.55, 8, 55]], tail: [[16, 24, 5], [-8, 14, 4]] },
+      { c: [[478, 548], [448, 546], [404, 546], [362, 550]], th: 34, taper: 0.7, peak: 0.18, hairs: [[0.2, 9, 35], [0.5, 8, 50]], tail: [[12, 20, 5], [0, 0, 0]] },
+      { c: [[546, 548], [576, 546], [620, 546], [662, 550]], th: 34, taper: 0.7, peak: 0.18, hairs: [[0.25, 10, 40], [0.55, 8, 55]], tail: [[16, 24, 5], [-8, 14, 4]] },
     ],
-    mouth: { pts: [[454, 700], [457, 702.79], [460.2, 705.37], [463.56, 707.72], [467.06, 709.85], [470.69, 711.77], [474.42, 713.47], [478.25, 714.96], [482.14, 716.24], [486.1, 717.31], [490.11, 718.19], [494.16, 718.86], [498.23, 719.33], [502.32, 719.61], [506.43, 719.7], [510.53, 719.59], [514.62, 719.28], [518.69, 718.78], [522.73, 718.08], [526.73, 717.18], [530.69, 716.09], [534.58, 714.8], [538.4, 713.31], [542.14, 711.62], [545.78, 709.73], [549.32, 707.65], [552.73, 705.37], [556.01, 702.9], [559.14, 700.25], [562.11, 697.43], [564.92, 694.44], [567.55, 691.29], [570, 688]], w: 24, oval: 0, ocx: 512, ocy: 712, orx: 18, ory: 23 },
+    mouth: mouthLine(480, 710, 544, 712, 0, 18),
     drop: { on: 0, x: 714, y: 560, r: 19, h: 50, tilt: -14 },
     tip: { dx: 0, dy: 0, sharp: 1 }, // neutral
+  },
+  // Yellow: alert, inviting confidence.
+  warm: {
+    eyes: [
+      { cx: 413, cy: 580, rx: 53, ry: 45, lidL: 570, lidR: 576, sag: 5, pdx: 10, pdy: 8, pr: 21, closed: 0, bow: 5, tilt: 0 },
+      { cx: 611, cy: 580, rx: 53, ry: 45, lidL: 576, lidR: 570, sag: 5, pdx: 10, pdy: 8, pr: 21, closed: 0, bow: 5, tilt: 0 },
+    ],
+    brows: [
+      { c: [[480, 520], [446, 506], [400, 500], [358, 510]], th: 36, taper: 0.62, peak: 0.2, hairs: [], tail: [] },
+      { c: [[544, 516], [578, 500], [624, 494], [666, 504]], th: 36, taper: 0.62, peak: 0.2, hairs: [], tail: [] },
+    ],
+    mouth: mouthLine(468, 704, 558, 697, 8, 21),
+    drop: { on: 0, x: 714, y: 560, r: 19, h: 50, tilt: -14 },
+    tip: { dx: -1.5, dy: -1, sharp: 0.96 },
+  },
+  // Orange: locked-in determination.
+  hot: {
+    eyes: [
+      { cx: 413, cy: 586, rx: 52, ry: 40, lidL: 578, lidR: 594, sag: 4, pdx: 6, pdy: 10, pr: 20, closed: 0, bow: 5, tilt: 0 },
+      { cx: 611, cy: 586, rx: 52, ry: 40, lidL: 594, lidR: 578, sag: 4, pdx: -6, pdy: 10, pr: 20, closed: 0, bow: 5, tilt: 0 },
+    ],
+    brows: [
+      { c: [[484, 552], [450, 536], [402, 512], [354, 492]], th: 39, taper: 0.7, peak: 0.18, hairs: [], tail: [] },
+      { c: [[540, 552], [574, 536], [622, 510], [670, 488]], th: 39, taper: 0.7, peak: 0.18, hairs: [], tail: [] },
+    ],
+    mouth: mouthLine(474, 708, 550, 704, -2, 20),
+    drop: { on: 0, x: 714, y: 560, r: 19, h: 50, tilt: -14 },
+    tip: { dx: 1.5, dy: -2, sharp: 0.88 },
   },
 };
 
@@ -260,10 +297,14 @@ export const FACE_TRANSFORM = `translate(${FACE_TX.toFixed(3)} ${FACE_TY.toFixed
 
 export const EYE_WHITE: RGB = [245, 243, 254];
 export const PUPIL: RGB = [31, 23, 59];
-// Mid-silver reads as hair rather than another white eyelid. The stronger
-// aubergine keyline stays clear on every heat colour.
-export const BROW_GREY: RGB = [197, 193, 209];
-export const BROW_KEY: RGB = [68, 55, 91];
+/** Hue-matched brows: dark blue on blue Wick, forest on green, burgundy on red. */
+export function browFill(c: RGB): RGB {
+  return [Math.round(c[0] * 0.63), Math.round(c[1] * 0.63), Math.round(c[2] * 0.63)];
+}
+export function browKey(c: RGB): RGB {
+  const fill = browFill(c);
+  return [Math.round(fill[0] * 0.52), Math.round(fill[1] * 0.52), Math.round(fill[2] * 0.52)];
+}
 
 /** The inner flame (lighter core) in art units, for clipping the face shading. */
 export const PLATE_ART = "M511.5 448.0 C585.0 490.4 655.9 540.0 655.9 657.5 C655.9 776.5 598.8 841.0 511.5 841.0 C425.2 841.0 368.1 776.5 368.1 657.5 C368.1 540.0 439.0 490.4 511.5 448.0 Z";
@@ -273,8 +314,6 @@ export const PLATE_ART = "M511.5 448.0 C585.0 490.4 655.9 540.0 655.9 657.5 C655
 export function chunkyFlamePath(lean = 0, tip: TipP = { dx: 0, dy: 0, sharp: 1 }): string {
   const f = (v: number): string => (Math.round(v * 10) / 10).toString();
   const tx = 60 + lean + tip.dx, ty = 4 + tip.dy;
-  // Fitted to the icon: a sharp tip, shoulders pulled by one control each side
-  // (moved by `sharp` and by the lean), widest at y 67.2, a round base.
   const sh = 43.986 * tip.sharp, sy = 20.605 + tip.dy * 0.5, sl = lean * 0.6;
   return `M60 124 C${f(37.084)} 124 16 109.2 16 67.2 ` +
     `C${f(60 - sh + sl)} ${f(sy)} ${f(tx)} ${f(ty)} ${f(tx)} ${f(ty)} ` +
@@ -290,7 +329,11 @@ export function faceFor(o: { mood: Mood; race?: boolean; focus?: boolean }): Fac
   if (o.focus) return "focus";
   if (o.mood === "unamused") return "calm";
   if (o.race) return "serious";
-  if (o.mood === "warm" || o.mood === "hot" || o.mood === "boiling") return "flustered";
+  if (o.mood === "freezing") return "serious";
+  if (o.mood === "cold") return "focus";
+  if (o.mood === "warm") return "warm";
+  if (o.mood === "hot") return "hot";
+  if (o.mood === "boiling") return "flustered";
   return "sly";
 }
 
@@ -401,8 +444,7 @@ function bez(c: number[][], t: number): Pt {
   const a = (1 - t) ** 3, b = 3 * (1 - t) ** 2 * t, d = 3 * (1 - t) * t * t, e = t ** 3;
   return [a * p0[0]! + b * p1[0]! + d * p2[0]! + e * p3[0]!, a * p0[1]! + b * p1[1]! + d * p2[1]! + e * p3[1]!];
 }
-/** A silver-fox brow built as one strong silhouette. Broad integrated tufts
- *  keep the hand-drawn character without sub-pixel loose hairs. */
+/** A sleek brow built as one strong silhouette without loose hair texture. */
 export function browPath(b: BrowP): string {
   const n = 64, th = b.th, C = b.c;
   const cen: Pt[] = [];
@@ -423,18 +465,11 @@ export function browPath(b: BrowP): string {
     // near-constant width made every expression look like two pasted bars.
     return th * (0.96 + 0.12 * smoothRise) * (1 - b.taper * 0.98 * fall ** 1.15);
   };
-  const tuft = (t: number): number => b.hairs.reduce((lift, hair) => {
-    const at = hair[0] ?? 0, height = hair[1] ?? 0;
-    const d = (t - at) / 0.065;
-    return lift + Math.min(th * 0.24, height * 0.42) * Math.exp(-d * d);
-  }, 0);
   const top: Pt[] = [], bot: Pt[] = [];
   for (let i = 0; i <= n; i++) {
     const [, , nx, ny] = fr(i); const t = i / n; const w = width(t) / 2;
-    const rough = th * 0.018 * Math.sin(2 * Math.PI * 2.2 * t) * (0.25 + 0.75 * t);
     const [x, y] = cen[i]!;
-    const crown = w + rough + tuft(t);
-    top.push([x + nx * crown, y + ny * crown]); bot.push([x - nx * w, y - ny * w]);
+    top.push([x + nx * w, y + ny * w]); bot.push([x - nx * w, y - ny * w]);
   }
   const [tx0, ty0, nx0, ny0] = fr(0); const [x0, y0] = cen[0]!; const w0 = width(0) / 2;
   const [txn, tyn] = fr(n); const [xn, yn] = cen[n]!; const wn = width(1) / 2;
@@ -496,8 +531,8 @@ export function faceDrawList(p: FaceP, closure: number[], color: RGB): DrawItem[
     items.push({ d: s.lash, stroke: rgb(EYE_WHITE), width: 16, opacity: s.lashOpacity });
   }
   const brows = p.brows.map(browPath).join("");
-  items.push({ d: brows, stroke: rgb(BROW_KEY), width: 9, opacity: 0.72 });
-  items.push({ d: brows, fill: rgb(BROW_GREY), opacity: 1 });
+  items.push({ d: brows, stroke: rgb(browKey(color)), width: 9, opacity: 0.72 });
+  items.push({ d: brows, fill: rgb(browFill(color)), opacity: 1 });
   items.push({ d: mouthStrokePath(p.mouth), stroke: rgb(EYE_WHITE), width: p.mouth.w, opacity: 1 - p.mouth.oval });
   items.push({ d: p.mouth.oval > 0.01 ? mouthOvalPath(p.mouth) : "", fill: rgb(PUPIL), opacity: p.mouth.oval });
   items.push({ d: p.drop.on > 0.01 ? dropPath(p.drop) : "", fill: rgb(EYE_WHITE), opacity: p.drop.on });

@@ -26,7 +26,7 @@ test("the tip leans with the flicker and reacts to the face; the base stays put"
   for (const d of [left, right, flamePath(0.5, FACES.shocked.tip), flamePath(0.5, FACES.flustered.tip)]) {
     assert.ok(d.startsWith("M60 124") && d.endsWith("60 124 Z"));
   }
-  assert.ok(flamePath(0.5, FACES.shocked.tip).includes(" 60 1 "), "Shocked spikes the tip up");
+  assert.ok(flamePath(0.5, FACES.shocked.tip).includes(" 59 -2 "), "Shocked spikes the tip up and off-center");
 });
 
 test("the bob uses the iOS periods and amplitudes", () => {
@@ -71,9 +71,11 @@ test("Reduce Motion leaves only an opacity breath", () => {
 
 test("each game state wears its face", () => {
   assert.equal(faceFor({ mood: "idle" }), "sly");
-  assert.equal(faceFor({ mood: "freezing" }), "sly");
-  assert.equal(faceFor({ mood: "cold" }), "sly");
-  for (const mood of ["warm", "hot", "boiling"] as const) assert.equal(faceFor({ mood }), "flustered");
+  assert.equal(faceFor({ mood: "freezing" }), "serious");
+  assert.equal(faceFor({ mood: "cold" }), "focus");
+  assert.equal(faceFor({ mood: "warm" }), "warm");
+  assert.equal(faceFor({ mood: "hot" }), "hot");
+  assert.equal(faceFor({ mood: "boiling" }), "flustered");
   assert.equal(faceFor({ mood: "celebrating" }), "shocked", "solved stays Shocked");
   assert.equal(faceFor({ mood: "cold", race: true }), "serious");
   assert.equal(faceFor({ mood: "boiling", race: true }), "serious");
@@ -83,15 +85,14 @@ test("each game state wears its face", () => {
   assert.equal(faceFor({ mood: "unamused" }), "calm");
 });
 
-test("every face draws the same 19 slots; Calm's eyes are shut, the others open", () => {
+test("every face draws the same 19 slots and has readable eyes", () => {
   for (const [name, f] of Object.entries(FACES)) {
     const items = faceDrawList(f, f.eyes.map((e) => e.closed), PALETTE.keeper);
     assert.equal(items.length, 19, name);
     const whites = [items[8]!, items[11]!];
-    if (name === "calm") assert.ok(whites.every((w) => w.d === ""), "shut eyes show no white");
-    else assert.ok(whites.every((w) => w.d.length > 20), `${name} has open eyes`);
+    assert.ok(whites.every((w) => w.d.length > 20), `${name} has readable eyes`);
     assert.ok(items[14]!.d.length > 100, `${name} has a brow keyline`);
-    assert.ok(items[15]!.d.length > 100, `${name} has silver brows`);
+    assert.ok(items[15]!.d.length > 100, `${name} has sleek brows`);
   }
   assert.ok(faceDrawList(FACES.flustered, [0, 0], PALETTE.keeper)[18]!.d.length > 0, "Flustered sweats");
   assert.equal(faceDrawList(FACES.sly, [0, 0], PALETTE.keeper)[18]!.d, "", "Sly does not");

@@ -131,6 +131,8 @@ struct KeeperView: View {
     /// Show off every face: a new one every few seconds, with the usual blink
     /// between them (3.7). The Home screen and the round's welcome card use it.
     var showcase: Bool = false
+    /// Brief personality performance layered over the heat-driven face.
+    var faceOverride: KeeperFaceName? = nil
 
     /// Picks his face from the mood and runs the blink-and-morph between faces.
     @State private var animator = KeeperFaceAnimator()
@@ -170,7 +172,8 @@ struct KeeperView: View {
 
             // The face for this frame, and the pop as he opens on a new one
             // (squash and stretch, plus a little hop for Shocked).
-            let face = animator.frame(t: t, mood: mood, race: race ?? dances, reduceMotion: reduceMotion, showcase: showcase)
+            let face = animator.frame(t: t, mood: mood, race: race ?? dances, reduceMotion: reduceMotion,
+                                      showcase: showcase, override: faceOverride)
             let popX: Double = 1 - 0.06 * face.pop
             let popY: Double = 1 + 0.10 * face.pop
             let hop: CGFloat = face.name == .shocked ? -size * 0.04 * CGFloat(face.pop) : 0
@@ -222,7 +225,7 @@ struct KeeperView: View {
                 .blur(radius: size * 0.10)
                 .scaleEffect(1.12)
 
-            // Body: the chunky flame from the icon art
+            // Body: saturated and emissive, without glossy highlights that read as plastic.
             KeeperChunkyFlameShape(flicker: flicker, tip: face.face.tip)
                 .fill(
                     LinearGradient(
@@ -231,7 +234,7 @@ struct KeeperView: View {
                     )
                 )
 
-            // Inner flame: one tone step lighter than the body (white at 22%)
+            // Inner flame: one tone step lighter than the body.
             KeeperPlateShape()
                 .fill(Color.white.opacity(0.22))
 

@@ -10,6 +10,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- **New Wick look.** Sharper dark purple brows with a smirk, a new app icon
+  (App Store, website favicons, and the README), and two more faces, Warm
+  and Hot, between Sly and Flustered.
+- **Wick reacts to what you guess.** A short face beat on a big jump in
+  warmth, a new topic (food, animals, space and so on), a repeat, or a cold
+  streak. It clears on its own and the warmth face stays in charge. Same
+  rules on iPhone and web.
+- **Race dance.** Wick's dance in a live race is now three authored moves
+  (Groove, Swagger, Hype) with a crouch before the drop and the flame tip
+  swaying against the body. Same numbers on iPhone and web.
+
 - **Replay videos show the new Wick (iOS).** The share replay drew the old
   round-eyed Wick. It now uses the same flame and faces as the game (new
   KeeperFaceCG.swift): Sly when cold, Flustered when warm to boiling, Focus

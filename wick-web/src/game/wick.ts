@@ -398,6 +398,8 @@ export interface WickOptions {
   race?: boolean;
   /** An Ask Wick question is being answered: the Focus face. */
   focus?: boolean;
+  /** Short authored personality beat. Color still comes from score/mood. */
+  face?: FaceName | null;
   /** Show off every face: a new one every SHOWCASE_SECONDS, with the usual
    *  blink between them (3.7). Home and the round's welcome use it. */
   showcase?: boolean;
@@ -418,6 +420,8 @@ export interface Wick {
   setDance(on: boolean, style?: WickDanceStyle, intensity?: number): void;
   /** Race mode and Ask Wick focus, which pick his face along with the mood. */
   setFlags(flags: { race?: boolean; focus?: boolean; showcase?: boolean }): void;
+  /** Temporarily override only the expression; null returns control to heat. */
+  setFace(face: FaceName | null): void;
   /** The face he is wearing. */
   readonly face: FaceName;
   /** Stop animating and remove the SVG. */
@@ -490,6 +494,7 @@ interface Inst {
   faceAt: number;             // when the last face change began
   race: boolean;
   focus: boolean;
+  overrideFace: FaceName | null;
   showcase: boolean;          // walking through every face (Home, the welcome)
   showStart: number | null;   // when the showcase began, set on its first frame
   faceKey: string;            // what was last painted, to skip repaints
@@ -574,6 +579,7 @@ export function showcaseFace(elapsed: number): FaceName {
 /** The face the game state calls for right now (or the showcase's next one).
  *  No showcase with reduced motion: the swaps would be instant jumps. */
 function wantFace(i: Inst, t: number, rm: boolean): FaceName {
+  if (i.overrideFace) return i.overrideFace;
   if (i.showcase && !rm) {
     if (i.showStart === null) i.showStart = t;
     return showcaseFace(t - i.showStart);
@@ -721,7 +727,7 @@ export function mountWick(host: HTMLElement, opts: WickOptions): Wick {
   const inst: Inst = {
     el, host, mood, rgbFrom: color, rgbTo: color, colorAt: t0 - MOOD_EASE, colorDone: false, stops, glow, body, rig,
     plate, id, faceSlots: face.slots, face: startFace, faceFrom: FACES[startFace], faceTo: FACES[startFace],
-    faceAt: t0 - 10, race, focus, showcase: !!opts.showcase, showStart: null, faceKey: "",
+    faceAt: t0 - 10, race, focus, overrideFace: opts.face ?? null, showcase: !!opts.showcase, showStart: null, faceKey: "",
     sparkles: [], pokeAt: null,
     nextBlinkAt: t0 + nextBlinkDelay(), blinkAt: null, visible: true, dance: !!opts.dance,
     danceStyle: opts.danceStyle ?? "swagger", danceIntensity: opts.danceIntensity ?? 1,
@@ -788,6 +794,7 @@ export function mountWick(host: HTMLElement, opts: WickOptions): Wick {
       }
       wake();
     },
+    setFace(face) { inst.overrideFace = face; wake(); },
     get face() { return inst.face; },
     destroy() { teardown(inst); el.remove(); },
   };
@@ -806,6 +813,7 @@ export function ensureWick(host: HTMLElement, opts: WickOptions): Wick {
   if (have && have.el.isConnected && have.el.parentElement === host) {
     have.setScore(opts.score, opts.neutral);
     have.setFlags({ race: !!opts.race, focus: !!opts.focus, showcase: !!opts.showcase });
+    have.setFace(opts.face ?? null);
     if (opts.dance !== undefined) have.setDance(opts.dance, opts.danceStyle, opts.danceIntensity);
     return have;
   }

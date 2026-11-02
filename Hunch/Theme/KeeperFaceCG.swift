@@ -119,7 +119,6 @@ nonisolated enum KeeperFaceCG {
             shapes.append(KeeperFaces.eyeShapes(face.eyes[i], c))
         }
         let plateClip: CGPath = KeeperFaces.plateArt.cgPath
-
         func fill(_ p: Path, _ c: CGColor) {
             ctx.addPath(p.cgPath)
             ctx.setFillColor(c)
@@ -162,8 +161,8 @@ nonisolated enum KeeperFaceCG {
         }
         var brows = Path()
         for b in face.brows { brows.addPath(KeeperFaces.browPath(b)) }
-        stroke(brows, cgColor(KeeperFaces.browKey, 0.72), 9)
-        fill(brows, cgColor(KeeperFaces.browGrey))
+        stroke(brows, cgColor(KeeperFaces.browKey(color), 0.72), 9)
+        fill(brows, cgColor(KeeperFaces.browFill(color)))
         let m: KeeperMouth = face.mouth
         if m.oval < 0.999 {
             stroke(KeeperFaces.mouthStroke(m), cgColor(KeeperFaces.eyeWhite, CGFloat(1 - m.oval)), CGFloat(m.w))

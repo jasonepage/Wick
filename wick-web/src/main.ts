@@ -15,7 +15,8 @@
 import { WickMatchClient } from "./net/client.ts";
 import type { MatchMode, OpponentKind, StateSnapshot, MatchResult } from "./net/protocol.ts";
 import { ringSVG, scoreLabel, scoreColor, scoreColorA } from "./game/wickface.ts";
-import { ensureWick, type WickOptions } from "./game/wick.ts";
+import { ensureWick, type Wick, type WickOptions } from "./game/wick.ts";
+import { newWickPersonalityState, reactionForGuess, reactionForQuestion, type WickReaction } from "./game/wickpersonality.ts";
 import { todaysDaily, randomPracticeAt, practiceAt, wordText, pastPuzzles, POOL_SIZE } from "./game/daily.ts";
 import type { DailyWord, PastPuzzle } from "./game/daily.ts";
 import { fetchWarmth, httpBaseFrom, askKeeper, fetchReveal, fetchLiveCounts } from "./net/api.ts";
@@ -108,7 +109,36 @@ const sp = {
   /** Pool index of the practice word, so a practice round can be raced.
    *  -1 when this isn't a practice round. */
   practiceIndex: -1,
+  personality: newWickPersonalityState(),
+  reaction: null as WickReaction | null,
+  reactionPokePending: false,
+  coldReactionStreak: 0,
 };
+
+let reactionTimer: ReturnType<typeof setTimeout> | null = null;
+
+function resetWickPersonality(): void {
+  sp.personality = newWickPersonalityState();
+  sp.reaction = null;
+  sp.reactionPokePending = false;
+  sp.coldReactionStreak = 0;
+  if (reactionTimer !== null) clearTimeout(reactionTimer);
+  reactionTimer = null;
+}
+
+function playWickReaction(reaction: WickReaction | null): void {
+  if (!reaction) return;
+  sp.reaction = reaction;
+  sp.reactionPokePending = reaction.poke;
+  if (reaction.line && getLang() === "en") toast(reaction.line);
+  if (reactionTimer !== null) clearTimeout(reactionTimer);
+  reactionTimer = setTimeout(() => {
+    sp.reaction = null;
+    sp.reactionPokePending = false;
+    reactionTimer = null;
+    if (!sp.solved && !sp.revealed) renderSolo();
+  }, reaction.durationMs);
+}
 
 /** A player who wanders off mid-round shouldn't produce a ghost that stands
  *  still for four minutes — and a round resumed the next day shouldn't record a
@@ -127,6 +157,7 @@ function stampAction(): { at: number; seq: number } {
 /** Begin (or resume) timing a round. Resuming keeps the elapsed time already
  *  banked and restarts the gap clock from now, so the pause isn't counted. */
 function startRoundClock(elapsedMs = 0, seq = 0): void {
+  resetWickPersonality();
   sp.elapsedMs = elapsedMs;
   sp.lastAt = Date.now();
   sp.seq = seq;
@@ -709,6 +740,9 @@ function applyGuessWarmth(
    *  puzzle re-scores every unfinished guess at once, and that must stay silent. */
   announce = false,
 ): void {
+  const previousBest = sp.guesses
+    .filter((x) => x !== g && x.warmth !== null)
+    .reduce<number | null>((best, x) => best === null ? (x.warmth as number) * 100 : Math.max(best, (x.warmth as number) * 100), null);
   if (result === "not_a_word") {
     const i = sp.guesses.indexOf(g);
     if (i >= 0) sp.guesses.splice(i, 1);
@@ -721,6 +755,18 @@ function applyGuessWarmth(
     // Answer with the matching rung of the iOS pitch ladder: cold guesses reply
     // low, boiling ones reply high.
     if (announce) playGuessTone(g.warmth);
+    if (announce) {
+      const score = g.warmth * 100;
+      const isNewBest = previousBest === null || score > previousBest;
+      sp.coldReactionStreak = isNewBest ? 0 : sp.coldReactionStreak + 1;
+      playWickReaction(reactionForGuess(sp.personality, {
+        word: g.word,
+        score,
+        previousBest,
+        guessCount: sp.guesses.length,
+        coldStreak: sp.coldReactionStreak,
+      }));
+    }
   }
   saveDaily();
   renderSolo();
@@ -1010,6 +1056,7 @@ function askSolo(text: string): void {
   askKeeper(httpBase, sp.secret, q, sp.lang, sp.secretWord?.en, history).then((ans) => {
     if (ans) { r.verdict = ans.verdict; r.reply = ans.reply; showKeeper(ans.verdict, ans.reply); }
     else { r.reply = "Wick is quiet right now."; showKeeper("", "Wick is quiet right now."); }
+    if (ans) playWickReaction(reactionForQuestion(q));
     saveDaily();
     renderSolo();
   });
@@ -1391,7 +1438,11 @@ function renderSolo(): void {
   const latest = sp.guesses[0];
   const over = sp.solved || sp.revealed;
   setBackdropHeat(sp.revealed ? null : bestScore(sp.guesses));
-  renderHero("#hero", "solo", latest, sp.revealed, false, soloThinking());
+  const heroWick = renderHero("#hero", "solo", latest, sp.revealed, false, soloThinking(), sp.reaction?.face ?? null);
+  if (heroWick && sp.reactionPokePending) {
+    sp.reactionPokePending = false;
+    heroWick.poke();
+  }
   const latestEl = document.querySelector<HTMLDivElement>("#latest");
   if (latestEl) {
     if (sp.solved) {
@@ -1600,9 +1651,9 @@ function questionRowEl(r: SoloReply): HTMLElement {
  *  Wick is built once per screen and only told his new mood here, so a
  *  re-render every second (live races) never restarts his motion. `dance` is
  *  on for the live race, where he moves to the race music. */
-function renderHero(sel: string, id: string, latest: Guess | undefined, revealed = false, dance = false, thinking = false): void {
+function renderHero(sel: string, id: string, latest: Guess | undefined, revealed = false, dance = false, thinking = false, reactionFace: WickOptions["face"] = null): Wick | undefined {
   const hero = document.querySelector<HTMLDivElement>(sel);
-  if (!hero) return;
+  if (!hero) return undefined;
   let gauge = hero.querySelector<HTMLDivElement>(".gauge");
   let wrap = hero.querySelector<HTMLDivElement>(".mascot-wrap");
   if (!gauge || !wrap) {
@@ -1622,8 +1673,7 @@ function renderHero(sel: string, id: string, latest: Guess | undefined, revealed
   if (revealed) {
     // Gave up: a defeated, unimpressed grey Wick, and no warmth ring reading.
     setGauge(0, scoreColor(null), "Revealed", "the word is below");
-    ensureWick(wrap, { score: null, neutral: true, size: 116, id, dance, race: dance });
-    return;
+    return ensureWick(wrap, { score: null, neutral: true, size: 116, id, dance, race: dance, face: reactionFace });
   }
   const pending = !!latest && latest.warmth === null;
   const w = latest && latest.warmth !== null ? latest.warmth : null;
@@ -1636,7 +1686,7 @@ function renderHero(sel: string, id: string, latest: Guess | undefined, revealed
   // Serious in a live race, Focus while an Ask Wick question is being answered.
   // Before the first guess of a solo round he shows off every face (3.7).
   const showcase = !latest && !dance && !thinking;
-  ensureWick(wrap, { score, size: 116, id, dance, race: dance, focus: thinking, showcase });
+  return ensureWick(wrap, { score, size: 116, id, dance, race: dance, focus: thinking, showcase, face: thinking ? null : reactionFace });
 }
 
 function renderLatestChip(latestEl: HTMLDivElement, latest: Guess | undefined): void {

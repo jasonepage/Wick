@@ -28,7 +28,7 @@ enum HunchTheme {
 
         static let coin     = Color(red: 0.93, green: 0.69, blue: 0.18)   // gold
         static let flame    = Color(red: 0.95, green: 0.45, blue: 0.12)   // streak orange
-        static let keeper   = Color(red: 0.49, green: 0.36, blue: 0.92)   // keeper violet
+        static let keeper   = Color(red: 0.455, green: 0.267, blue: 0.941) // canon Wick violet
         static let neutral  = Color(red: 0.45, green: 0.45, blue: 0.50)   // "won't say" gray
     }
 

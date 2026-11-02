@@ -23,7 +23,7 @@ import SwiftUI
 // MARK: - Data
 
 nonisolated enum KeeperFaceName: String, CaseIterable {
-    case sly, flustered, shocked, calm, serious, focus
+    case sly, flustered, shocked, calm, serious, focus, warm, hot
 }
 
 /// One eye. lidL/lidR/sag: the heavy upper lid (y at its left and right ends,
@@ -33,7 +33,7 @@ nonisolated struct KeeperEye {
     var cx, cy, rx, ry, lidL, lidR, sag, pdx, pdy, pr, closed, bow, tilt: Double
 }
 
-/// One sculpted silver brow. `c` is a cubic curve (x0, y0 ... x3, y3) from the
+/// One sculpted purple brow. `c` is a cubic curve (x0, y0 ... x3, y3) from the
 /// INNER end to the OUTER end. `hairs` positions two broad crown tufts
 /// (t, height, lean); `tail` describes the restrained outer taper.
 nonisolated struct KeeperBrow {
@@ -101,59 +101,61 @@ nonisolated struct KeeperRGB: Equatable {
 }
 
 nonisolated enum KeeperFaces {
+    private static func mouthLine(_ x0: Double, _ y0: Double, _ x1: Double, _ y1: Double, bend: Double, width: Double) -> KeeperMouth {
+        var points: [Double] = []
+        for i in 0...32 {
+            let t = Double(i) / 32
+            points += [x0 + (x1 - x0) * t, y0 + (y1 - y0) * t + bend * 4 * t * (1 - t)]
+        }
+        return KeeperMouth(pts: points, w: width, oval: 0, ocx: 512, ocy: 712, orx: 18, ory: 23)
+    }
+
     static let sly = KeeperFace(
         eyes: [
-            KeeperEye(cx: 413.0, cy: 578.0, rx: 54.0, ry: 42.0, lidL: 590.0, lidR: 582.0, sag: 7.0, pdx: -24.0, pdy: 8.0, pr: 23.0, closed: 0.0, bow: 5.0, tilt: 0.0),
-            KeeperEye(cx: 611.0, cy: 578.0, rx: 54.0, ry: 42.0, lidL: 588.0, lidR: 583.0, sag: 7.0, pdx: -24.0, pdy: 8.0, pr: 23.0, closed: 0.0, bow: 5.0, tilt: 0.0),
+            KeeperEye(cx: 413.0, cy: 590.0, rx: 52.0, ry: 40.0, lidL: 584.0, lidR: 596.0, sag: 5.0, pdx: -18.0, pdy: 9.0, pr: 19.0, closed: 0.0, bow: 5.0, tilt: 0.0),
+            KeeperEye(cx: 611.0, cy: 590.0, rx: 52.0, ry: 40.0, lidL: 596.0, lidR: 584.0, sag: 5.0, pdx: -18.0, pdy: 9.0, pr: 19.0, closed: 0.0, bow: 5.0, tilt: 0.0),
         ],
         brows: [
-            KeeperBrow(c: [474.0, 537.0, 444.0, 533.0, 398.0, 534.0, 356.0, 544.0], th: 35.84, taper: 0.5, peak: 0.25,
+            KeeperBrow(c: [482.0, 554.0, 452.0, 538.0, 402.0, 510.0, 350.0, 494.0], th: 39.0, taper: 0.68, peak: 0.18,
                        hairs: [0.18, 10.0, 40.0, 0.47, 8.0, 55.0], tail: [6.0, 20.0, 5.0, 0.0, 0.0, 0.0]),
-            KeeperBrow(c: [554.0, 522.0, 584.0, 494.0, 634.0, 480.0, 674.0, 494.0], th: 35.84, taper: 0.5, peak: 0.35,
+            KeeperBrow(c: [542.0, 554.0, 572.0, 536.0, 624.0, 506.0, 674.0, 490.0], th: 39.0, taper: 0.68, peak: 0.18,
                        hairs: [0.22, 9.0, 35.0, 0.4, 12.0, 45.0], tail: [18.0, 28.0, 6.0, -10.0, 18.0, 4.0]),
         ],
         mouth: KeeperMouth(pts: [
-            582.97, 702.0, 578.54, 703.21, 574.08, 704.35, 569.6, 705.42, 565.11, 706.41, 560.6, 707.33,
-            556.08, 708.17, 551.54, 708.93, 546.99, 709.61, 542.43, 710.21, 537.86, 710.72, 533.28, 711.13,
-            528.69, 711.45, 524.09, 711.67, 519.5, 711.78, 514.9, 711.77, 510.3, 711.63, 505.7, 711.35,
-            501.12, 710.93, 496.56, 710.35, 492.02, 709.59, 487.52, 708.64, 483.07, 707.49, 478.68, 706.1,
-            474.38, 704.47, 470.19, 702.57, 466.14, 700.39, 462.28, 697.9, 458.62, 695.11, 455.23, 692.0,
-            452.14, 688.6, 449.38, 684.92, 446.97, 681.0
-        ], w: 24.0, oval: 0.0, ocx: 512.0, ocy: 712.0, orx: 18.0, ory: 23.0),
+            561.68, 702.36, 558.58, 703.35, 555.46, 704.29, 552.32, 705.16, 549.18, 705.98, 546.02, 706.73,
+            542.86, 707.42, 539.68, 708.04, 536.49, 708.6, 533.3, 709.09, 530.1, 709.51, 526.9, 709.85,
+            523.68, 710.11, 520.46, 710.29, 517.25, 710.38, 514.03, 710.37, 510.81, 710.26, 507.59, 710.03,
+            504.38, 709.68, 501.19, 709.21, 498.01, 708.58, 494.86, 707.8, 491.75, 706.86, 488.68, 705.72,
+            485.67, 704.39, 482.73, 702.83, 479.9, 701.04, 477.2, 699.0, 474.63, 696.71, 472.26, 694.16,
+            470.1, 691.37, 468.17, 688.35, 466.48, 685.14
+        ], w: 21.0, oval: 0.0, ocx: 512.0, ocy: 712.0, orx: 18.0, ory: 23.0),
         drop: KeeperDrop(on: 0.0, x: 714.0, y: 560.0, r: 19.0, h: 50.0, tilt: -14.0),
         tip: KeeperTip(dx: -4.0, dy: 0.0, sharp: 0.92)   // curl
     )
     static let flustered = KeeperFace(
         eyes: [
-            KeeperEye(cx: 413.0, cy: 578.0, rx: 54.0, ry: 50.0, lidL: 558.0, lidR: 540.0, sag: 6.0, pdx: 22.0, pdy: 14.0, pr: 23.0, closed: 0.0, bow: 5.0, tilt: 0.0),
-            KeeperEye(cx: 611.0, cy: 578.0, rx: 54.0, ry: 50.0, lidL: 540.0, lidR: 558.0, sag: 6.0, pdx: 22.0, pdy: 14.0, pr: 23.0, closed: 0.0, bow: 5.0, tilt: 0.0),
+            KeeperEye(cx: 413.0, cy: 590.0, rx: 53.0, ry: 41.0, lidL: 576.0, lidR: 594.0, sag: 4.0, pdx: -20.0, pdy: 10.0, pr: 20.0, closed: 0.0, bow: 5.0, tilt: 0.0),
+            KeeperEye(cx: 611.0, cy: 586.0, rx: 53.0, ry: 41.0, lidL: 590.0, lidR: 574.0, sag: 4.0, pdx: -20.0, pdy: 10.0, pr: 20.0, closed: 0.0, bow: 5.0, tilt: 0.0),
         ],
         brows: [
-            KeeperBrow(c: [462.0, 460.0, 430.0, 474.0, 392.0, 494.0, 358.0, 514.0], th: 35.84, taper: 0.5, peak: 0.2,
+            KeeperBrow(c: [484.0, 550.0, 452.0, 530.0, 402.0, 504.0, 352.0, 494.0], th: 39.0, taper: 0.7, peak: 0.18,
                        hairs: [0.15, 9.0, 30.0, 0.42, 7.0, 50.0], tail: [10.0, 18.0, 4.0, 0.0, 0.0, 0.0]),
-            KeeperBrow(c: [564.0, 468.0, 592.0, 474.0, 628.0, 492.0, 662.0, 512.0], th: 35.84, taper: 0.5, peak: 0.3,
+            KeeperBrow(c: [540.0, 530.0, 574.0, 510.0, 624.0, 488.0, 674.0, 486.0], th: 39.0, taper: 0.7, peak: 0.18,
                        hairs: [0.25, 8.0, 40.0, 0.55, 9.0, 55.0], tail: [-4.0, 16.0, 4.0, 0.0, 0.0, 0.0]),
         ],
-        mouth: KeeperMouth(pts: [
-            464.0, 712.0, 466.6, 714.53, 469.29, 716.96, 472.16, 719.18, 475.31, 720.96, 478.79, 721.93,
-            482.4, 721.72, 485.78, 720.43, 488.82, 718.47, 491.62, 716.17, 494.27, 713.69, 496.86, 711.15,
-            499.48, 708.65, 502.22, 706.27, 505.17, 704.17, 508.44, 702.61, 512.0, 702.0, 515.56, 702.61,
-            518.83, 704.17, 521.78, 706.27, 524.52, 708.65, 527.14, 711.15, 529.73, 713.69, 532.38, 716.17,
-            535.18, 718.47, 538.22, 720.43, 541.6, 721.72, 545.21, 721.93, 548.69, 720.96, 551.84, 719.18,
-            554.71, 716.96, 557.4, 714.53, 560.0, 712.0
-        ], w: 22.0, oval: 0.0, ocx: 512.0, ocy: 712.0, orx: 18.0, ory: 23.0),
-        drop: KeeperDrop(on: 1.0, x: 714.0, y: 560.0, r: 19.0, h: 50.0, tilt: -14.0),
-        tip: KeeperTip(dx: 3.3, dy: 2.3, sharp: 1.08)   // droop
+        mouth: mouthLine(478, 704, 548, 711, bend: 5, width: 19),
+        drop: KeeperDrop(on: 0.55, x: 714.0, y: 560.0, r: 16.0, h: 42.0, tilt: -14.0),
+        tip: KeeperTip(dx: 2.0, dy: -2.0, sharp: 0.88)   // hot, resisting reaction
     )
     static let shocked = KeeperFace(
         eyes: [
-            KeeperEye(cx: 413.0, cy: 578.0, rx: 54.0, ry: 52.0, lidL: 531.0, lidR: 531.0, sag: 4.0, pdx: 0.0, pdy: 2.0, pr: 17.0, closed: 0.0, bow: 5.0, tilt: 0.0),
-            KeeperEye(cx: 611.0, cy: 578.0, rx: 54.0, ry: 52.0, lidL: 531.0, lidR: 531.0, sag: 4.0, pdx: 0.0, pdy: 2.0, pr: 17.0, closed: 0.0, bow: 5.0, tilt: 0.0),
+            KeeperEye(cx: 410.0, cy: 584.0, rx: 60.0, ry: 59.0, lidL: 526.0, lidR: 519.0, sag: 2.0, pdx: 12.0, pdy: -5.0, pr: 12.0, closed: 0.0, bow: 5.0, tilt: 0.0),
+            KeeperEye(cx: 616.0, cy: 576.0, rx: 57.0, ry: 55.0, lidL: 518.0, lidR: 528.0, sag: 2.0, pdx: -10.0, pdy: 5.0, pr: 12.0, closed: 0.0, bow: 5.0, tilt: 0.0),
         ],
         brows: [
-            KeeperBrow(c: [470.0, 488.0, 446.0, 466.0, 400.0, 458.0, 360.0, 472.0], th: 35.84, taper: 0.5, peak: 0.3,
+            KeeperBrow(c: [474.0, 480.0, 446.0, 438.0, 398.0, 420.0, 350.0, 442.0], th: 37.0, taper: 0.68, peak: 0.18,
                        hairs: [0.2, 8.0, 35.0, 0.5, 10.0, 50.0], tail: [14.0, 20.0, 5.0, 0.0, 0.0, 0.0]),
-            KeeperBrow(c: [556.0, 474.0, 578.0, 446.0, 628.0, 436.0, 666.0, 452.0], th: 35.84, taper: 0.5, peak: 0.4,
+            KeeperBrow(c: [550.0, 466.0, 580.0, 424.0, 632.0, 412.0, 678.0, 444.0], th: 37.0, taper: 0.68, peak: 0.18,
                        hairs: [0.3, 11.0, 40.0, 0.58, 8.0, 55.0], tail: [20.0, 24.0, 5.0, -6.0, 14.0, 4.0]),
         ],
         mouth: KeeperMouth(pts: [
@@ -163,9 +165,9 @@ nonisolated enum KeeperFaces {
             512.0, 712.0, 512.0, 712.0, 512.0, 712.0, 512.0, 712.0, 512.0, 712.0, 512.0, 712.0,
             512.0, 712.0, 512.0, 712.0, 512.0, 712.0, 512.0, 712.0, 512.0, 712.0, 512.0, 712.0,
             512.0, 712.0, 512.0, 712.0, 512.0, 712.0
-        ], w: 24.0, oval: 1.0, ocx: 512.0, ocy: 712.0, orx: 18.0, ory: 23.0),
+        ], w: 24.0, oval: 1.0, ocx: 516.0, ocy: 718.0, orx: 31.0, ory: 37.0),
         drop: KeeperDrop(on: 0.0, x: 714.0, y: 560.0, r: 19.0, h: 50.0, tilt: -14.0),
-        tip: KeeperTip(dx: 0.0, dy: -3.0, sharp: 0.82)   // spike
+        tip: KeeperTip(dx: -1.0, dy: -6.0, sharp: 0.76)   // explosive spike
     )
     static let serious = KeeperFace(
         eyes: [
@@ -191,47 +193,63 @@ nonisolated enum KeeperFaces {
     )
     static let focus = KeeperFace(
         eyes: [
-            KeeperEye(cx: 413.0, cy: 578.0, rx: 54.0, ry: 42.0, lidL: 592.0, lidR: 596.0, sag: 5.0, pdx: -2.0, pdy: 26.0, pr: 21.0, closed: 0.0, bow: 5.0, tilt: 0.0),
-            KeeperEye(cx: 611.0, cy: 578.0, rx: 54.0, ry: 42.0, lidL: 586.0, lidR: 582.0, sag: 5.0, pdx: -2.0, pdy: 26.0, pr: 21.0, closed: 0.0, bow: 5.0, tilt: 0.0),
+            KeeperEye(cx: 413.0, cy: 586.0, rx: 52.0, ry: 40.0, lidL: 588.0, lidR: 598.0, sag: 4.0, pdx: 19.0, pdy: 5.0, pr: 19.0, closed: 0.0, bow: 5.0, tilt: 0.0),
+            KeeperEye(cx: 611.0, cy: 578.0, rx: 54.0, ry: 44.0, lidL: 568.0, lidR: 576.0, sag: 4.0, pdx: 19.0, pdy: 5.0, pr: 19.0, closed: 0.0, bow: 5.0, tilt: 0.0),
         ],
         brows: [
-            KeeperBrow(c: [484.0, 550.0, 450.0, 548.0, 406.0, 548.0, 364.0, 552.0], th: 35.84, taper: 0.5, peak: 0.25,
+            KeeperBrow(c: [480.0, 548.0, 448.0, 542.0, 404.0, 540.0, 362.0, 544.0], th: 36.0, taper: 0.68, peak: 0.18,
                        hairs: [0.25, 10.0, 35.0, 0.52, 8.0, 50.0], tail: [4.0, 18.0, 4.0, 0.0, 0.0, 0.0]),
-            KeeperBrow(c: [540.0, 548.0, 574.0, 544.0, 620.0, 542.0, 660.0, 546.0], th: 35.84, taper: 0.5, peak: 0.3,
+            KeeperBrow(c: [544.0, 522.0, 576.0, 496.0, 624.0, 486.0, 668.0, 500.0], th: 36.0, taper: 0.68, peak: 0.18,
                        hairs: [0.2, 8.0, 40.0, 0.48, 10.0, 45.0], tail: [14.0, 20.0, 5.0, 0.0, 0.0, 0.0]),
         ],
-        mouth: KeeperMouth(pts: [
-            486.01, 710.0, 487.63, 709.92, 489.24, 709.86, 490.86, 709.8, 492.48, 709.75, 494.1, 709.72,
-            495.71, 709.7, 497.33, 709.69, 498.95, 709.7, 500.57, 709.72, 502.19, 709.76, 503.81, 709.82,
-            505.42, 709.9, 507.04, 710.0, 508.65, 710.13, 510.26, 710.28, 511.87, 710.46, 513.48, 710.67,
-            515.08, 710.91, 516.67, 711.19, 518.26, 711.5, 519.84, 711.85, 521.41, 712.24, 522.97, 712.68,
-            524.52, 713.16, 526.04, 713.69, 527.55, 714.28, 529.04, 714.92, 530.5, 715.61, 531.93, 716.37,
-            533.33, 717.18, 534.69, 718.06, 536.01, 719.0
-        ], w: 24.0, oval: 0.0, ocx: 512.0, ocy: 712.0, orx: 18.0, ory: 23.0),
+        mouth: mouthLine(490, 708, 542, 704, bend: 0, width: 18),
         drop: KeeperDrop(on: 0.0, x: 714.0, y: 560.0, r: 19.0, h: 50.0, tilt: -14.0),
         tip: KeeperTip(dx: 0.0, dy: 0.0, sharp: 1.0)   // neutral
     )
     static let calm = KeeperFace(
         eyes: [
-            KeeperEye(cx: 413.0, cy: 578.0, rx: 54.0, ry: 40.0, lidL: 587.0, lidR: 581.0, sag: 24.0, pdx: 0.0, pdy: 0.0, pr: 20.0, closed: 1.0, bow: 24.0, tilt: 3.0),
-            KeeperEye(cx: 611.0, cy: 578.0, rx: 54.0, ry: 40.0, lidL: 582.0, lidR: 586.0, sag: 24.0, pdx: 0.0, pdy: 0.0, pr: 20.0, closed: 1.0, bow: 24.0, tilt: -2.0),
+            KeeperEye(cx: 413.0, cy: 590.0, rx: 52.0, ry: 39.0, lidL: 596.0, lidR: 600.0, sag: 5.0, pdx: -5.0, pdy: 12.0, pr: 18.0, closed: 0.0, bow: 8.0, tilt: 1.0),
+            KeeperEye(cx: 611.0, cy: 590.0, rx: 52.0, ry: 39.0, lidL: 600.0, lidR: 596.0, sag: 5.0, pdx: -5.0, pdy: 12.0, pr: 18.0, closed: 0.0, bow: 8.0, tilt: -1.0),
         ],
         brows: [
-            KeeperBrow(c: [470.0, 506.0, 442.0, 492.0, 400.0, 488.0, 360.0, 498.0], th: 35.84, taper: 0.5, peak: 0.3,
+            KeeperBrow(c: [478.0, 548.0, 448.0, 546.0, 404.0, 546.0, 362.0, 550.0], th: 34.0, taper: 0.7, peak: 0.18,
                        hairs: [0.2, 9.0, 35.0, 0.5, 8.0, 50.0], tail: [12.0, 20.0, 5.0, 0.0, 0.0, 0.0]),
-            KeeperBrow(c: [556.0, 498.0, 586.0, 482.0, 630.0, 476.0, 666.0, 488.0], th: 35.84, taper: 0.5, peak: 0.35,
+            KeeperBrow(c: [546.0, 548.0, 576.0, 546.0, 620.0, 546.0, 662.0, 550.0], th: 34.0, taper: 0.7, peak: 0.18,
                        hairs: [0.25, 10.0, 40.0, 0.55, 8.0, 55.0], tail: [16.0, 24.0, 5.0, -8.0, 14.0, 4.0]),
         ],
-        mouth: KeeperMouth(pts: [
-            454.0, 700.0, 457.0, 702.79, 460.2, 705.37, 463.56, 707.72, 467.06, 709.85, 470.69, 711.77,
-            474.42, 713.47, 478.25, 714.96, 482.14, 716.24, 486.1, 717.31, 490.11, 718.19, 494.16, 718.86,
-            498.23, 719.33, 502.32, 719.61, 506.43, 719.7, 510.53, 719.59, 514.62, 719.28, 518.69, 718.78,
-            522.73, 718.08, 526.73, 717.18, 530.69, 716.09, 534.58, 714.8, 538.4, 713.31, 542.14, 711.62,
-            545.78, 709.73, 549.32, 707.65, 552.73, 705.37, 556.01, 702.9, 559.14, 700.25, 562.11, 697.43,
-            564.92, 694.44, 567.55, 691.29, 570.0, 688.0
-        ], w: 24.0, oval: 0.0, ocx: 512.0, ocy: 712.0, orx: 18.0, ory: 23.0),
+        mouth: mouthLine(480, 710, 544, 712, bend: 0, width: 18),
         drop: KeeperDrop(on: 0.0, x: 714.0, y: 560.0, r: 19.0, h: 50.0, tilt: -14.0),
         tip: KeeperTip(dx: 0.0, dy: 0.0, sharp: 1.0)   // neutral
+    )
+
+    // Yellow: alert, inviting confidence.
+    static let warm = KeeperFace(
+        eyes: [
+            KeeperEye(cx: 413, cy: 580, rx: 53, ry: 45, lidL: 570, lidR: 576, sag: 5, pdx: 10, pdy: 8, pr: 21, closed: 0, bow: 5, tilt: 0),
+            KeeperEye(cx: 611, cy: 580, rx: 53, ry: 45, lidL: 576, lidR: 570, sag: 5, pdx: 10, pdy: 8, pr: 21, closed: 0, bow: 5, tilt: 0),
+        ],
+        brows: [
+            KeeperBrow(c: [480, 520, 446, 506, 400, 500, 358, 510], th: 36, taper: 0.62, peak: 0.2, hairs: [], tail: []),
+            KeeperBrow(c: [544, 516, 578, 500, 624, 494, 666, 504], th: 36, taper: 0.62, peak: 0.2, hairs: [], tail: []),
+        ],
+        mouth: mouthLine(468, 704, 558, 697, bend: 8, width: 21),
+        drop: KeeperDrop(on: 0, x: 714, y: 560, r: 19, h: 50, tilt: -14),
+        tip: KeeperTip(dx: -1.5, dy: -1, sharp: 0.96)
+    )
+
+    // Orange: locked-in determination.
+    static let hot = KeeperFace(
+        eyes: [
+            KeeperEye(cx: 413, cy: 586, rx: 52, ry: 40, lidL: 578, lidR: 594, sag: 4, pdx: 6, pdy: 10, pr: 20, closed: 0, bow: 5, tilt: 0),
+            KeeperEye(cx: 611, cy: 586, rx: 52, ry: 40, lidL: 594, lidR: 578, sag: 4, pdx: -6, pdy: 10, pr: 20, closed: 0, bow: 5, tilt: 0),
+        ],
+        brows: [
+            KeeperBrow(c: [484, 552, 450, 536, 402, 512, 354, 492], th: 39, taper: 0.7, peak: 0.18, hairs: [], tail: []),
+            KeeperBrow(c: [540, 552, 574, 536, 622, 510, 670, 488], th: 39, taper: 0.7, peak: 0.18, hairs: [], tail: []),
+        ],
+        mouth: mouthLine(474, 708, 550, 704, bend: -2, width: 20),
+        drop: KeeperDrop(on: 0, x: 714, y: 560, r: 19, h: 50, tilt: -14),
+        tip: KeeperTip(dx: 1.5, dy: -2, sharp: 0.88)
     )
 
     static func face(_ name: KeeperFaceName) -> KeeperFace {
@@ -242,6 +260,8 @@ nonisolated enum KeeperFaces {
         case .calm:      return calm
         case .serious:   return serious
         case .focus:     return focus
+        case .warm:      return warm
+        case .hot:       return hot
         }
     }
 
@@ -252,10 +272,16 @@ nonisolated enum KeeperFaces {
 
     static let eyeWhite = KeeperRGB(r: 245, g: 243, b: 254)
     static let pupil = KeeperRGB(r: 31, g: 23, b: 59)
-    // Mid-silver reads as hair rather than another white eyelid; the stronger
-    // aubergine keyline keeps the brows clear on every Wick colour.
-    static let browGrey = KeeperRGB(r: 197, g: 193, b: 209)
-    static let browKey = KeeperRGB(r: 68, g: 55, b: 91)
+    /// Keep Wick's brows in the same hue family as his current flame while
+    /// making them dark enough to read as one strong graphic mask.
+    static func browFill(_ c: KeeperRGB) -> KeeperRGB {
+        KeeperRGB(r: c.r * 0.63, g: c.g * 0.63, b: c.b * 0.63)
+    }
+
+    static func browKey(_ c: KeeperRGB) -> KeeperRGB {
+        let fill = browFill(c)
+        return KeeperRGB(r: fill.r * 0.52, g: fill.g * 0.52, b: fill.b * 0.52)
+    }
 
     // MARK: State to face
 
@@ -275,7 +301,11 @@ nonisolated enum KeeperFaces {
         }
         if race { return .serious }
         switch mood {
-        case .warm, .hot, .boiling: return .flustered
+        case .freezing:                   return .serious
+        case .cold:                       return .focus
+        case .warm:                       return .warm
+        case .hot:                        return .hot
+        case .boiling:                    return .flustered
         default:                    return .sly
         }
     }
@@ -455,9 +485,7 @@ nonisolated enum KeeperFaces {
         return EyeShapes(lid: lid, bag: bag, white: white, pupil: pupil, lash: lash, lashOpacity: lo * lo * (3 - 2 * lo))
     }
 
-    /// A silver-fox brow built as one strong silhouette. Broad integrated tufts
-    /// retain the hand-drawn character without the sub-pixel loose hairs that
-    /// used to render differently in SwiftUI, Core Graphics, SVG and canvas.
+    /// A sleek brow built as one strong silhouette without loose hair texture.
     static func browPath(_ b: KeeperBrow) -> Path {
         let n = 64
         let th = b.th
@@ -490,25 +518,13 @@ nonisolated enum KeeperFaces {
             let s2: Double = 1 - b.taper * 0.98 * pow(fall, 1.15)
             return th * s1 * s2
         }
-        func tuft(_ t: Double) -> Double {
-            var lift: Double = 0
-            for j in 0..<2 {
-                let at = b.hairs[j * 3]
-                let height = min(th * 0.24, b.hairs[j * 3 + 1] * 0.42)
-                let d = (t - at) / 0.065
-                lift += height * exp(-d * d)
-            }
-            return lift
-        }
         var top: [CGPoint] = [], bot: [CGPoint] = []
         for i in 0...n {
             let f = frame(i)
             let t: Double = Double(i) / Double(n)
             let w: Double = width(t) / 2
-            let rough: Double = th * 0.018 * sin(2 * Double.pi * 2.2 * t) * (0.25 + 0.75 * t)
             let x = cen[i].0, y = cen[i].1
-            let crown = w + rough + tuft(t)
-            top.append(pt(x + f.2 * crown, y + f.3 * crown))
+            top.append(pt(x + f.2 * w, y + f.3 * w))
             bot.append(pt(x - f.2 * w, y - f.3 * w))
         }
         let f0 = frame(0)
@@ -636,9 +652,9 @@ nonisolated enum KeeperFaces {
         }
         var brows = Path()
         for b in face.brows { brows.addPath(browPath(b)) }
-        ctx.stroke(brows, with: .color(browKey.color.opacity(0.72)),
+        ctx.stroke(brows, with: .color(browKey(color).color.opacity(0.72)),
                    style: StrokeStyle(lineWidth: 9, lineCap: .round, lineJoin: .round))
-        ctx.fill(brows, with: .color(browGrey.color))
+        ctx.fill(brows, with: .color(browFill(color).color))
         let m = face.mouth
         if m.oval < 0.999 {
             ctx.stroke(mouthStroke(m), with: .color(white.opacity(1 - m.oval)),
@@ -655,9 +671,7 @@ nonisolated enum KeeperFaces {
 
 // MARK: - Shapes and the face layer
 
-/// The chunky flame from the approved icon art, fitted as curves in viewBox
-/// units (tip at y 4, widest at y 67.2, base at y 124) and scaled so the flame's
-/// height fills the frame. The tip leans with the flicker and reacts to the face.
+/// The chunky flame from the approved icon art, fitted as curves in viewBox units.
 struct KeeperChunkyFlameShape: Shape {
     var flicker: Double
     var tip: KeeperTip
@@ -668,7 +682,9 @@ struct KeeperChunkyFlameShape: Shape {
     }
 
     func path(in rect: CGRect) -> Path {
-        let s: CGFloat = rect.height / 120
+        // Scale from width exactly like the web's 120-unit viewBox. The extra
+        // frame height is breathing room, not a reason to widen his face.
+        let s: CGFloat = rect.width / 120
         func p(_ x: Double, _ y: Double) -> CGPoint {
             CGPoint(x: rect.midX + CGFloat(x - 60) * s, y: rect.minY + CGFloat(y - 4) * s)
         }
@@ -689,7 +705,7 @@ struct KeeperChunkyFlameShape: Shape {
 /// The inner flame (lighter core), in the same viewBox mapping as the flame.
 struct KeeperPlateShape: Shape {
     func path(in rect: CGRect) -> Path {
-        let s: CGFloat = rect.height / 120
+        let s: CGFloat = rect.width / 120
         func p(_ x: Double, _ y: Double) -> CGPoint {
             CGPoint(x: rect.midX + CGFloat(x - 60) * s, y: rect.minY + CGFloat(y - 4) * s)
         }
@@ -712,7 +728,7 @@ struct KeeperFaceCanvas: View {
 
     var body: some View {
         Canvas { ctx, sz in
-            let s: Double = Double(sz.height) / 120.0
+            let s: Double = Double(sz.width) / 120.0
             let m: Double = KeeperFaces.k * s
             let tx: Double = Double(sz.width) / 2 - 512 * m
             let ty: Double = -152 * m
@@ -755,7 +771,8 @@ final class KeeperFaceAnimator {
         KeeperRGB.mix(colorFrom, colorTo, max(0, min(1, (t - colorAt) / 0.5)))
     }
 
-    func frame(t: Double, mood: KeeperMood, race: Bool, reduceMotion: Bool, showcase: Bool = false) -> Frame {
+    func frame(t: Double, mood: KeeperMood, race: Bool, reduceMotion: Bool, showcase: Bool = false,
+               override: KeeperFaceName? = nil) -> Frame {
         if mood != lastMood {
             let target = KeeperRGB.body(for: mood)
             if lastMood == nil {
@@ -765,10 +782,10 @@ final class KeeperFaceAnimator {
             }
             lastMood = mood
         }
-        var want: KeeperFaceName = KeeperFaces.faceFor(mood: mood, race: race)
+        var want: KeeperFaceName = override ?? KeeperFaces.faceFor(mood: mood, race: race)
         // Showcase: walk through every face in order, one every few seconds.
         // Not with Reduce Motion on (the swaps would be instant jumps).
-        if showcase && !reduceMotion {
+        if override == nil && showcase && !reduceMotion {
             let start: Double = showcaseStart ?? t
             showcaseStart = start
             let all: [KeeperFaceName] = KeeperFaceName.allCases

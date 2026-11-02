@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/icon-sly.png" width="128" alt="Wick: a small purple flame with a face">
+  <img src="docs/icon-wick-3.8.png" width="128" alt="Wick: a small purple flame with a face">
 </p>
 
 <h1 align="center">Wick</h1>
