@@ -167,9 +167,14 @@ struct KeeperView: View {
     /// changes on each keystroke.
     var inputFocused: Bool = false
     var typingTick: Int = 0
-    /// 3.8 Race Showdown: a small pose added on top of his motion every frame
-    /// (the face-off glance and lean, the loser's side-eye). nil = none.
-    var stance: (() -> RaceShowdown.Stance?)? = nil
+    /// 3.8 Race Showdown: a fixed pose added on top of his motion (the
+    /// loser's side-eye). nil = none.
+    var stance: RaceShowdown.Stance? = nil
+    /// 3.8 Race Showdown face-off: when the race clock read 0 (wall clock,
+    /// milliseconds) and which way the other Wick sits (+1 right, -1 left).
+    /// While set, the face-off glance, lean and pulses play from it.
+    var faceOffOrigin: Double? = nil
+    var faceOffSide: Double = 1
 
     /// Picks his face from the mood and runs the blink-and-morph between faces.
     @State private var animator = KeeperFaceAnimator()
@@ -229,8 +234,14 @@ struct KeeperView: View {
                                      solveE: animator.solveElapsed(at: t), transitionE: frame.transitionE,
                                      pulse: pulse, style: danceStyle, intensity: danceIntensity)
         var m = director.sample(t, input)
-        // 3.8 Race Showdown: the stance already obeys Reduced Motion.
-        if let st = stance?() {
+        // 3.8 Race Showdown: the face-off pose or a fixed stance. Both already
+        // obey Reduced Motion.
+        var add = stance
+        if let origin = faceOffOrigin {
+            let elapsed = Date().timeIntervalSince1970 * 1000 - origin
+            add = RaceShowdown.faceOffStance(elapsed, side: faceOffSide, rm: reduceMotion)
+        }
+        if let st = add {
             m.gx += st.gx
             m.tip += st.tip
             m.sx += st.sx

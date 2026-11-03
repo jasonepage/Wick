@@ -305,13 +305,11 @@ struct LiveDuelView: View {
         let mood: KeeperMood = latest.map { KeeperMood.forScore($0) } ?? .idle
         let band = RaceShowdown.band(model.youBest, solved: model.youSolved)
         let style = RaceShowdown.dance(model.racePhase)
-        let m = model
-        let rm = reduceMotion
         return seat(label: loc.raceSeatYou, band: band, count: model.youScoredCount, connected: true,
                     paint: latest == nil ? nil : band.paintScore) {
             KeeperView(mood: mood, size: seatSize, dances: style != nil, danceStyle: style ?? .groove, race: true,
                        cue: model.youCue, cueKind: model.youCueKind, inputFocused: focused,
-                       stance: { m.faceOffStance(side: 1, rm: rm) })
+                       faceOffOrigin: model.faceOffOrigin, faceOffSide: 1)
         }
     }
 
@@ -320,13 +318,11 @@ struct LiveDuelView: View {
         let seatInfo = model.opponentSeat
         let mood: KeeperMood = seatInfo.paintScore.map { KeeperMood.forScore($0) } ?? .idle
         let style = RaceShowdown.dance(model.racePhase)
-        let m = model
-        let rm = reduceMotion
         return seat(label: opponentLabel, band: seatInfo.band, count: seatInfo.guessCount,
                     connected: seatInfo.connected, paint: seatInfo.paintScore) {
             KeeperView(mood: mood, size: seatSize, dances: style != nil, danceStyle: style ?? .groove, race: true,
                        cue: model.oppCue, cueKind: model.oppCueKind,
-                       stance: { m.faceOffStance(side: -1, rm: rm) })
+                       faceOffOrigin: model.faceOffOrigin, faceOffSide: -1)
         }
     }
 
@@ -588,7 +584,7 @@ struct LiveDuelView: View {
                      paint: r.youGuesses == 0 ? nil : r.youBand.paintScore, green: r.youGreen) {
                     KeeperView(mood: youMood, size: seatSize, race: true,
                                cue: loss && recapShown ? 1 : 0, cueKind: "repeat",
-                               stance: loss ? { () -> RaceShowdown.Stance? in RaceShowdown.sideEye } : nil)
+                               stance: loss ? RaceShowdown.sideEye : nil)
                 }
                 seat(label: opponentLabel, band: r.themBand, count: r.themGuesses, connected: true,
                      paint: r.themGuesses == 0 ? nil : r.themBand.paintScore, green: r.themGreen) {

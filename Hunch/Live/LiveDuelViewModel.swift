@@ -171,10 +171,11 @@ final class LiveDuelViewModel: ObservableObject, MatchClientDelegate {
                                          solved: o?.solved ?? false, connected: o?.connected ?? true)
     }
 
-    /// The face-off pose for one seat right now (+1 local, -1 opponent).
-    func faceOffStance(side: Double, rm: Bool) -> RaceShowdown.Stance? {
-        guard faceOff, let c = raceClock(), c.elapsedMs < RaceShowdown.faceOffMs + 200 else { return nil }
-        return RaceShowdown.faceOffStance(Double(c.elapsedMs), side: side, rm: rm)
+    /// When the race clock read 0, on the wall clock (ms), while the face-off
+    /// plays; nil otherwise. The seat Wicks pose from it every frame.
+    var faceOffOrigin: Double? {
+        guard faceOff, let fix = clockFix else { return nil }
+        return fix.at - Double(fix.elapsedMs)
     }
 
     /// Feed public state into the momentum machine and act on what it says.
