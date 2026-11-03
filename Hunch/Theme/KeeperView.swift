@@ -188,26 +188,7 @@ struct KeeperView: View {
         // blinks, glances and breathes in brightness. All positional motion is
         // removed there by the director (WickMotion.reduceMotionClamp).
         TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { ctx in
-            let t = ctx.date.timeIntervalSinceReferenceDate
-            animator.firstGuess = firstGuess
-            let face = animator.frame(t: t, mood: mood, race: race ?? dances, reduceMotion: reduceMotion,
-                                      showcase: showcase, override: faceOverride)
-            let m = motion(t: t, frame: face)
-            // A tap: one squash and release, no wobble (same as pokeSquash on the web).
-            let poke: Double = reduceMotion ? 0 : pokeProgress(now: ctx.date)
-            let sx: Double = (1 + m.sx) * (1 + 0.06 * poke) * face.solveScale.sx
-            let sy: Double = (1 + m.sy) * (1 - 0.10 * poke) * face.solveScale.sy
-            let tip: Double = reduceMotion ? WickMotion.clamp(m.tip, -0.4, 0.4) : m.tip
-            let flick: Double = min(1, max(0, 0.5 + 0.5 * tip))
-            let _ = reportSolveDone(t: t)
-
-            keeperBody(flicker: flick, face: face, motion: m)
-                .scaleEffect(x: sx, y: sy, anchor: .bottom)
-                .rotationEffect(.degrees(m.rot), anchor: .bottom)
-                .offset(x: CGFloat(m.x) * size, y: CGFloat(m.y) * size)
-                .opacity(m.glow)
-                .shadow(color: face.color.color.opacity(mood == .defeated ? 0 : 0.35),
-                        radius: size * 0.12, y: size * 0.05)
+            frameView(ctx.date)
         }
         .frame(width: size, height: size * 1.18)
         .contentShape(Rectangle())
@@ -219,6 +200,30 @@ struct KeeperView: View {
             director.input(Date().timeIntervalSinceReferenceDate, focused: inputFocused, typed: true)
         }
         .accessibilityHidden(true)
+    }
+
+    /// One frame of Wick: the face, the director's motion and the poke.
+    private func frameView(_ date: Date) -> some View {
+        let t = date.timeIntervalSinceReferenceDate
+        animator.firstGuess = firstGuess
+        let face = animator.frame(t: t, mood: mood, race: race ?? dances, reduceMotion: reduceMotion,
+                                  showcase: showcase, override: faceOverride)
+        let m = motion(t: t, frame: face)
+        // A tap: one squash and release, no wobble (same as pokeSquash on the web).
+        let poke: Double = reduceMotion ? 0 : pokeProgress(now: date)
+        let sx: Double = (1 + m.sx) * (1 + 0.06 * poke) * face.solveScale.sx
+        let sy: Double = (1 + m.sy) * (1 - 0.10 * poke) * face.solveScale.sy
+        let tip: Double = reduceMotion ? WickMotion.clamp(m.tip, -0.4, 0.4) : m.tip
+        let flick: Double = min(1, max(0, 0.5 + 0.5 * tip))
+        _ = reportSolveDone(t: t)
+
+        return keeperBody(flicker: flick, face: face, motion: m)
+            .scaleEffect(x: sx, y: sy, anchor: .bottom)
+            .rotationEffect(.degrees(m.rot), anchor: .bottom)
+            .offset(x: CGFloat(m.x) * size, y: CGFloat(m.y) * size)
+            .opacity(m.glow)
+            .shadow(color: face.color.color.opacity(mood == .defeated ? 0 : 0.35),
+                    radius: size * 0.12, y: size * 0.05)
     }
 
     /// The director's frame: base pose, idle life, reaction, dance, transition.
