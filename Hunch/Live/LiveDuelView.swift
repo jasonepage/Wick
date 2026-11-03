@@ -330,7 +330,9 @@ struct LiveDuelView: View {
                 .frame(width: 124, height: 124)
                 .animation(.spring(response: 0.5, dampingFraction: 0.8), value: g.id)
 
-                KeeperView(mood: mood, size: 72, dances: true)   // dances to the race music
+                // Dances to the race music; 3.8: one reaction clip per scored guess.
+                KeeperView(mood: mood, size: 72, dances: true,
+                           cue: model.guesses.filter { $0.warmth != nil }.count)
             }
             Text(g.word).font(HunchTheme.Fonts.cardTitle)
             if let t = model.latestTrajectory { trajectoryPill(t) }

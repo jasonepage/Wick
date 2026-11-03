@@ -45,6 +45,8 @@
     canvas { width: 405px; height: 720px; max-height: calc(100vh - 40px); object-fit: contain; border-radius: 18px; background: #00ff00; box-shadow: 0 18px 60px #0008; }
     canvas.clear { background: repeating-conic-gradient(#2a2f3d 0 25%, #1a1e29 0 50%) 0 0 / 24px 24px; }
     .hint { font-size: 0.8rem; opacity: 0.6; margin-top: 16px; }
+    label.check { display: flex; gap: 8px; align-items: center; opacity: 1; }
+    label.check input { width: auto; }
     @media (max-width: 760px) {
       main { grid-template-columns: 1fr; grid-template-areas: "stage" "controls"; padding: 12px; gap: 18px; }
       #stage { position: static; }
@@ -66,7 +68,7 @@
           <span class="preset-icon">02</span><span><strong>Wick Swagger</strong><small>Confident signature move</small></span>
         </button>
         <button class="preset" data-preset="drop">
-          <span class="preset-icon">03</span><span><strong>Big Drop</strong><small>Crouch, launch and spin</small></span>
+          <span class="preset-icon">03</span><span><strong>Big Drop</strong><small>Crouch, launch and land</small></span>
         </button>
       </div>
 
@@ -74,6 +76,73 @@
         <button id="preview">▶ Play</button>
         <button id="stop" class="secondary" disabled>Stop</button>
       </div>
+
+      <h2>Review (3.8 motion)</h2>
+      <label for="scene">Scene</label>
+      <select id="scene">
+        <option value="dance">Dance phrase</option>
+        <option value="idle">Idle life</option>
+        <option value="reaction">Reaction clip</option>
+        <option value="transition">Face and colour change</option>
+        <option value="solved">Solved</option>
+      </select>
+      <label for="from-mood">Mood (before)</label>
+      <select id="from-mood">
+            <option value="idle">Purple (idle)</option>
+            <option value="freezing">Blue (freezing)</option>
+            <option value="cold">Teal (cold)</option>
+            <option value="warm">Amber (warm)</option>
+            <option value="hot">Coral (hot)</option>
+            <option value="boiling">Red (boiling)</option>
+            <option value="celebrating">Green (solved)</option>
+            <option value="unamused">Grey (deadpan)</option>
+      </select>
+      <label for="to-mood">Mood (after the change)</label>
+      <select id="to-mood">
+            <option value="idle">Purple (idle)</option>
+            <option value="freezing">Blue (freezing)</option>
+            <option value="cold">Teal (cold)</option>
+            <option value="warm">Amber (warm)</option>
+            <option value="hot" selected>Coral (hot)</option>
+            <option value="boiling">Red (boiling)</option>
+            <option value="celebrating">Green (solved)</option>
+            <option value="unamused">Grey (deadpan)</option>
+      </select>
+      <label for="clip">Reaction clip</label>
+      <select id="clip">
+        <option value="mood:unamused">Grey: deflate</option>
+        <option value="mood:freezing">Blue: cold-shoulder</option>
+        <option value="mood:cold">Teal: inspect</option>
+        <option value="mood:warm">Yellow: interest</option>
+        <option value="mood:hot" selected>Orange: caught</option>
+        <option value="mood:boiling">Red: hide-panic</option>
+        <option value="kind:repeat">Repeat: judge</option>
+        <option value="kind:leap">Leap: perk</option>
+        <option value="kind:near">Near: hide-panic at 70%</option>
+        <option value="kind:regress">Regress: turn-away</option>
+        <option value="kind:stall">Stall: deflate, held</option>
+        <option value="kind:question">Wild question: face-lead</option>
+        <option value="double">Interrupt: caught, then hide-panic 250 ms later</option>
+      </select>
+      <label for="energy">Dance energy</label>
+      <select id="energy">
+        <option value="music">Follow the music</option>
+        <option value="0.2">Low (0.2)</option>
+        <option value="0.6">Medium (0.6)</option>
+        <option value="0.95">High (0.95)</option>
+      </select>
+      <label class="check"><input id="rm" type="checkbox"> Reduced Motion</label>
+      <div class="transport">
+        <button id="review-play">▶ Review</button>
+        <button id="review-restart" class="secondary">↺ Restart</button>
+      </div>
+      <label for="speed">Speed</label>
+      <select id="speed"><option value="1">1×</option><option value="0.5">0.5×</option><option value="0.25">0.25×</option></select>
+      <div class="steps" style="margin-top:8px">
+        <button id="review-back" class="secondary">− 1 frame</button>
+        <button id="review-forward" class="secondary">+ 1 frame</button>
+      </div>
+
       <label for="timeline">Timeline <output id="time-value">0.00 s</output></label>
       <input id="timeline" type="range" min="0" max="16" step="0.01" value="0">
       <div id="status"></div>

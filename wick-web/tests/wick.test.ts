@@ -6,7 +6,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { poseAt, danceAt, boilingShake, pokeEnvelope, flamePath, blinkAmount, bobPeriod, SIZE } from "../src/game/wick.ts";
+import { poseAt, boilingShake, pokeEnvelope, flamePath, blinkAmount, SIZE } from "../src/game/wick.ts";
 import { FACES, faceFor, faceDrawList, eyeShapes, lerpFace, swapBlink, swapMorph, PALETTE, moodFor } from "../src/game/wickface.ts";
 import { pulseAt } from "../src/game/music.ts";
 
@@ -29,35 +29,33 @@ test("the tip leans with the flicker and reacts to the face; the base stays put"
   assert.ok(flamePath(0.5, FACES.shocked.tip).includes(" 59 -2 "), "Shocked spikes the tip up and off-center");
 });
 
-test("the bob uses the iOS periods and amplitudes", () => {
-  assert.equal(bobPeriod("boiling"), 0.55);
-  assert.equal(bobPeriod("idle"), 1.8);
-  // A quarter period into an idle bob is the top of the bob: 0.035 of size.
-  const p = poseAt({ t: 1.8 / 4, mood: "idle", ...still });
-  assert.ok(Math.abs(p.y - 0.035 * SIZE) < 1e-6);
-  const c = poseAt({ t: 0.8 / 4, mood: "celebrating", ...still });
-  assert.ok(Math.abs(c.y - 0.07 * SIZE) < 1e-6);
+test("3.8: the idle breathes instead of bobbing: root travel stays under 1.2%", () => {
+  let maxY = 0;
+  for (let t = 0; t < 8; t += 0.02) maxY = Math.max(maxY, Math.abs(poseAt({ t, mood: "boiling", ...still }).y));
+  assert.ok(maxY <= 0.012 * SIZE, `root travels ${maxY}`);
+  assert.ok(maxY > 0.004 * SIZE, "but he is not frozen");
 });
 
-test("a poke squashes and stretches, then dies out within 0.45 s", () => {
+test("a tap squashes once and dies out within 0.45 s, with no wobble", () => {
   assert.equal(pokeEnvelope(-0.1), 0);
   assert.ok(pokeEnvelope(0) > 0.99);
   assert.ok(pokeEnvelope(0.2) > 0 && pokeEnvelope(0.2) < pokeEnvelope(0.05));
   assert.equal(pokeEnvelope(0.45), 0);
   const poked = poseAt({ t: 10.01, mood: "idle", pokeAt: 10, reduceMotion: false, pulse: null });
   const calm = poseAt({ t: 10.01, mood: "idle", ...still });
-  assert.ok(poked.sx > calm.sx * 1.1);
+  assert.ok(poked.sy < calm.sy * 0.93, "squashed");
+  assert.ok(Math.abs(poked.rot - calm.rot) < 1e-9, "no rotation wobble");
 });
 
-test("boiling shakes hard, harder than the freezing shiver and never still", () => {
+test("3.8: no endless shaking: freezing is still and boiling only trembles", () => {
   let maxBoil = 0, maxFreeze = 0;
   for (let t = 0; t < 3; t += 0.01) {
-    const s = boilingShake(t);
-    maxBoil = Math.max(maxBoil, Math.hypot(s.x, s.y));
+    maxBoil = Math.max(maxBoil, Math.abs(poseAt({ t, mood: "boiling", ...still }).x));
     maxFreeze = Math.max(maxFreeze, Math.abs(poseAt({ t, mood: "freezing", ...still }).x));
   }
-  assert.ok(maxBoil > 4, `boiling moves ${maxBoil}`);
-  assert.ok(maxBoil > maxFreeze * 2);
+  assert.equal(maxFreeze, 0, "no continuous shiver");
+  assert.ok(maxBoil > 0 && maxBoil < 0.008 * SIZE, `ambient tremor ${maxBoil}`);
+  // The old shake survives only for the replay renderer.
   assert.ok(Math.abs(boilingShake(1.234).rot) <= 2.5);
 });
 
@@ -65,7 +63,7 @@ test("Reduce Motion leaves only an opacity breath", () => {
   for (const mood of ["boiling", "freezing", "celebrating"] as const) {
     const p = poseAt({ t: 3.3, mood, pokeAt: 3.2, reduceMotion: true, pulse: pulseAt(3.3, null, null) });
     assert.deepEqual([p.x, p.y, p.rot, p.sx, p.sy, p.flicker], [0, 0, 0, 1, 1, 0.5]);
-    assert.ok(p.opacity >= 0.86 && p.opacity <= 1);
+    assert.ok(p.opacity >= 0.78 && p.opacity <= 1);
   }
 });
 
@@ -111,60 +109,18 @@ test("a blink shuts the eye fully and the lash line shows only when shut", () =>
 
 test("changing faces: eyes shut first, the face morphs behind them, then they open", () => {
   assert.equal(swapBlink(0), 0);
-  assert.equal(swapBlink(0.15), 1);
-  assert.equal(swapBlink(0.5), 0);
-  assert.equal(swapMorph(0), 0);
-  assert.equal(swapMorph(0.5), 1);
+  assert.ok(swapBlink(0.035) > 0.4 && swapBlink(0.035) < 0.6, "closing over 70 ms");
+  assert.equal(swapBlink(0.07), 1);
+  assert.equal(swapBlink(0.239), 1, "shut until 240 ms");
+  assert.equal(swapBlink(0.36), 0, "open by 360 ms");
+  assert.equal(swapMorph(0.07), 0, "nothing moves before the lids are shut");
+  assert.equal(swapMorph(0.24), 1, "and it is all done behind them");
   const mid = lerpFace(FACES.sly, FACES.serious, 0.5);
   const a = FACES.sly.brows[0]!.c[0]![1]!, b = FACES.serious.brows[0]!.c[0]![1]!;
   assert.ok(Math.abs(mid.brows[0]!.c[0]![1]! - (a + b) / 2) < 1e-9);
 });
 
-test("the dance lands on the beat and is in the air between beats", () => {
-  const onBeat = danceAt(pulseAt(4.0, null, null));
-  const midBeat = danceAt(pulseAt(4.25, null, null));
-  assert.ok(Math.abs(onBeat.y) < 1e-6, "feet down on the beat");
-  assert.ok(midBeat.y < -3, "up in the air between beats");
-  assert.ok(onBeat.sy < 1 && onBeat.sx > 1, "squashed on landing");
-  assert.ok(midBeat.sy > 1 && midBeat.sx < 1, "stretched in the air");
-});
-
-test("the dance steps to alternating sides and goes bigger on beat 1", () => {
-  const a = danceAt(pulseAt(4.0, null, null));   // beat 1 of a bar
-  const b = danceAt(pulseAt(4.5, null, null));   // beat 2
-  assert.ok(Math.sign(a.x) !== Math.sign(b.x));
-  const bar = danceAt(pulseAt(4.25, null, null));
-  const off = danceAt(pulseAt(4.75, null, null));
-  assert.ok(Math.abs(bar.y) > Math.abs(off.y));
-});
-
-test("the dance builds with energy and the drop is a big spin", () => {
-  const chill = danceAt(pulseAt(4.25, null, null));
-  const kiai = danceAt(pulseAt(104.25, 90, 94));
-  assert.ok(Math.abs(kiai.y) > Math.abs(chill.y) * 1.5);
-  const drop = danceAt(pulseAt(94.5, 90, 94));
-  assert.ok(drop.y < -30, "big jump at the drop");
-  assert.ok(drop.rot > 90 && drop.rot < 360, "spinning");
-  const later = danceAt(pulseAt(96.0, 90, 94));
-  assert.ok(Math.abs(later.rot) < 20, "the spin is over");
-});
-
-test("authored dance clips have distinct weight and flame follow-through", () => {
-  const p = pulseAt(4.25, null, null);
-  const groove = danceAt(p, SIZE, "groove");
-  const swagger = danceAt(p, SIZE, "swagger");
-  const hype = danceAt(p, SIZE, "hype");
-  assert.ok(Math.abs(swagger.x) > Math.abs(groove.x), "swagger travels farther than groove");
-  assert.ok(Math.abs(hype.y) > Math.abs(swagger.y), "hype jumps harder than swagger");
-  for (const move of [groove, swagger, hype]) assert.ok(Math.abs(move.tip) <= 1, "tip motion stays normalized");
-  assert.notEqual(groove.tip, hype.tip, "clips have distinct secondary motion");
-});
-
-test("the riser anticipates the drop with a grounded crouch", () => {
-  const crouch = danceAt({ beat: 0, down: 0, energy: 0.96, flash: 0, time: 4 }, SIZE, "swagger");
-  assert.ok(crouch.y > 0, "Wick lowers before the launch");
-  assert.ok(crouch.sx > 1 && crouch.sy < 1, "the anticipation compresses him");
-});
+// The dance tests moved to tests/wickmotion.test.ts with the 3.8 phrases.
 
 test("no music means no dance", () => {
   const p = poseAt({ t: 4.25, mood: "idle", ...still });

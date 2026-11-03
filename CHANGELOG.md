@@ -17,6 +17,18 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   warmth, a new topic (food, animals, space and so on), a repeat, or a cold
   streak. It clears on its own and the warmth face stays in charge. Same
   rules on iPhone and web.
+- **Motion director pass.** Wick now watches, anticipates, acts and
+  settles instead of bobbing on a formula. Five channels (solve, face and
+  colour change, reaction, dance, idle) with a fixed priority and soft
+  hand-offs; a rapid second guess starts from the pose on screen. Quiet idle
+  (breath, tip drift, small seeded glances, brow lifts and slow blinks), one
+  entrance clip per temperature (deflate, cold-shoulder, inspect, interest,
+  caught, hide-panic) and physical clips for the personality beats. Face
+  changes blink once while the colour travels up the flame. Groove, swagger
+  and hype are re-authored with planted holds; the 360 degree drop spin is
+  gone. No more endless shaking. Reduced Motion keeps the face and drops all
+  movement. The Motion Studio (dance.html) can review every clip. Same tables
+  on web (wickmotion.ts) and iOS (WickMotion.swift), checked by golden tests.
 - **"You got me": the solved moment.** A five beat sequence (1.8 seconds):
   a freeze and a shock, Wick turns solved green, one squash and rebound
   with a violet to green ring and three gold sparks, then the reluctant

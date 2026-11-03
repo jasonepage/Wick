@@ -70,6 +70,23 @@ enum KeeperMood: Equatable {
     }
 }
 
+extension KeeperMood {
+    /// The motion director's mood (WickMotion.Mood). The deadpan moods share
+    /// the grey "deflate" body language.
+    var motionMood: WickMotion.Mood {
+        switch self {
+        case .idle, .thinking: return .idle
+        case .freezing:        return .freezing
+        case .cold:            return .cold
+        case .warm:            return .warm
+        case .hot:             return .hot
+        case .boiling:         return .boiling
+        case .celebrating:     return .celebrating
+        case .defeated, .unamused: return .grey
+        }
+    }
+}
+
 // MARK: - Flame body shape
 
 /// A teardrop / flame silhouette with a softly waving tip.
@@ -141,70 +158,74 @@ struct KeeperView: View {
     /// 3.8: called once when the solved sequence ends; true when the player
     /// skipped it with a tap. Not called for a round that opens already solved.
     var onSolveDone: ((Bool) -> Void)? = nil
+    /// 3.8 motion: bump to play a reaction clip (a scored guess, a personality
+    /// beat, an Ask Wick answer). `cueKind` is a WickReactionKind raw value,
+    /// "question", or nil for a plain guess. The first value is not cued.
+    var cue: Int = 0
+    var cueKind: String? = nil
+    /// 3.8 typing awareness: the guess field's focus, and a counter that
+    /// changes on each keystroke.
+    var inputFocused: Bool = false
+    var typingTick: Int = 0
 
     /// Picks his face from the mood and runs the blink-and-morph between faces.
     @State private var animator = KeeperFaceAnimator()
+    /// 3.8: the five motion channels (WickMotion.swift), one per Wick.
+    @State private var director = WickMotion.Director(seed: UInt32.random(in: 0...UInt32.max))
     @State private var pokeStart: Date? = nil
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        // Keep the timeline running even under Reduce Motion so the flame still
-        // flickers in place (a subtle, non-vestibular motion). The larger
-        // movements (bob, shiver, vibrate) are still suppressed below.
+        // Keep the timeline running even under Reduce Motion so he still
+        // blinks, glances and breathes in brightness. All positional motion is
+        // removed there by the director (WickMotion.reduceMotionClamp).
         TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { ctx in
             let t = ctx.date.timeIntervalSinceReferenceDate
-            // Reduce Motion: suppress ALL positional/scaling motion (vestibular-safe)
-            // and keep Wick alive with a gentle opacity pulse only — Apple's
-            // recommended substitute for motion (a cross-fade, not movement).
-            let bob = reduceMotion ? 0 : sin(t * 2 * .pi / mood.bobPeriod) * bobAmplitude
-            let shiver = (mood == .freezing && !reduceMotion) ? sin(t * 30) * 1.2 : 0
-            // Boiling is a hard shake (jitter plus a little rotation), shared with the web.
-            let shake = (mood == .boiling && !reduceMotion) ? WickDance.boilingShake(t: t, size: size) : .still
-            // In a live race Wick dances to the music, locked to the beat the player hears.
-            let dance = (dances && !reduceMotion)
-                ? WickDance.move(for: RaceMusic.shared.pulse(), size: size,
-                                 style: danceStyle, intensity: danceIntensity)
-                : .still
-            // Hold the flame tip centered when Reduce Motion is on (no side-to-side sway).
-            let idleFlick = 0.5 + sin(t * 2 * .pi / (mood.bobPeriod * 0.8)) / 2
-            let flick = reduceMotion ? 0.5 : min(1, max(0, idleFlick + dance.tip * 0.16))
-            // Subtle breathing scale only when motion is allowed.
-            let breathe = reduceMotion ? 1 : 1 + sin(t * 2 * .pi / (mood.bobPeriod * 1.7)) * 0.03
-            // Opacity-only "breath" under Reduce Motion so it reads as alive, not frozen.
-            let glow = reduceMotion ? 0.86 + 0.14 * (sin(t * 2 * .pi / 2.4) + 1) / 2 : 1.0
-
-            // Poke reaction: a quick springy squash-and-stretch that decays.
-            let poke = pokeProgress(now: ctx.date)
-            let pokeScale = reduceMotion ? 1 : 1 + poke * 0.20
-            let pokeWiggle = reduceMotion ? 0 : poke * 6 * sin((pokeStart.map { ctx.date.timeIntervalSince($0) } ?? 0) * 34)
-
-            // The face for this frame, and the pop as he opens on a new one
-            // (squash and stretch, plus a little hop for Shocked).
             animator.firstGuess = firstGuess
             let face = animator.frame(t: t, mood: mood, race: race ?? dances, reduceMotion: reduceMotion,
                                       showcase: showcase, override: faceOverride)
-            let popX: Double = 1 - 0.06 * face.pop
-            let popY: Double = 1 + 0.10 * face.pop
-            let hop: CGFloat = face.name == .shocked ? -size * 0.04 * CGFloat(face.pop) : 0
-            // 3.8: the hit beat holds everything still; the release squashes and rebounds.
-            let fz: Double = face.freeze ? 0 : 1
-            let sx: Double = face.freeze ? 1 : breathe * pokeScale * dance.scaleX * popX * face.solveScale.sx
-            let sy: Double = face.freeze ? 1 : breathe * pokeScale * dance.scaleY * popY * face.solveScale.sy
+            let m = motion(t: t, frame: face)
+            // A tap: one squash and release, no wobble (same as pokeSquash on the web).
+            let poke: Double = reduceMotion ? 0 : pokeProgress(now: ctx.date)
+            let sx: Double = (1 + m.sx) * (1 + 0.06 * poke) * face.solveScale.sx
+            let sy: Double = (1 + m.sy) * (1 - 0.10 * poke) * face.solveScale.sy
+            let tip: Double = reduceMotion ? WickMotion.clamp(m.tip, -0.4, 0.4) : m.tip
+            let flick: Double = min(1, max(0, 0.5 + 0.5 * tip))
             let _ = reportSolveDone(t: t)
 
-            keeperBody(flicker: flick, face: face)
+            keeperBody(flicker: flick, face: face, motion: m)
                 .scaleEffect(x: sx, y: sy, anchor: .bottom)
-                .rotationEffect(.degrees((pokeWiggle + shake.rotation + dance.rotation) * fz), anchor: .bottom)
-                .offset(x: (shiver + shake.x + dance.x) * fz, y: (bob + shake.y + dance.y + hop) * fz)
-                .opacity(glow)
-                .shadow(color: mood.bodyColor.opacity(mood == .defeated ? 0 : 0.35),
+                .rotationEffect(.degrees(m.rot), anchor: .bottom)
+                .offset(x: CGFloat(m.x) * size, y: CGFloat(m.y) * size)
+                .opacity(m.glow)
+                .shadow(color: face.color.color.opacity(mood == .defeated ? 0 : 0.35),
                         radius: size * 0.12, y: size * 0.05)
         }
         .frame(width: size, height: size * 1.18)
         .contentShape(Rectangle())
         .onTapGesture { poke() }
         .onChange(of: pokeTick) { _, _ in pokeStart = Date() }
+        .onChange(of: cue) { _, _ in director.cue(Date().timeIntervalSinceReferenceDate, kind: cueKind) }
+        .onChange(of: inputFocused) { _, f in director.input(Date().timeIntervalSinceReferenceDate, focused: f) }
+        .onChange(of: typingTick) { _, _ in
+            director.input(Date().timeIntervalSinceReferenceDate, focused: inputFocused, typed: true)
+        }
         .accessibilityHidden(true)
+    }
+
+    /// The director's frame: base pose, idle life, reaction, dance, transition.
+    private func motion(t: Double, frame: KeeperFaceAnimator.Frame) -> WickMotion.Motion {
+        var pulse: WickMotion.Pulse? = nil
+        if dances {
+            let p = RaceMusic.shared.pulse()
+            if p != .none {
+                pulse = WickMotion.Pulse(beat: p.beat, down: p.down, energy: p.energy, flash: p.flash, time: p.time)
+            }
+        }
+        let input = WickMotion.Input(mood: mood.motionMood, rm: reduceMotion,
+                                     solveE: animator.solveElapsed(at: t), transitionE: frame.transitionE,
+                                     pulse: pulse, style: danceStyle, intensity: danceIntensity)
+        return director.sample(t, input)
     }
 
     /// 3.8: fire the done callback once, on the main queue after the frame.
@@ -234,29 +255,32 @@ struct KeeperView: View {
         onPoke?()
     }
 
-    private var bobAmplitude: CGFloat {
-        switch mood {
-        case .celebrating: return size * 0.07
-        case .defeated:    return size * 0.01
-        default:           return size * 0.035
-        }
-    }
-
     // MARK: Body
 
-    private func keeperBody(flicker: Double, face: KeeperFaceAnimator.Frame) -> some View {
-        ZStack {
+    private func keeperBody(flicker: Double, face: KeeperFaceAnimator.Frame, motion m: WickMotion.Motion) -> some View {
+        // 3.8: live accents on the face (pupils, brows, lids, tip) and a
+        // colour that travels up the flame, bottom first.
+        let f = KeeperFaces.accent(face.face, m)
+        var closure = face.closure
+        if closure.count > 0 { closure[0] = max(closure[0], max(0, m.ll)) }
+        if closure.count > 1 { closure[1] = max(closure[1], max(0, m.lr)) }
+        let mid = face.color.color
+        return ZStack {
             // Soft glow
-            KeeperChunkyFlameShape(flicker: flicker, tip: face.face.tip)
-                .fill(mood.bodyColor.opacity(mood == .defeated ? 0.10 : 0.30))
+            KeeperChunkyFlameShape(flicker: flicker, tip: f.tip)
+                .fill(mid.opacity(mood == .defeated ? 0.10 : 0.30))
                 .blur(radius: size * 0.10)
                 .scaleEffect(1.12)
 
             // Body: saturated and emissive, without glossy highlights that read as plastic.
-            KeeperChunkyFlameShape(flicker: flicker, tip: face.face.tip)
+            KeeperChunkyFlameShape(flicker: flicker, tip: f.tip)
                 .fill(
                     LinearGradient(
-                        colors: [mood.bodyColor.opacity(0.92), mood.bodyColor],
+                        stops: [
+                            .init(color: face.bodyTop.color.opacity(0.92), location: 0),
+                            .init(color: mid, location: 0.55),
+                            .init(color: face.bodyBottom.color, location: 1),
+                        ],
                         startPoint: .top, endPoint: .bottom
                     )
                 )
@@ -266,7 +290,7 @@ struct KeeperView: View {
                 .fill(Color.white.opacity(0.22))
 
             // The face: brows, heavy lids, under-eye bags, eyes, mouth
-            KeeperFaceCanvas(face: face.face, closure: face.closure, color: face.color)
+            KeeperFaceCanvas(face: f, closure: closure, color: face.color)
 
             if mood == .celebrating && face.sparksOn {
                 sparkles
@@ -283,7 +307,6 @@ struct KeeperView: View {
                     .offset(y: -size * 0.05)
             }
         }
-        .animation(.easeInOut(duration: 0.5), value: mood)
     }
 
     private var sparkles: some View {

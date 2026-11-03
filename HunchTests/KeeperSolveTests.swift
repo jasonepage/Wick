@@ -9,6 +9,7 @@
 import Testing
 @testable import Hunch
 
+@MainActor
 struct KeeperSolveTests {
 
     @Test func shockedThroughTheReleaseThenSlyAndNeverLeavesGreen() {

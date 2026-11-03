@@ -111,7 +111,8 @@ const sp = {
   practiceIndex: -1,
   personality: newWickPersonalityState(),
   reaction: null as WickReaction | null,
-  reactionPokePending: false,
+  /** 3.8 motion: bumped once per scored guess or reaction, read by Wick. */
+  wickCue: { seq: 0, kind: null as string | null },
   coldReactionStreak: 0,
   personalityLabOpen: false,
   personalityHistory: [] as { label: string; reaction: WickReaction }[],
@@ -121,6 +122,8 @@ const sp = {
 };
 
 let reactionTimer: ReturnType<typeof setTimeout> | null = null;
+/** The round's Wick, for typing awareness. */
+let soloWick: Wick | null = null;
 let personalityLabUnlockTaps = 0;
 let personalityLabUnlockTimer: ReturnType<typeof setTimeout> | null = null;
 let personalityLabUnlocked = (() => {
@@ -147,7 +150,7 @@ function tapPracticeTitle(): void {
 function resetWickPersonality(): void {
   sp.personality = newWickPersonalityState();
   sp.reaction = null;
-  sp.reactionPokePending = false;
+  sp.wickCue = { seq: 0, kind: null };
   sp.coldReactionStreak = 0;
   sp.personalityHistory = [];
   sp.solveFresh = false;
@@ -167,13 +170,11 @@ function playWickReaction(reaction: WickReaction | null, label = "Beat"): void {
   if (!reaction) return;
   sp.personalityHistory = [{ label, reaction }, ...sp.personalityHistory].slice(0, 8);
   sp.reaction = reaction;
-  sp.reactionPokePending = reaction.poke;
   track("wick_beat", { g: WICK_BEAT_CODES[reaction.kind] ?? 0 });
   if (reaction.line && getLang() === "en") toast(reaction.line);
   if (reactionTimer !== null) clearTimeout(reactionTimer);
   reactionTimer = setTimeout(() => {
     sp.reaction = null;
-    sp.reactionPokePending = false;
     reactionTimer = null;
     if (!sp.solved && !sp.revealed) renderSolo();
   }, reaction.durationMs);
@@ -816,13 +817,17 @@ function applyGuessWarmth(
       const score = g.warmth * 100;
       const isNewBest = previousBest === null || score > previousBest;
       sp.coldReactionStreak = isNewBest ? 0 : sp.coldReactionStreak + 1;
-      playWickReaction(reactionForGuess(sp.personality, {
+      const reaction = reactionForGuess(sp.personality, {
         word: g.word,
         score,
         previousBest,
         guessCount: sp.guesses.length,
         coldStreak: sp.coldReactionStreak,
-      }), g.word);
+      });
+      playWickReaction(reaction, g.word);
+      // 3.8 motion: every scored guess plays one clip; a personality beat
+      // picks its own clip, otherwise the temperature's entrance plays.
+      sp.wickCue = { seq: sp.wickCue.seq + 1, kind: reaction?.kind ?? null };
     }
   }
   saveDaily();
@@ -1113,7 +1118,11 @@ function askSolo(text: string): void {
   askKeeper(httpBase, sp.secret, q, sp.lang, sp.secretWord?.en, history).then((ans) => {
     if (ans) { r.verdict = ans.verdict; r.reply = ans.reply; showKeeper(ans.verdict, ans.reply); }
     else { r.reply = "Wick is quiet right now."; showKeeper("", "Wick is quiet right now."); }
-    if (ans) playWickReaction(reactionForQuestion(q), q);
+    if (ans) {
+      const reaction = reactionForQuestion(q);
+      playWickReaction(reaction, q);
+      if (reaction) sp.wickCue = { seq: sp.wickCue.seq + 1, kind: "question" };
+    }
     saveDaily();
     renderSolo();
   });
@@ -1414,6 +1423,10 @@ function screenSolo(): void {
   suggestOpen = false;
   suggestOffset = 0;
   const input = el("input", { class: "field", placeholder: t("guessOrAskPlaceholder"), autocomplete: "off", spellcheck: false });
+  // 3.8: Wick glances at the field while the player types (wickmotion.ts).
+  input.addEventListener("focus", () => soloWick?.input(true));
+  input.addEventListener("blur", () => soloWick?.input(false));
+  input.addEventListener("input", () => soloWick?.input(true, true));
   const submit = () => {
     const text = input.value.trim();
     if (!text || sp.solved || sp.revealed) return;
@@ -1432,7 +1445,6 @@ function screenSolo(): void {
       sp.solved = true;
       sp.solveFresh = true;
       sp.reaction = null;
-      sp.reactionPokePending = false;
       if (reactionTimer !== null) { clearTimeout(reactionTimer); reactionTimer = null; }
       void playSound("solved");
       // The line lands on the recovery beat, after the shock, never before the result.
@@ -1524,11 +1536,9 @@ function renderSolo(): void {
     neutral: !!sp.reaction?.neutral,
     firstGuess: sp.guesses.length === 1,
     onSolveDone: onSolveSequenceDone,
+    cue: sp.wickCue,
   });
-  if (heroWick && sp.reactionPokePending) {
-    sp.reactionPokePending = false;
-    heroWick.poke();
-  }
+  soloWick = heroWick ?? null;
   const latestEl = document.querySelector<HTMLDivElement>("#latest");
   if (latestEl) {
     if (sp.solved) {
@@ -1780,7 +1790,7 @@ function questionRowEl(r: SoloReply): HTMLElement {
 function renderHero(
   sel: string, id: string, latest: Guess | undefined, revealed = false, dance = false, thinking = false,
   reactionFace: WickOptions["face"] = null,
-  extra: { neutral?: boolean; firstGuess?: boolean; onSolveDone?: (skipped: boolean) => void } = {},
+  extra: { neutral?: boolean; firstGuess?: boolean; onSolveDone?: (skipped: boolean) => void; cue?: { seq: number; kind: string | null } } = {},
 ): Wick | undefined {
   const hero = document.querySelector<HTMLDivElement>(sel);
   if (!hero) return undefined;
@@ -1820,7 +1830,7 @@ function renderHero(
   const neutral = !!extra.neutral && !(latest?.correct);
   return ensureWick(wrap, {
     score, neutral, size: 116, id, dance, race: dance, focus: thinking, showcase, face: thinking ? null : reactionFace,
-    firstGuess: extra.firstGuess, onSolveDone: extra.onSolveDone,
+    firstGuess: extra.firstGuess, onSolveDone: extra.onSolveDone, cue: extra.cue,
   });
 }
 
@@ -2706,7 +2716,9 @@ function renderMatch(): void {
   }
   const latest = live.guesses[0];
   setBackdropHeat(bestScore(live.guesses));
-  renderHero("#hero", "you", latest, false, true, !!live.replies[0]?.pending);
+  renderHero("#hero", "you", latest, false, true, !!live.replies[0]?.pending, null, {
+    cue: { seq: live.guesses.filter((g) => g.warmth !== null).length, kind: null },
+  });
   const latestEl = document.querySelector<HTMLDivElement>("#latest");
   if (latestEl) renderLatestChip(latestEl, latest);
   // Wick's most recent in-match answer (if any).

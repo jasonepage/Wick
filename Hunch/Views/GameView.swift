@@ -436,7 +436,11 @@ struct GameView: View {
                                onSolveDone: { skipped in
                                    game.solveSequenceDone(skipped: skipped)
                                    withAnimation(.easeOut(duration: 0.4)) { solveActionsIn = true }
-                               })
+                               },
+                               cue: game.motionCue,
+                               cueKind: game.motionCueKind,
+                               inputFocused: guessFocused,
+                               typingTick: guessText.count)
                         .scaleEffect(wickEggScale)
                         .onChange(of: game.wickEggFlicker) { _, _ in
                             withAnimation(.easeOut(duration: 0.12)) { wickEggScale = 1.3 }

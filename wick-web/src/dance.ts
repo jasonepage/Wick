@@ -19,8 +19,12 @@
 //
 
 import { pulseAt, type Pulse } from "./game/music.ts";
-import { type WickDanceStyle, type WickMood, poseAt } from "./game/wick.ts";
-import { moodRGB } from "./game/wickface.ts";
+import { type Pose, type WickDanceStyle, type WickMood, BASE_X, BASE_Y, SIZE, mixRGB, motionMood, tipToFlicker } from "./game/wick.ts";
+import {
+  type FaceName, type FaceP, FACES, PALETTE, SOLVE_HIT, SOLVE_RELEASE, SOLVE_RM_SWAP, faceFor, lerpFace, moodRGB, rgb,
+  solveMorph, solveRing, solveScale, solveSparks, swapBlink, swapMorph,
+} from "./game/wickface.ts";
+import { type Motion, MotionDirector, colorWipe, danceInto, danceReducedInto, idleBody, idleGlow, motionZero } from "./game/wickmotion.ts";
 import { drawWick } from "./game/wickcanvas.ts";
 import { zipStore, type ZipEntry } from "./game/zip.ts";
 
@@ -36,6 +40,16 @@ const SCALE = 6;
 const FEET_Y = H * 0.62;
 
 type Section = "chill" | "drop" | "kiai" | "race";
+/** 3.8 review scenes. "dance" is the original clip maker. */
+type Scene = "dance" | "idle" | "reaction" | "transition" | "solved";
+/** A fixed seed, so a review frame is the same every time. */
+const SEED = 1234;
+/** When the change happens in a review scene (seconds into the clip). */
+const T0 = 0.6;
+const SCENE_SECONDS: Record<Exclude<Scene, "dance">, number> = { idle: 14, reaction: 2.2, transition: 1.6, solved: 3 };
+/** The mood a personality beat lands in, and the face the game shows with it. */
+const KIND_MOOD: Record<string, WickMood> = { near: "boiling", stall: "unamused" };
+const KIND_FACE: Record<string, FaceName> = { repeat: "focus", leap: "warm", near: "flustered", regress: "serious", stall: "calm", question: "focus" };
 
 /** A whole race: 5 minutes. The riser starts on the first bar line after 1:05
  *  is left (3:56) and kiai lands at 4:00, like music.ts schedules it. */
@@ -56,6 +70,14 @@ interface Plan {
   green: boolean;
   /** Put the race music in the video. Off for edits with their own track. */
   audio: boolean;
+  scene: Scene;
+  fromMood: WickMood;
+  toMood: WickMood;
+  clip: string;
+  /** A fixed dance energy for review, or null to follow the music. */
+  energy: number | null;
+  rm: boolean;
+  speed: number;
 }
 
 const $ = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
@@ -80,11 +102,21 @@ function readPlan(): Plan {
   const audio = $<HTMLSelectElement>("audio").value !== "none";
   const riserAt = section === "drop" ? 2 * BAR : section === "race" ? RACE_RISER_AT : section === "kiai" ? -10 : null;
   const kiaiAt = section === "drop" ? 4 * BAR : section === "race" ? RACE_KIAI_AT : section === "kiai" ? -10 : null;
-  const seconds = bars * BAR;
+  const scene = $<HTMLSelectElement>("scene").value as Scene;
+  const seconds = scene === "dance" ? bars * BAR : SCENE_SECONDS[scene];
   timeline.max = String(seconds);
   if (Number(timeline.value) > seconds) timeline.value = String(seconds);
   intensityValue.value = `${intensity.toFixed(2)}×`;
-  return { mood, style, intensity, section, bars, seconds, riserAt, kiaiAt, green, audio };
+  const ev = $<HTMLSelectElement>("energy").value;
+  return {
+    mood, style, intensity, section, bars, seconds, riserAt, kiaiAt, green, audio, scene,
+    fromMood: $<HTMLSelectElement>("from-mood").value as WickMood,
+    toMood: $<HTMLSelectElement>("to-mood").value as WickMood,
+    clip: $<HTMLSelectElement>("clip").value,
+    energy: ev === "music" ? null : Number(ev),
+    rm: $<HTMLInputElement>("rm").checked,
+    speed: Number($<HTMLSelectElement>("speed").value) || 1,
+  };
 }
 
 /** The music pulse `t` seconds into the clip. */
@@ -113,28 +145,143 @@ function blinkAt(times: number[], t: number): number {
   return 0;
 }
 
+/** A motion frame as a pose for the canvas (viewBox units). */
+function poseFrom(m: Motion, rm: boolean): Pose {
+  return {
+    x: m.x * SIZE, y: m.y * SIZE, rot: m.rot, sx: 1 + m.sx, sy: 1 + m.sy,
+    flicker: rm ? tipToFlicker(Math.max(-0.4, Math.min(0.4, m.tip))) : tipToFlicker(m.tip), opacity: m.glow,
+  };
+}
+
 /** Paint frame at time `t` of the clip. `studio` updates the scrubber/readout;
  *  exports leave it false so thousands of frames do no extra DOM work. */
 function drawFrame(plan: Plan, blinks: number[], t: number, studio = false): void {
   ctx.clearRect(0, 0, W, H);
   if (plan.green) { ctx.fillStyle = GREEN; ctx.fillRect(0, 0, W, H); }
-  const blink = plan.mood === "celebrating" || plan.mood === "unamused" ? 0 : blinkAt(blinks, t);
-  const pulse = pulseFor(plan, t);
-  const pose = poseAt({
-    t, mood: plan.mood, pokeAt: null, reduceMotion: false, pulse,
-    danceStyle: plan.style, danceIntensity: plan.intensity,
-  });
-  drawWick(ctx, { x: W / 2, y: FEET_Y, scale: SCALE, mood: plan.mood, color: moodRGB(plan.mood), pose, blink, t });
+  const lines = plan.scene === "dance" ? drawDance(plan, blinks, t) : drawReview(plan, blinks, t);
   if (studio) {
     timeline.value = String(Math.max(0, Math.min(plan.seconds, t)));
     timeValue.value = `${Math.max(0, t).toFixed(2)} s`;
-    poseReadout.textContent = [
-      `${plan.style} · ${plan.intensity.toFixed(2)}× · beat ${Math.floor(t / 0.5) + 1}`,
-      `position  x ${pose.x.toFixed(2)}   y ${pose.y.toFixed(2)}   rot ${pose.rot.toFixed(1)}°`,
-      `scale     x ${pose.sx.toFixed(3)}  y ${pose.sy.toFixed(3)}  flame ${pose.flicker.toFixed(3)}`,
-      `music     beat ${pulse.beat.toFixed(3)}  energy ${pulse.energy.toFixed(3)}  drop ${pulse.flash.toFixed(3)}`,
-    ].join("\n");
+    poseReadout.textContent = lines.join("\n");
   }
+}
+
+function readout(m: Motion): string[] {
+  const f = (v: number, d = 3): string => v.toFixed(d);
+  return [
+    `body   x ${f(m.x)}  y ${f(m.y)}  rot ${f(m.rot, 1)}°  sx ${f(m.sx)}  sy ${f(m.sy)}`,
+    `tip    lean ${f(m.tip, 2)}  up ${f(m.tu, 1)}   glow ${f(m.glow, 2)}`,
+    `face   eyes ${f(m.gx, 1)},${f(m.gy, 1)}  brows ${f(m.bl, 1)},${f(m.br, 1)}  lids ${f(m.ll, 2)},${f(m.lr, 2)}`,
+  ];
+}
+
+/** The dance phrase (the clip maker and the review): idle under it, accents on the face. */
+function drawDance(plan: Plan, blinks: number[], t: number): string[] {
+  const blink = plan.mood === "celebrating" || plan.mood === "unamused" ? 0 : blinkAt(blinks, t);
+  const raw = pulseFor(plan, t);
+  const pulse = plan.energy === null ? raw : { ...raw, energy: plan.energy, flash: 0 };
+  const m = motionZero();
+  if (plan.rm) { danceReducedInto(pulse, m); m.glow *= idleGlow(t); }
+  else { idleBody(t, SEED, motionMood(plan.mood), m, 0.25); danceInto(pulse, m, plan.style, plan.intensity); }
+  drawWick(ctx, { x: W / 2, y: FEET_Y, scale: SCALE, mood: plan.mood, color: moodRGB(plan.mood), pose: poseFrom(m, plan.rm), blink, t, accent: m });
+  return [
+    `dance ${plan.style} · ${plan.intensity.toFixed(2)}× · beat ${(Math.floor(t / 0.5) % 8) + 1} of 8${plan.rm ? " · Reduced Motion" : ""}`,
+    `music  beat ${pulse.beat.toFixed(3)}  energy ${pulse.energy.toFixed(3)}  drop ${pulse.flash.toFixed(3)}`,
+    ...readout(m),
+  ];
+}
+
+/** Idle, a reaction clip, a face and colour change, or the solve: the real
+ *  MotionDirector replayed from the start of the scene, so any frame can be
+ *  scrubbed to and every frame is repeatable. */
+function drawReview(plan: Plan, blinks: number[], t: number): string[] {
+  const before = plan.fromMood;
+  let after = before;
+  let kind: string | null = null;
+  let reactFace: FaceName | null = null;
+  let second = false;                                // the interrupt test
+  if (plan.scene === "transition") after = plan.toMood;
+  if (plan.scene === "solved") after = "celebrating";
+  if (plan.scene === "reaction") {
+    if (plan.clip.startsWith("mood:")) after = plan.clip.slice(5) as WickMood;
+    else if (plan.clip === "double") { after = "hot"; second = true; }
+    else { kind = plan.clip.slice(5); after = KIND_MOOD[kind] ?? before; reactFace = KIND_FACE[kind] ?? null; }
+  }
+  const T1 = T0 + 0.25;
+  const moodAt = (x: number): WickMood => (x < T0 ? before : second && x >= T1 ? "boiling" : after);
+  const changedAt = (x: number): number | null => {
+    if (x < T0) return null;
+    if (second && x >= T1) return T1;
+    return after !== before || reactFace !== null ? T0 : null;
+  };
+  const rm = plan.rm;
+  const solving = plan.scene === "solved";
+  const d = new MotionDirector(SEED);
+  const m = motionZero();
+  const inp = (x: number) => ({
+    mood: motionMood(moodAt(x)), rm, pulse: null,
+    transitionE: changedAt(x) === null ? null : x - changedAt(x)!,
+    solveE: solving && x >= T0 ? x - T0 : null,
+  });
+  d.sample(0, inp(0), m);
+  if (t >= T0) {
+    if (plan.scene === "reaction") d.cue(T0, kind);
+    d.sample(T0, inp(T0), m);
+    if (second && t >= T1) { d.cue(T1, null); d.sample(T1, inp(T1), m); }
+  }
+  d.sample(t, inp(t), m);
+
+  // The face: a blink-and-morph at each change, or the solve's own morphs.
+  const fname = (w: WickMood): FaceName => faceFor({ mood: w });
+  const se = solving && t >= T0 ? t - T0 : null;
+  const te = changedAt(t) === null ? null : t - changedAt(t)!;
+  let faceP: FaceP = FACES[fname(moodAt(t))];
+  let swap = 0;
+  if (se !== null) {
+    const at = rm ? SOLVE_RM_SWAP : SOLVE_RELEASE;
+    faceP = se < at
+      ? lerpFace(FACES[fname(before)], FACES.shocked, rm ? 1 : solveMorph(se))
+      : lerpFace(FACES.shocked, FACES.sly, rm ? 1 : solveMorph(se - at));
+  } else if (te !== null) {
+    const from = second && t >= T1 ? FACES[fname("hot")] : FACES[fname(before)];
+    const to = FACES[reactFace ?? fname(moodAt(t))];
+    faceP = lerpFace(from, to, rm ? 1 : swapMorph(te));
+    swap = rm ? 0 : swapBlink(te);
+  }
+  // The colour travels up the flame from the old mood to the new one.
+  const fromRGB = moodRGB(second && t >= T1 ? "hot" : before), toRGB = moodRGB(moodAt(t));
+  const w: [number, number, number] = [1, 1, 1];
+  if (te !== null || se !== null) colorWipe(se ?? te ?? 0, rm, w);
+  const colors: [typeof fromRGB, typeof fromRGB, typeof fromRGB] = [mixRGB(fromRGB, toRGB, w[0]), mixRGB(fromRGB, toRGB, w[1]), mixRGB(fromRGB, toRGB, w[2])];
+
+  const pose = poseFrom(m, rm);
+  if (se !== null) {
+    if (!rm && se < SOLVE_HIT) { pose.x = 0; pose.y = 0; pose.rot = 0; pose.sx = 1; pose.sy = 1; }
+    if (!rm) { const sc = solveScale(se); pose.sx *= sc.sx; pose.sy *= sc.sy; }
+  }
+  const blink = plan.scene === "idle" && !rm ? blinkAt(blinks, t) : 0;
+  const mood = moodAt(t);
+  drawWick(ctx, {
+    x: W / 2, y: FEET_Y, scale: SCALE, mood, color: colors[1], colors, pose, blink, t,
+    faceP, accent: m, closure: [swap, swap], sparks: se === null ? true : solveSparks(se, rm),
+  });
+  const ring = se === null ? null : solveRing(se, rm);
+  if (ring) {
+    ctx.save();
+    ctx.globalAlpha = ring.opacity;
+    ctx.strokeStyle = rgb(mixRGB(PALETTE.keeper, PALETTE.solved, ring.mix));
+    ctx.lineWidth = 3 * SCALE;
+    ctx.beginPath();
+    ctx.arc(W / 2 + (60 - BASE_X) * SCALE, FEET_Y + (64 - BASE_Y) * SCALE, ring.r * 60 * SCALE, 0, 2 * Math.PI);
+    ctx.stroke();
+    ctx.restore();
+  }
+  const clip = d.activeClip(t);
+  return [
+    `${plan.scene} · ${before}${after !== before ? ` → ${second && t >= T1 ? "boiling" : after}` : ""}${rm ? " · Reduced Motion" : ""}`,
+    `clip ${clip ?? "none"}  ·  change at ${T0}s${se !== null ? `  ·  solve ${se.toFixed(2)}s` : ""}${te !== null ? `  ·  transition ${te.toFixed(2)}s` : ""}`,
+    ...readout(m),
+  ];
 }
 
 // ── music ───────────────────────────────────────────────────────────────────
@@ -400,6 +547,47 @@ const step = (direction: number): void => {
 };
 $<HTMLButtonElement>("step-back").addEventListener("click", () => step(-1));
 $<HTMLButtonElement>("step-forward").addEventListener("click", () => step(1));
+// ── 3.8 review transport: a silent clock with pause, restart, speed and steps ──
+let reviewRaf = 0;
+let reviewLast = 0;
+const reviewButton = $<HTMLButtonElement>("review-play");
+function reviewTick(now: number): void {
+  const p = readPlan();
+  const dt = reviewLast ? Math.min(0.1, (now - reviewLast) / 1000) : 0;
+  reviewLast = now;
+  let t = (Number(timeline.value) || 0) + dt * p.speed;
+  if (t > p.seconds) t = 0;                     // loop
+  canvas.classList.toggle("clear", !p.green);
+  drawFrame(p, blinkTimes(p.seconds), t, true);
+  reviewRaf = requestAnimationFrame(reviewTick);
+}
+function pauseReview(): void {
+  cancelAnimationFrame(reviewRaf);
+  reviewRaf = 0;
+  reviewLast = 0;
+  reviewButton.textContent = "▶ Review";
+}
+function playReview(): void {
+  stopPreview();
+  pauseReview();
+  reviewButton.textContent = "❚❚ Pause";
+  reviewRaf = requestAnimationFrame(reviewTick);
+}
+reviewButton.addEventListener("click", () => { if (reviewRaf) pauseReview(); else playReview(); });
+$("review-restart").addEventListener("click", () => { timeline.value = "0"; redrawStudio(); playReview(); });
+const reviewStep = (dir: number): void => {
+  pauseReview();
+  stopPreview();
+  const p = readPlan();
+  timeline.value = String(Math.max(0, Math.min(p.seconds, (Number(timeline.value) || 0) + dir / 60)));
+  redrawStudio();
+};
+$("review-back").addEventListener("click", () => reviewStep(-1));
+$("review-forward").addEventListener("click", () => reviewStep(1));
+for (const id of ["scene", "from-mood", "to-mood", "clip", "energy", "speed"]) $(id).addEventListener("change", () => { timeline.value = "0"; redrawStudio(); });
+$("rm").addEventListener("change", redrawStudio);
+$("preview").addEventListener("click", pauseReview);
+
 // Hooks for scripted runs (Playwright): draw a frame at a time, or build a plan.
 (window as unknown as { wickDance: unknown }).wickDance = { readPlan, drawFrame, blinkTimes, exportVideo, exportPngs };
 redrawStudio();

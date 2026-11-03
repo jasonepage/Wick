@@ -3,10 +3,10 @@
 //  wick.ts: Wick, the mascot, as a living thing on the web.
 //
 //  Wick is a purple flame with a face. On iOS (Hunch/Theme/KeeperView.swift) he
-//  is drawn fresh every frame from the clock: he bobs, his tip leans, he
-//  breathes, he shivers when freezing and shakes when boiling, he blinks at
-//  random, and a poke squashes and stretches him. This file brings the same
-//  life to the web with the same formulas and the same numbers.
+//  is drawn fresh every frame from the clock. Since the 3.8 motion pass, how
+//  he moves comes from the motion director in wickmotion.ts (base pose, idle
+//  life, reaction clips, dance, face and colour transition); this file draws
+//  it as an SVG, with the same numbers as iOS.
 //
 //  How it is put together:
 //
@@ -40,9 +40,14 @@
 import {
   type Mood, type RGB, type FaceName, type FaceP, type TipP, moodFor, moodRGB, lighten, rgb, starPath, PALETTE,
   FACES, FACE_TRANSFORM, PLATE_ART, PLATE_PATH, chunkyFlamePath, faceDrawList, faceFor, lerpFace, swapBlink, swapMorph,
+  solveMorph, accentFace,
   SOLVE_DONE, SOLVE_HIT, SOLVE_RM_DONE, solveFace, solveRing, solveScale, solveSparks,
 } from "./wickface.ts";
 import { musicPulse } from "./music.ts";
+import {
+  type Motion, type MotionMood, type WickDanceStyle, MotionDirector, clamp, colorWipe, danceInto, danceReducedInto,
+  idleBody, idleGlow, motionZero,
+} from "./wickmotion.ts";
 
 export type WickMood = Mood;
 
@@ -67,24 +72,10 @@ const LEAN = 0.09 * 102;
 const WHITE = "#ffffff";
 
 // ── pure math ───────────────────────────────────────────────────────────────
-
-/** Seconds per bob, by mood. Mirrors KeeperMood.bobPeriod. */
-export function bobPeriod(mood: WickMood): number {
-  switch (mood) {
-    case "boiling": return 0.55;
-    case "hot": case "celebrating": return 0.8;
-    case "warm": return 1.2;
-    case "cold": return 2.4;
-    case "freezing": return 2.8;
-    case "unamused": return 2.2;
-    default: return 1.8;
-  }
-}
-
-/** How far the bob goes, as a fraction of size. Mirrors KeeperView.bobAmplitude. */
-export function bobAmplitude(mood: WickMood, size = SIZE): number {
-  return mood === "celebrating" ? size * 0.07 : size * 0.035;
-}
+//
+//  3.8 motion pass: the motion itself lives in wickmotion.ts (the five
+//  channels, the clips, the dance phrases). This section keeps the small
+//  stateless helpers the canvas, the replay and the Motion Studio use.
 
 /**
  * The flame outline: the chunky flame from the approved icon art (see
@@ -95,7 +86,11 @@ export function flamePath(flicker: number, tip?: TipP): string {
   return chunkyFlamePath((flicker - 0.5) * LEAN, tip);
 }
 
-/** The four sparkles around a celebrating Wick: where they sit and how big. */
+/** The motion channel `tip` (-1..1) as a flicker (0..1). */
+export function tipToFlicker(tip: number): number {
+  return clamp(0.5 + 0.5 * tip, 0, 1);
+}
+
 /** 3.8: three gold sparks, no more (the personality brief). */
 export const SPARKLES: { x: number; y: number; r: number }[] = [
   { x: 22, y: 40, r: 4 }, { x: 100, y: 34, r: 3.4 }, { x: 104, y: 88, r: 3 },
@@ -108,9 +103,10 @@ export function sparklePhase(t: number, i: number): number {
 }
 
 /**
- * Boiling is a hard shake: a fast jitter in two directions plus a little
- * rotation. Two sine waves at unrelated speeds, so it never looks like a loop.
- * Clearly stronger than hot (which only bobs fast), still readable.
+ * The old boiling shake (two sine waves at unrelated speeds). 3.8 no longer
+ * shakes him endlessly: the red entrance is the authored "hide-panic" clip,
+ * and the ambient tremor afterwards is a small fraction of this (wickmotion.ts
+ * idleBody). Kept for the replay renderer and its tests.
  */
 export function boilingShake(t: number, size = SIZE): { x: number; y: number; rot: number } {
   return {
@@ -126,9 +122,13 @@ export function pokeEnvelope(e: number): number {
   return Math.cos((e / 0.45) * Math.PI / 2) * Math.exp(-e * 5);
 }
 
-/** Named choreography clips. The live game uses swagger; the developer motion
- *  studio can audition all three without maintaining a second renderer. */
-export type WickDanceStyle = "groove" | "swagger" | "hype";
+/** A tap: one squash and release, no wobble (3.8). Mirrors KeeperView. */
+export function pokeSquash(e: number): { sx: number; sy: number } {
+  const k = pokeEnvelope(e);
+  return { sx: 1 + 0.06 * k, sy: 1 - 0.1 * k };
+}
+
+export type { WickDanceStyle };
 
 export interface Move {
   x: number;
@@ -136,155 +136,20 @@ export interface Move {
   rot: number;
   sx: number;
   sy: number;
-  /** -1...1. Secondary motion for the flame crown, opposite the body turn. */
+  /** -1...1. Secondary motion for the flame crown. */
   tip: number;
 }
 export const STILL: Move = { x: 0, y: 0, rot: 0, sx: 1, sy: 1, tip: 0 };
 
-interface DanceKey {
-  /** Fractions of Wick's width. */
-  x: number;
-  y: number;
-  rot: number;
-  sx: number;
-  sy: number;
-  tip: number;
-}
-
-interface DanceClip {
-  keys: readonly DanceKey[];
-  hop: number;
-  travel: number;
-  turn: number;
-}
-
-/** Eight-beat authored clips. This is deliberately data, not a pile of timing
- *  branches: it gives the dance page a small Roblox-style animation library,
- *  keeps phrase timing inspectable, and makes future moves cheap to add. */
-const DANCE_CLIPS: Record<WickDanceStyle, DanceClip> = {
-  groove: {
-    hop: 0.72, travel: 0.72, turn: 0.72,
-    keys: [
-      { x: -0.05, y: 0.01, rot: -4, sx: 1.03, sy: 0.98, tip: 0.28 },
-      { x: 0.03, y: 0, rot: 3, sx: 0.99, sy: 1.02, tip: -0.18 },
-      { x: 0.05, y: 0.01, rot: 5, sx: 1.02, sy: 0.99, tip: -0.30 },
-      { x: -0.02, y: 0, rot: -2, sx: 0.99, sy: 1.01, tip: 0.12 },
-      { x: -0.05, y: 0.01, rot: -5, sx: 1.03, sy: 0.98, tip: 0.32 },
-      { x: 0.02, y: 0, rot: 2, sx: 0.99, sy: 1.02, tip: -0.12 },
-      { x: 0.05, y: 0.01, rot: 4, sx: 1.02, sy: 0.99, tip: -0.26 },
-      { x: -0.03, y: 0, rot: -3, sx: 1, sy: 1.01, tip: 0.18 },
-    ],
-  },
-  swagger: {
-    hop: 1, travel: 1, turn: 1,
-    keys: [
-      { x: -0.08, y: 0.015, rot: -9, sx: 1.06, sy: 0.96, tip: 0.55 },
-      { x: 0.045, y: -0.01, rot: 5, sx: 0.98, sy: 1.04, tip: -0.30 },
-      { x: 0.085, y: 0.01, rot: 10, sx: 1.04, sy: 0.97, tip: -0.58 },
-      { x: -0.025, y: 0, rot: -3, sx: 0.99, sy: 1.02, tip: 0.20 },
-      { x: -0.095, y: 0.02, rot: -11, sx: 1.07, sy: 0.95, tip: 0.65 },
-      { x: 0.02, y: -0.01, rot: 2, sx: 0.98, sy: 1.04, tip: -0.14 },
-      { x: 0.075, y: 0.01, rot: 8, sx: 1.04, sy: 0.97, tip: -0.50 },
-      { x: -0.04, y: 0, rot: -5, sx: 1, sy: 1.02, tip: 0.32 },
-    ],
-  },
-  hype: {
-    hop: 1.34, travel: 1.12, turn: 1.18,
-    keys: [
-      { x: -0.08, y: 0.025, rot: -11, sx: 1.08, sy: 0.93, tip: 0.72 },
-      { x: 0.055, y: -0.02, rot: 7, sx: 0.96, sy: 1.07, tip: -0.45 },
-      { x: 0.09, y: 0.015, rot: 12, sx: 1.06, sy: 0.95, tip: -0.76 },
-      { x: -0.035, y: -0.01, rot: -5, sx: 0.97, sy: 1.05, tip: 0.34 },
-      { x: -0.10, y: 0.03, rot: -13, sx: 1.09, sy: 0.92, tip: 0.82 },
-      { x: 0.025, y: -0.02, rot: 4, sx: 0.96, sy: 1.08, tip: -0.28 },
-      { x: 0.085, y: 0.015, rot: 11, sx: 1.06, sy: 0.95, tip: -0.70 },
-      { x: -0.045, y: -0.01, rot: -6, sx: 0.98, sy: 1.05, tip: 0.40 },
-    ],
-  },
-};
-
-const clamp = (v: number, lo: number, hi: number): number => Math.max(lo, Math.min(hi, v));
-const mix = (a: number, b: number, u: number): number => a + (b - a) * u;
-const smoother = (u: number): number => {
-  const x = clamp(u, 0, 1);
-  return x * x * x * (x * (x * 6 - 15) + 10);
-};
-
 /**
- * Wick's dance for one reading of the race music. Eight authored beat poses
- * blend underneath hop, landing, riser-anticipation and drop layers. `energy`
- * sets how hard he goes: chill on the loop, building through the riser, full
- * out on kiai.
+ * Wick's dance for one reading of the race music, in units of `size`. The
+ * phrases, the riser crouch and the drop are in wickmotion.ts (danceInto).
+ * `style` fixes the vocabulary; left out, the music's energy picks it.
  */
-export function danceAt(
-  p: WickPulse,
-  size = SIZE,
-  style: WickDanceStyle = "swagger",
-  intensity = 1,
-): Move {
-  const BEAT = 0.5;
-  const idx = Math.floor(p.time / BEAT);
-  const ph = (p.time - idx * BEAT) / BEAT;            // 0..1 through the beat
-  const downbeat = idx % 4 === 0;
-  const clip = DANCE_CLIPS[style];
-  const amp = (0.55 + 0.75 * p.energy) * clamp(intensity, 0.35, 1.65);
-
-  // Blend between authored poses with zero velocity at each key. The phrase
-  // repeats every eight beats, but the hop and landing layers keep it alive.
-  const key = ((idx % clip.keys.length) + clip.keys.length) % clip.keys.length;
-  const next = (key + 1) % clip.keys.length;
-  const a = clip.keys[key]!;
-  const b = clip.keys[next]!;
-  const u = smoother(ph);
-  let x = mix(a.x, b.x, u) * size * amp * clip.travel;
-  // Feet stay planted on authored keys; vertical travel comes from the hop,
-  // anticipation and landing layers below.
-  let y = 0;
-  let rot = mix(a.rot, b.rot, u) * amp * clip.turn;
-  let sx = 1 + (mix(a.sx, b.sx, u) - 1) * amp;
-  let sy = 1 + (mix(a.sy, b.sy, u) - 1) * amp;
-  let tip = mix(a.tip, b.tip, u) * amp;
-
-  // The hop: in the air between beats, feet down on the beat.
-  const arc = Math.sin(Math.PI * ph) ** 1.15;
-  y -= arc * size * (downbeat ? 0.105 : 0.055) * amp * clip.hop;
-  // Fast compression, slower recoil, then stretch in the air. This gives each
-  // beat anticipation and weight instead of a metronomic sine-wave bounce.
-  const landing = Math.exp(-ph * 13) * p.beat;
-  const squash = 0.13 * landing * amp * clip.hop;
-  const stretch = 0.065 * arc * amp * clip.hop;
-  sx *= 1 + squash - stretch;
-  sy *= 1 - squash + stretch;
-  tip += -rot / 22 + Math.sin(Math.PI * ph) * (idx % 2 === 0 ? 0.12 : -0.12);
-
-  // The last part of the riser is a visible crouch before the drop. It uses
-  // energy, so it happens before `flash` exists and reads as true anticipation.
-  if (p.flash <= 0 && p.energy > 0.82 && p.energy < 1) {
-    const crouch = smoother((p.energy - 0.82) / 0.18);
-    y += size * 0.055 * crouch;
-    sx *= 1 + 0.10 * crouch;
-    sy *= 1 - 0.15 * crouch;
-    rot *= 1 - 0.45 * crouch;
-    tip *= 1 - 0.65 * crouch;
-  }
-
-  // The drop: launch, spin, land and recoil over one second.
-  if (p.flash > 0) {
-    const u = Math.min(1, -Math.log(Math.max(p.flash, 1e-9)) / 3);   // seconds since the drop
-    if (u < 1) {
-      const flight = clamp(u / 0.78, 0, 1);
-      const jump = Math.sin(Math.PI * flight);
-      const spin = smoother(flight);
-      const settle = u > 0.78 ? Math.exp(-(u - 0.78) * 14) * Math.sin((u - 0.78) * 34) : 0;
-      y -= jump * size * 0.37;
-      y += settle * size * 0.035;
-      rot += 360 * spin + settle * 6;
-      sx *= 1 - 0.10 * jump + Math.max(0, settle) * 0.08;
-      sy *= 1 + 0.11 * jump - Math.max(0, settle) * 0.10;
-      tip += -Math.sin(Math.PI * flight) * 0.72 + settle * 0.35;
-    }
-  }
-  return { x, y, rot, sx, sy, tip: clamp(tip, -1, 1) };
+export function danceAt(p: WickPulse, size = SIZE, style?: WickDanceStyle, intensity = 1): Move {
+  const m = motionZero();
+  danceInto(p, m, style, intensity);
+  return { x: m.x * size, y: m.y * size, rot: m.rot, sx: 1 + m.sx, sy: 1 + m.sy, tip: clamp(m.tip, -1, 1) };
 }
 
 /** Everything about where Wick is on one frame. */
@@ -313,43 +178,37 @@ export interface PoseInput {
   danceStyle?: WickDanceStyle;
   danceIntensity?: number;
   size?: number;
+  /** Idle seed (the Motion Studio passes one so a clip is repeatable). */
+  seed?: number;
 }
 
-/** Wick's pose at time `t`. Same formulas and numbers as KeeperView's TimelineView body. */
+/**
+ * A stateless pose for exports and the studio: idle life plus the dance plus
+ * a tap. The live game uses MotionDirector instead (reactions, transitions,
+ * attention). Same channels, same numbers.
+ */
 export function poseAt(a: PoseInput): Pose {
   const size = a.size ?? SIZE;
-  const { t, mood } = a;
+  const { t } = a;
+  const m = motionZero();
+  const mood = motionMood(a.mood);
   if (a.reduceMotion) {
-    // No positional or scaling motion: only a soft opacity breath.
-    const glow = 0.86 + 0.14 * (Math.sin((t * 2 * Math.PI) / 2.4) + 1) / 2;
-    return { x: 0, y: 0, rot: 0, sx: 1, sy: 1, flicker: 0.5, opacity: glow };
+    if (a.pulse) danceReducedInto(a.pulse, m);
+    return { x: 0, y: 0, rot: 0, sx: 1, sy: 1, flicker: 0.5, opacity: idleGlow(t) * m.glow };
   }
-  const period = bobPeriod(mood);
-  const bob = Math.sin((t * 2 * Math.PI) / period) * bobAmplitude(mood, size);
-  const shiver = mood === "freezing" ? Math.sin(t * 30) * 1.2 : 0;
-  const shake = mood === "boiling" ? boilingShake(t, size) : { x: 0, y: 0, rot: 0 };
-  const flicker = 0.5 + Math.sin((t * 2 * Math.PI) / (period * 0.8)) / 2;
-  const breathe = 1 + Math.sin((t * 2 * Math.PI) / (period * 1.7)) * 0.03;
-
-  let pokeScale = 1;
-  let pokeWiggle = 0;
+  idleBody(t, a.seed ?? 0, mood, m, a.pulse ? 0.25 : 1);
+  if (a.pulse) danceInto(a.pulse, m, a.danceStyle, a.danceIntensity);
+  let sx = 1 + m.sx, sy = 1 + m.sy;
   if (a.pokeAt !== null) {
-    const e = t - a.pokeAt;
-    const env = pokeEnvelope(e);
-    pokeScale = 1 + env * 0.20;
-    pokeWiggle = env * 6 * Math.sin(e * 34);
+    const k = pokeSquash(t - a.pokeAt);
+    sx *= k.sx; sy *= k.sy;
   }
+  return { x: m.x * size, y: m.y * size, rot: m.rot, sx, sy, flicker: tipToFlicker(m.tip), opacity: 1 };
+}
 
-  const dance = a.pulse ? danceAt(a.pulse, size, a.danceStyle, a.danceIntensity) : STILL;
-  return {
-    x: shiver + shake.x + dance.x,
-    y: bob + shake.y + dance.y,
-    rot: pokeWiggle + shake.rot + dance.rot,
-    sx: breathe * pokeScale * dance.sx,
-    sy: breathe * pokeScale * dance.sy,
-    flicker: clamp(flicker + dance.tip * 0.16, 0, 1),
-    opacity: 1,
-  };
+/** Grey ("unamused" on the web) is the deadpan mood the motion calls grey. */
+export function motionMood(m: WickMood): MotionMood {
+  return m === "unamused" ? "grey" : m;
 }
 
 /** The SVG transform for a pose, pivoting on the base. */
@@ -413,6 +272,10 @@ export interface WickOptions {
   pulse?: () => WickPulse | null;
   /** Called when the player pokes him. */
   onPoke?: () => void;
+  /** 3.8: bump `seq` to cue a reaction clip (a scored guess, a personality
+   *  beat, an Ask Wick answer). `kind` is a wickpersonality.ts reaction kind,
+   *  "question", or null for a plain guess. The first value seen is not cued. */
+  cue?: { seq: number; kind: string | null };
 }
 
 export interface Wick {
@@ -435,13 +298,23 @@ export interface Wick {
   setSolveOptions(o: { firstGuess?: boolean; onSolveDone?: ((skipped: boolean) => void) | null }): void;
   /** Seconds into the solved sequence, or null when none is running. */
   readonly solveElapsed: number | null;
+  /** 3.8: play the reaction for a scored guess or a reaction kind now. */
+  cue(kind: string | null): void;
+  /** 3.8: the input field's focus, and a keystroke (typing awareness). */
+  input(focused: boolean, typed?: boolean): void;
   /** The face he is wearing. */
   readonly face: FaceName;
   /** Stop animating and remove the SVG. */
   destroy(): void;
 }
 
-const MOOD_EASE = 0.5;       // seconds, like iOS .easeInOut(duration: 0.5)
+/** One random number per page load, so each session idles a little differently. */
+const SESSION_SEED = (Math.random() * 4294967296) >>> 0;
+function seedFor(id: string): number {
+  let h = 2166136261;
+  for (let k = 0; k < id.length; k++) h = Math.imul(h ^ id.charCodeAt(k), 16777619);
+  return (SESSION_SEED ^ h) >>> 0;
+}
 const SVG_NS = "http://www.w3.org/2000/svg";
 
 function svgEl<K extends keyof SVGElementTagNameMap>(tag: K, attrs: Record<string, string | number> = {}): SVGElementTagNameMap[K] {
@@ -492,8 +365,9 @@ interface Inst {
   mood: WickMood;
   rgbFrom: RGB;
   rgbTo: RGB;
-  colorAt: number;            // when the colour ease began (seconds)
-  colorDone: boolean;         // true once the ease has landed and been painted
+  colorAt: number;            // when the colour change began (seconds)
+  colorDone: boolean;         // true once the wipe has landed and been painted
+  wipe: [number, number, number];
   stops: SVGStopElement[];
   glow: SVGPathElement;
   body: SVGPathElement;
@@ -529,7 +403,12 @@ interface Inst {
   pulse: () => WickPulse | null;
   io: IntersectionObserver | null;
   lastFlicker: number;
+  lastTip: string;
   lastPath: string;
+  /** 3.8 motion */
+  director: MotionDirector;
+  mo: Motion;
+  pose: Pose;
 }
 
 const instances = new Set<Inst>();
@@ -545,6 +424,11 @@ function reduceMotion(): boolean {
 
 function now(): number {
   return performance.now() / 1000;
+}
+
+/** The colour now, at stop `k` of the wipe (0 top, 1 middle, 2 bottom). */
+function wipeColor(i: Inst, k: number): RGB {
+  return mixRGB(i.rgbFrom, i.rgbTo, i.wipe[k]!);
 }
 
 function nextBlinkDelay(): number {
@@ -620,16 +504,23 @@ function changeFace(i: Inst, to: FaceName, t: number): void {
 }
 
 function frame(i: Inst, t: number, rm: boolean): void {
+  // 3.8: the solved sequence outranks everything (see wickmotion.ts).
+  const se = i.mood === "celebrating" && i.solvedAt !== null && i.solvedAt !== -Infinity ? t - i.solvedAt : null;
+  const solving = se !== null && se < (rm ? SOLVE_RM_DONE : SOLVE_DONE);
   const want = wantFace(i, t, rm);
   if (want !== i.face) changeFace(i, want, t);
   const e = t - i.faceAt;
-  const u = rm ? 1 : swapMorph(e);
-  const face = u >= 1 ? i.faceTo : lerpFace(i.faceFrom, i.faceTo, u);
-  const shut = face.eyes.every((ey) => ey.closed > 0.99);
+  const u = rm ? 1 : solving ? solveMorph(e) : swapMorph(e);
+  const face0 = u >= 1 ? i.faceTo : lerpFace(i.faceFrom, i.faceTo, u);
+  const shut = face0.eyes.every((ey) => ey.closed > 0.99);
+
+  // The transition is the latest face or colour change: one blink for both.
+  const te = t - Math.max(i.faceAt, i.colorAt);
+  const swap = rm || solving ? 0 : swapBlink(te);
 
   // Idle blinks: a random wait, then a quick shut and open (not while shut or changing faces).
   let blink = 0;
-  if (!rm && !shut && e > 0.6) {
+  if (!rm && !shut && te > 0.6) {
     if (i.blinkAt === null && t >= i.nextBlinkAt) i.blinkAt = t;
     if (i.blinkAt !== null) {
       const be = t - i.blinkAt;
@@ -637,24 +528,25 @@ function frame(i: Inst, t: number, rm: boolean): void {
       if (be >= BLINK_LENGTH) { i.blinkAt = null; i.nextBlinkAt = t + nextBlinkDelay(); }
     }
   }
-  const swap = rm ? 0 : swapBlink(e);
-  const closure = face.eyes.map((ey) => Math.max(ey.closed, blink, swap));
 
+  // The motion director: base pose, idle life, reaction, dance, transition.
   const pulse = i.dance ? i.pulse() : null;
-  const pose = poseAt({
-    t, mood: i.mood, pokeAt: i.pokeAt, reduceMotion: rm, pulse,
-    danceStyle: i.danceStyle, danceIntensity: i.danceIntensity,
-  });
-  // The pop as he opens on a new face: squash and stretch, a hop for Shocked.
-  if (!rm) {
-    const pop = pokeEnvelope(e - 0.3) * (i.face === "shocked" ? 1.6 : 1);
-    pose.sy *= 1 + 0.10 * pop;
-    pose.sx *= 1 - 0.06 * pop;
-    if (i.face === "shocked") pose.y -= 5 * pop;
+  const mo = i.mo;
+  i.director.sample(t, {
+    mood: motionMood(i.mood), rm, solveE: se, transitionE: te >= 0 && te < 2 ? te : null, pulse,
+    style: i.danceStyle, intensity: i.danceIntensity,
+  }, mo);
+  const pose = i.pose;
+  pose.x = mo.x * SIZE; pose.y = mo.y * SIZE; pose.rot = mo.rot;
+  pose.sx = 1 + mo.sx; pose.sy = 1 + mo.sy;
+  pose.flicker = rm ? 0.5 + 0.5 * clamp(mo.tip, -0.4, 0.4) : tipToFlicker(mo.tip);
+  pose.opacity = mo.glow;
+  if (!rm && i.pokeAt !== null) {
+    const k = pokeSquash(t - i.pokeAt);
+    pose.sx *= k.sx; pose.sy *= k.sy;
   }
   // 3.8: the solved sequence. Freeze on the hit, squash and rebound on the
   // release, one ring, and the sparks only from the release on.
-  const se = i.mood === "celebrating" && i.solvedAt !== null ? t - i.solvedAt : null;
   let sparksOn = true;
   if (se !== null) {
     if (!rm && se < SOLVE_HIT) { pose.x = 0; pose.y = 0; pose.rot = 0; pose.sx = 1; pose.sy = 1; }
@@ -673,32 +565,36 @@ function frame(i: Inst, t: number, rm: boolean): void {
     if (se >= done && i.onSolveDone) { const cb = i.onSolveDone; i.onSolveDone = null; cb(false); }
   }
   i.rig.setAttribute("transform", poseTransform(pose));
-  i.el.style.opacity = pose.opacity < 1 ? pose.opacity.toFixed(3) : "";
+  i.el.style.opacity = pose.opacity < 0.999 ? pose.opacity.toFixed(3) : "";
+
+  // The face with its live accents (pupils, brows, lids, tip).
+  const face = accentFace(face0, mo);
+  const closure = face.eyes.map((ey, k) => Math.max(ey.closed, blink, swap, Math.max(0, k === 0 ? mo.ll : mo.lr)));
 
   // The silhouette: only rewrite the path when the lean or the tip changed.
-  const tipChanging = e < 0.5;
-  if (Math.abs(pose.flicker - i.lastFlicker) > 0.002 || tipChanging) {
+  const tipKey = `${face.tip.dx.toFixed(2)},${face.tip.dy.toFixed(2)},${face.tip.sharp.toFixed(3)}`;
+  if (Math.abs(pose.flicker - i.lastFlicker) > 0.002 || tipKey !== i.lastTip) {
     i.lastFlicker = pose.flicker;
+    i.lastTip = tipKey;
     i.lastPath = flamePath(pose.flicker, face.tip);
     i.body.setAttribute("d", i.lastPath);
     i.glow.setAttribute("d", i.lastPath);
   }
 
-  // Colour ease.
-  const cf = Math.min(1, (t - i.colorAt) / MOOD_EASE);
-  const c = mixRGB(i.rgbFrom, i.rgbTo, cf);
+  // Colour: it travels up the flame, bottom first, behind the closed lids.
+  colorWipe(t - i.colorAt, rm, i.wipe);
+  const c = wipeColor(i, 1);
   if (!i.colorDone) {
-    const top = lighten(c, 0.12);
-    const bot = rgb(c);
-    i.stops[0]?.setAttribute("stop-color", top);
-    i.stops[1]?.setAttribute("stop-color", bot);
-    i.stops[2]?.setAttribute("stop-color", bot);
-    i.glow.setAttribute("fill", bot);
-    i.colorDone = cf >= 1;
+    i.stops[0]?.setAttribute("stop-color", lighten(wipeColor(i, 0), 0.12));
+    i.stops[1]?.setAttribute("stop-color", rgb(c));
+    i.stops[2]?.setAttribute("stop-color", rgb(wipeColor(i, 2)));
+    i.glow.setAttribute("fill", rgb(c));
+    i.colorDone = i.wipe[0] >= 1 && i.wipe[1] >= 1 && i.wipe[2] >= 1;
   }
 
   // The face: repaint only when something in it moved.
-  const key = `${i.face}|${u.toFixed(3)}|${closure.map((v) => v.toFixed(3)).join(",")}|${c.join(",")}`;
+  const q = (v: number): string => (Math.round(v * 2) / 2).toString();
+  const key = `${i.face}|${u.toFixed(3)}|${closure.map((v) => v.toFixed(3)).join(",")}|${c.join(",")}|${q(mo.gx)},${q(mo.gy)},${q(mo.bl)},${q(mo.br)},${(Math.min(0, mo.ll) + Math.min(0, mo.lr)).toFixed(2)}`;
   if (key !== i.faceKey) {
     i.faceKey = key;
     paintFace(i.faceSlots, i.id, face, closure, c);
@@ -768,7 +664,7 @@ export function mountWick(host: HTMLElement, opts: WickOptions): Wick {
   host.append(el);
 
   const inst: Inst = {
-    el, host, mood, rgbFrom: color, rgbTo: color, colorAt: t0 - MOOD_EASE, colorDone: false, stops, glow, body, rig,
+    el, host, mood, rgbFrom: color, rgbTo: color, colorAt: t0 - 10, colorDone: false, wipe: [1, 1, 1], stops, glow, body, rig,
     plate, id, faceSlots: face.slots, face: startFace, faceFrom: FACES[startFace], faceTo: FACES[startFace],
     faceAt: t0 - 10, race, focus, overrideFace: opts.face ?? null, showcase: !!opts.showcase, showStart: null, faceKey: "",
     sparkles: [], pokeAt: null,
@@ -776,7 +672,9 @@ export function mountWick(host: HTMLElement, opts: WickOptions): Wick {
     solveDoneOpt: opts.onSolveDone ?? null,
     nextBlinkAt: t0 + nextBlinkDelay(), blinkAt: null, visible: true, dance: !!opts.dance,
     danceStyle: opts.danceStyle ?? "swagger", danceIntensity: opts.danceIntensity ?? 1,
-    pulse: opts.pulse ?? musicPulse, io: null, lastFlicker: 0.5, lastPath: d0,
+    pulse: opts.pulse ?? musicPulse, io: null, lastFlicker: 0.5, lastTip: "", lastPath: d0,
+    director: new MotionDirector(seedFor(id)), mo: motionZero(),
+    pose: { x: 0, y: 0, rot: 0, sx: 1, sy: 1, flicker: 0.5, opacity: 1 },
   };
   const setSparkles = (m: WickMood): void => {
     sparkG.replaceChildren();
@@ -810,8 +708,9 @@ export function mountWick(host: HTMLElement, opts: WickOptions): Wick {
     setMood(m: WickMood) {
       if (m === inst.mood) return;
       const t = now();
-      // Start the colour ease from wherever the colour is right now.
-      inst.rgbFrom = mixRGB(inst.rgbFrom, inst.rgbTo, Math.min(1, (t - inst.colorAt) / MOOD_EASE));
+      // Start the colour change from wherever the colour is right now.
+      colorWipe(t - inst.colorAt, reduceMotion(), inst.wipe);
+      inst.rgbFrom = wipeColor(inst, 1);
       inst.rgbTo = moodRGB(m);
       inst.colorAt = t;
       inst.colorDone = false;
@@ -859,6 +758,8 @@ export function mountWick(host: HTMLElement, opts: WickOptions): Wick {
       if (inst.mood !== "celebrating" || inst.solvedAt === null || inst.solvedAt === -Infinity) return null;
       return now() - inst.solvedAt;
     },
+    cue(kind) { inst.director.cue(now(), kind); wake(); },
+    input(focused, typed = false) { inst.director.input(now(), focused, typed); wake(); },
     get face() { return inst.face; },
     destroy() { teardown(inst); el.remove(); },
   };
@@ -880,10 +781,17 @@ export function ensureWick(host: HTMLElement, opts: WickOptions): Wick {
     have.setFlags({ race: !!opts.race, focus: !!opts.focus, showcase: !!opts.showcase });
     have.setFace(opts.face ?? null);
     if (opts.dance !== undefined) have.setDance(opts.dance, opts.danceStyle, opts.danceIntensity);
+    const seen = cueSeen.get(have) ?? 0;
+    if (opts.cue && opts.cue.seq !== seen) {
+      cueSeen.set(have, opts.cue.seq);
+      if (opts.cue.seq > seen) have.cue(opts.cue.kind);
+    }
     return have;
   }
   host.replaceChildren();
   const w = mountWick(host, opts);
   mounted.set(host, w);
+  cueSeen.set(w, opts.cue?.seq ?? 0);    // a fresh Wick does not replay the last cue
   return w;
 }
+const cueSeen = new WeakMap<Wick, number>();

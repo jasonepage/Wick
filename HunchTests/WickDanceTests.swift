@@ -3,71 +3,53 @@
 //  WickDanceTests.swift
 //  HunchTests
 //
-//  Wick's boiling shake and his dance to the race music. The web has the same
-//  numbers and the same tests in wick-web/tests/wick.test.ts.
+//  Wick's dance to the race music (3.8 phrases). The web has the same checks
+//  in wick-web/tests/wickmotion.test.ts.
 //
 
 import Testing
 @testable import Hunch
 
+@MainActor
 struct WickDanceTests {
     private func pulse(_ t: Double, riserAt: Double? = nil, kiaiAt: Double? = nil) -> RaceMusic.Pulse {
         RaceMusic.pulse(at: t, riserAt: riserAt, kiaiAt: kiaiAt)
     }
 
-    @Test func boilingShakesHardButStaysReadable() {
+    @Test func oldBoilingShakeStillAvailableForReplay() {
         var most = 0.0
         for i in 0..<300 {
             let m = WickDance.boilingShake(t: Double(i) * 0.01, size: 72)
             most = max(most, (m.x * m.x + m.y * m.y).squareRoot())
             #expect(abs(m.rotation) <= 2.5)
         }
-        #expect(most > 2.4)          // much more than the old 0.8 point vibrate
-        #expect(most < 72 * 0.06)    // but he stays where he is
+        #expect(most > 2.4)
     }
 
     @Test func noMusicMeansNoDance() {
         #expect(WickDance.move(for: .none, size: 72) == .still)
     }
 
-    @Test func danceLandsOnTheBeatAndIsInTheAirBetween() {
-        let onBeat = WickDance.move(for: pulse(4.0), size: 100)
-        let midBeat = WickDance.move(for: pulse(4.25), size: 100)
-        #expect(abs(onBeat.y) < 1e-6)
-        #expect(midBeat.y < -3)
-        #expect(onBeat.scaleY < 1 && onBeat.scaleX > 1)
-        #expect(midBeat.scaleY > 1 && midBeat.scaleX < 1)
+    @Test func noSpinAnywhereIncludingTheDrop() {
+        for style in WickDance.Style.allCases {
+            var t = 0.0
+            while t < 8 {
+                #expect(abs(WickDance.move(for: pulse(t), size: 100, style: style).rotation) <= 12)
+                t += 0.01
+            }
+        }
+        var t = 240.0
+        while t < 242 {
+            #expect(abs(WickDance.move(for: pulse(t, riserAt: 236, kiaiAt: 240), size: 100).rotation) <= 12)
+            t += 0.01
+        }
     }
 
-    @Test func danceStepsToAlternatingSidesAndGoesBiggerOnBeatOne() {
-        let a = WickDance.move(for: pulse(4.0), size: 100)
-        let b = WickDance.move(for: pulse(4.5), size: 100)
-        #expect((a.x < 0) != (b.x < 0))
-        let bar = WickDance.move(for: pulse(4.25), size: 100)
-        let off = WickDance.move(for: pulse(4.75), size: 100)
-        #expect(abs(bar.y) > abs(off.y))
-    }
-
-    @Test func danceBuildsWithEnergyAndTheDropIsABigSpin() {
-        let chill = WickDance.move(for: pulse(4.25), size: 100)
-        let kiai = WickDance.move(for: pulse(104.25, riserAt: 90, kiaiAt: 94), size: 100)
-        #expect(abs(kiai.y) > abs(chill.y) * 1.5)
-        let drop = WickDance.move(for: pulse(94.5, riserAt: 90, kiaiAt: 94), size: 100)
-        #expect(drop.y < -30)
-        #expect(drop.rotation > 90 && drop.rotation < 360)
-        let later = WickDance.move(for: pulse(96.0, riserAt: 90, kiaiAt: 94), size: 100)
-        #expect(abs(later.rotation) < 20)
-    }
-
-    @Test func authoredClipsHaveDistinctWeightAndFlameFollowThrough() {
-        let p = pulse(4.25)
-        let groove = WickDance.move(for: p, size: 100, style: .groove)
-        let swagger = WickDance.move(for: p, size: 100, style: .swagger)
-        let hype = WickDance.move(for: p, size: 100, style: .hype)
-        #expect(abs(swagger.x) > abs(groove.x))
-        #expect(abs(hype.y) > abs(swagger.y))
-        #expect(abs(groove.tip) <= 1 && abs(swagger.tip) <= 1 && abs(hype.tip) <= 1)
-        #expect(groove.tip != hype.tip)
+    @Test func theDropLaunchesAndLands() {
+        let up = WickDance.move(for: pulse(240.3, riserAt: 236, kiaiAt: 240), size: 100)
+        let land = WickDance.move(for: pulse(240.5, riserAt: 236, kiaiAt: 240), size: 100)
+        #expect(up.y <= -20)
+        #expect(land.scaleY <= 0.9)
     }
 
     @Test func riserAnticipatesTheDropWithAGroundedCrouch() {
@@ -75,5 +57,23 @@ struct WickDanceTests {
         let crouch = WickDance.move(for: p, size: 100, style: .swagger)
         #expect(crouch.y > 0)
         #expect(crouch.scaleX > 1 && crouch.scaleY < 1)
+    }
+
+    @Test func swaggerPlantsOnBeatsFourAndEight() {
+        for beat in [3.0, 7.0] {
+            let a = WickDance.move(for: pulse((beat + 0.02) * 0.5), size: 100, style: .swagger)
+            let b = WickDance.move(for: pulse((beat + 0.4) * 0.5), size: 100, style: .swagger)
+            #expect(abs(b.x - a.x) < 2 && abs(b.rotation - a.rotation) < 2)
+        }
+    }
+
+    @Test func groovesStaysLowAndSmall() {
+        var t = 0.0
+        while t < 4 {
+            let m = WickDance.move(for: pulse(t), size: 100, style: .groove)
+            #expect(m.y >= -5)
+            #expect(abs(m.rotation) <= 5.0001)
+            t += 0.005
+        }
     }
 }

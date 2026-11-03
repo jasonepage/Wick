@@ -159,6 +159,11 @@ final class GameViewModel {
     private(set) var reactionPokeTick = 0
     /// 3.8: the long stall beat turns him grey for a moment.
     private(set) var reactionNeutral = false
+    /// 3.8 motion: bumped once per scored guess or reaction; KeeperView plays
+    /// one clip per bump. `motionCueKind` is a WickReactionKind raw value,
+    /// "question", or nil for a plain guess (the temperature's entrance).
+    private(set) var motionCue = 0
+    private(set) var motionCueKind: String? = nil
     @ObservationIgnored private var reactionTask: Task<Void, Never>?
     @ObservationIgnored private var personality = WickPersonalityState()
 
@@ -943,10 +948,20 @@ final class GameViewModel {
                                            guessCount: guesses.count, coldStreak: coldStreak)
         let reaction = WickPersonality.reaction(forGuess: input, state: &personality)
         play(reaction)
+        // Every scored guess plays one clip; the solve has its own sequence.
+        if !solved && score < 100 {
+            motionCueKind = reaction?.kind.rawValue
+            motionCue &+= 1
+        }
     }
 
     private func performQuestionReaction(_ question: String) {
-        play(WickPersonality.reaction(forQuestion: question))
+        let reaction = WickPersonality.reaction(forQuestion: question)
+        play(reaction)
+        if reaction != nil && !solved {
+            motionCueKind = "question"
+            motionCue &+= 1
+        }
     }
 
     /// Show a reaction: the face for its duration, a bounce if it asks for
@@ -957,7 +972,7 @@ final class GameViewModel {
         reactionTask?.cancel()
         reactionFace = reaction.face
         reactionNeutral = reaction.neutral
-        if reaction.poke { reactionPokeTick += 1 }
+        // 3.8: no generic bounce; the motion clip for the cue does the acting.
         if let line = reaction.line, language == .english { transientMessage = line }
         Events.track(.wickBeat, g: Events.beatCode(reaction.kind))
         let wait = reaction.duration

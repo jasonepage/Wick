@@ -313,17 +313,26 @@ nonisolated enum KeeperFaces {
     // MARK: Timing (same as the web)
 
     /// The transition blink: shut in 90 ms, hold while the face morphs, open by 420 ms.
+    /// 3.8 motion pass: closing 0 to 70 ms, shut 70 to 240 ms while the face
+    /// and colour change behind the lids, open by 360 ms (wickface.ts swapBlink).
     static func swapBlink(_ e: Double) -> Double {
         if e < 0 { return 0 }
-        if e < 0.09 { return e / 0.09 }
-        if e < 0.30 { return 1 }
-        if e < 0.42 { return 1 - (e - 0.30) / 0.12 }
+        if e < 0.07 { return e / 0.07 }
+        if e < 0.24 { return 1 }
+        if e < 0.36 { return 1 - (e - 0.24) / 0.12 }
         return 0
     }
 
     /// How far through the morph the brows, mouth and tip are.
     static func swapMorph(_ e: Double) -> Double {
-        let x: Double = max(0, min(1, (e - 0.06) / 0.32))
+        let x: Double = max(0, min(1, (e - 0.07) / 0.17))
+        return x * x * (3 - 2 * x)
+    }
+
+    /// During the solved sequence the face changes without a blink (the shock
+    /// must read first): a plain 160 ms morph.
+    static func solveMorph(_ e: Double) -> Double {
+        let x: Double = max(0, min(1, e / 0.16))
         return x * x * (3 - 2 * x)
     }
 
@@ -750,6 +759,11 @@ final class KeeperFaceAnimator {
         let pop: Double
         let name: KeeperFaceName
         let color: KeeperRGB
+        /// 3.8: the flame's gradient while the colour travels up it.
+        let bodyTop: KeeperRGB
+        let bodyBottom: KeeperRGB
+        /// 3.8: seconds since the last face or colour change began (nil long after).
+        let transitionE: Double?
         /// 3.8: the solved sequence, when one is running.
         let solveScale: KeeperSolve.Scale
         let solveRing: KeeperSolve.Ring?
@@ -802,8 +816,11 @@ final class KeeperFaceAnimator {
     /// Seconds on each face in the showcase.
     static let showcaseSeconds: Double = 5
 
-    private func color(at t: Double) -> KeeperRGB {
-        KeeperRGB.mix(colorFrom, colorTo, max(0, min(1, (t - colorAt) / 0.5)))
+    /// The colour at stop (top, middle, bottom) of the wipe, at time `t`.
+    private func colors(at t: Double, rm: Bool) -> (top: KeeperRGB, mid: KeeperRGB, bottom: KeeperRGB) {
+        let w = WickMotion.colorWipe(t - colorAt, rm: rm)
+        return (KeeperRGB.mix(colorFrom, colorTo, w.top), KeeperRGB.mix(colorFrom, colorTo, w.mid),
+                KeeperRGB.mix(colorFrom, colorTo, w.bottom))
     }
 
     func frame(t: Double, mood: KeeperMood, race: Bool, reduceMotion: Bool, showcase: Bool = false,
@@ -811,9 +828,9 @@ final class KeeperFaceAnimator {
         if mood != lastMood {
             let target = KeeperRGB.body(for: mood)
             if lastMood == nil {
-                colorFrom = target; colorTo = target; colorAt = t - 1
+                colorFrom = target; colorTo = target; colorAt = t - 10
             } else {
-                colorFrom = color(at: t); colorTo = target; colorAt = t
+                colorFrom = colors(at: t, rm: reduceMotion).mid; colorTo = target; colorAt = t
             }
             // 3.8: entering the solved color starts the sequence; a Wick that
             // was born solved shows the final pose.
@@ -857,13 +874,17 @@ final class KeeperFaceAnimator {
             nextBlinkAt = t + 1.2 + Double.random(in: 2.2...4.5)
         }
         let e: Double = t - faceAt
-        let u: Double = reduceMotion ? 1 : KeeperFaces.swapMorph(e)
+        // 3.8: the solve outranks the transition: no blink, a fast plain morph.
+        let solving: Bool = solveE.map { $0 < (reduceMotion ? KeeperSolve.rmDone : KeeperSolve.done) } ?? false
+        let u: Double = reduceMotion ? 1 : (solving ? KeeperFaces.solveMorph(e) : KeeperFaces.swapMorph(e))
         let face: KeeperFace = u >= 1 ? to : KeeperFaces.mix(from, to, u)
         let shut = face.eyes.allSatisfy { $0.closed > 0.99 }
+        // The transition is the latest face or colour change: one blink for both.
+        let te: Double = t - max(faceAt, colorAt)
 
         // Idle blinks: a random wait, then a quick shut and open (not while shut or changing faces).
         var blink: Double = 0
-        if !reduceMotion && !shut && e > 0.6 {
+        if !reduceMotion && !shut && te > 0.6 {
             if blinkAt == nil && t >= nextBlinkAt { blinkAt = t }
             if let b = blinkAt {
                 let be: Double = t - b
@@ -871,16 +892,19 @@ final class KeeperFaceAnimator {
                 if be >= 0.27 { blinkAt = nil; nextBlinkAt = t + Double.random(in: 2.2...4.5) }
             }
         }
-        let swap: Double = reduceMotion ? 0 : KeeperFaces.swapBlink(e)
+        let swap: Double = (reduceMotion || solving) ? 0 : KeeperFaces.swapBlink(te)
         let closure: [Double] = face.eyes.map { max($0.closed, blink, swap) }
         let current = name ?? want
-        let strength: Double = current == .shocked ? 1.6 : 1
-        let pop: Double = reduceMotion ? 0 : KeeperFaces.popEnvelope(e - 0.3) * strength
+        // The pop is now the director's transition silhouette (WickMotion).
+        let pop: Double = 0
         let sScale: KeeperSolve.Scale = (solveE != nil && !reduceMotion) ? KeeperSolve.scale(solveE!) : KeeperSolve.Scale(sx: 1, sy: 1)
         let sRing: KeeperSolve.Ring? = solveE.flatMap { KeeperSolve.ring($0, reduceMotion: reduceMotion) }
         let sparks: Bool = solveE.map { KeeperSolve.sparks($0, reduceMotion: reduceMotion) } ?? true
         let freeze: Bool = (solveE != nil && !reduceMotion) ? solveE! < KeeperSolve.hit : false
-        return Frame(face: face, closure: closure, pop: pop, name: current, color: color(at: t),
+        let cs = colors(at: t, rm: reduceMotion)
+        let transitionE: Double? = (te >= 0 && te < 2) ? te : nil
+        return Frame(face: face, closure: closure, pop: pop, name: current, color: cs.mid,
+                     bodyTop: cs.top, bodyBottom: cs.bottom, transitionE: transitionE,
                      solveScale: sScale, solveRing: sRing, sparksOn: sparks, freeze: freeze)
     }
 }

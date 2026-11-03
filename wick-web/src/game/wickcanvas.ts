@@ -12,7 +12,8 @@ import {
   type Pose, type WickMood, BASE_X, BASE_Y, SPARKLES, SPARKLE_COLOR, flamePath, sparklePhase,
 } from "./wick.ts";
 import {
-  type FaceName, type RGB, FACES, FACE_K, FACE_TX, FACE_TY, PLATE_ART, PLATE_PATH, faceDrawList, faceFor, lighten, rgb,
+  type FaceAccent, type FaceName, type FaceP, type RGB, FACES, FACE_K, FACE_TX, FACE_TY, PLATE_ART, PLATE_PATH,
+  accentFace, faceDrawList, faceFor, lighten, rgb,
 } from "./wickface.ts";
 
 export interface DrawWickArgs {
@@ -30,6 +31,16 @@ export interface DrawWickArgs {
   face?: FaceName;
   /** Seconds, for the sparkles. */
   t: number;
+  /** 3.8: a face already morphed (a transition caught mid-way). */
+  faceP?: FaceP;
+  /** 3.8: live accents from the motion director (pupils, brows, lids, tip). */
+  accent?: FaceAccent;
+  /** 3.8: per-eye closure on top of the face's own (a transition blink). */
+  closure?: number[];
+  /** 3.8: [top, middle, bottom] while the colour travels up the flame. */
+  colors?: [RGB, RGB, RGB];
+  /** Hide the sparkles (the solved sequence before its release beat). */
+  sparks?: boolean;
 }
 
 /** Paint one frame of Wick. Leaves the canvas state as it found it. */
@@ -46,9 +57,11 @@ export function drawWick(ctx: CanvasRenderingContext2D, a: DrawWickArgs): void {
   ctx.translate(-BASE_X, -BASE_Y);
 
   const faceName = a.face ?? faceFor({ mood: a.mood });
-  const face = FACES[faceName];
+  const face0 = a.faceP ?? FACES[faceName];
+  const face = a.accent ? accentFace(face0, a.accent) : face0;
   const flame = new Path2D(flamePath(pose.flicker, face.tip));
-  const body = rgb(a.color);
+  const [cTop, cMid, cBot] = a.colors ?? [a.color, a.color, a.color];
+  const body = rgb(cMid);
 
   // Glow: the flame again, a little bigger, blurred and faint.
   ctx.save();
@@ -63,9 +76,9 @@ export function drawWick(ctx: CanvasRenderingContext2D, a: DrawWickArgs): void {
 
   // Body: lighter at the tip.
   const g = ctx.createLinearGradient(0, 4, 0, 124);
-  g.addColorStop(0, lighten(a.color, 0.12));
+  g.addColorStop(0, lighten(cTop, 0.12));
   g.addColorStop(0.55, body);
-  g.addColorStop(1, body);
+  g.addColorStop(1, rgb(cBot));
   ctx.fillStyle = g;
   ctx.fill(flame);
 
@@ -77,7 +90,7 @@ export function drawWick(ctx: CanvasRenderingContext2D, a: DrawWickArgs): void {
   ctx.restore();
 
   // Sparkles (celebrating only).
-  if (a.mood === "celebrating") {
+  if (a.mood === "celebrating" && a.sparks !== false) {
     ctx.fillStyle = SPARKLE_COLOR;
     SPARKLES.forEach((s, k) => {
       const ph = sparklePhase(a.t, k);
@@ -97,9 +110,10 @@ export function drawWick(ctx: CanvasRenderingContext2D, a: DrawWickArgs): void {
   ctx.save();
   ctx.translate(FACE_TX, FACE_TY);
   ctx.scale(FACE_K, FACE_K);
-  const closure = face.eyes.map((e) => Math.max(e.closed, a.blink));
+  const lids = [a.accent ? Math.max(0, a.accent.ll) : 0, a.accent ? Math.max(0, a.accent.lr) : 0];
+  const closure = face.eyes.map((e, k) => Math.max(e.closed, a.blink, a.closure?.[k] ?? 0, lids[k] ?? 0));
   const plate = new Path2D(PLATE_ART);
-  for (const it of faceDrawList(face, closure, a.color)) {
+  for (const it of faceDrawList(face, closure, cMid)) {
     if (!it.d || it.opacity <= 0.001) continue;
     ctx.save();
     if (it.plate) ctx.clip(plate);

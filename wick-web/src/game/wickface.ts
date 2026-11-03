@@ -352,19 +352,50 @@ export function lerpFace(a: FaceP, b: FaceP, u: number): FaceP {
   return L(a, b) as FaceP;
 }
 
-/** The transition blink when the face changes: shut in 90 ms, hold while the
- *  face morphs behind the lids, open by 420 ms. */
+/** The transition blink when the face or colour changes (3.8 motion pass):
+ *  closing 0 to 70 ms, shut 70 to 240 ms while the face and colour change
+ *  behind the lids, open by 360 ms. */
 export function swapBlink(e: number): number {
   if (e < 0) return 0;
-  if (e < 0.09) return e / 0.09;
-  if (e < 0.30) return 1;
-  if (e < 0.42) return 1 - (e - 0.30) / 0.12;
+  if (e < 0.07) return e / 0.07;
+  if (e < 0.24) return 1;
+  if (e < 0.36) return 1 - (e - 0.24) / 0.12;
   return 0;
 }
-/** How far through the morph the brows, mouth and tip are `e` seconds in. */
+/** How far through the morph the brows, mouth and tip are `e` seconds in:
+ *  entirely behind the closed lids, 70 to 240 ms. */
 export function swapMorph(e: number): number {
-  const x = Math.max(0, Math.min(1, (e - 0.06) / 0.32));
+  const x = Math.max(0, Math.min(1, (e - 0.07) / 0.17));
   return x * x * (3 - 2 * x);
+}
+/** During the solved sequence the face changes without a blink (the shock
+ *  must read first): a plain 160 ms morph. */
+export function solveMorph(e: number): number {
+  const x = Math.max(0, Math.min(1, e / 0.16));
+  return x * x * (3 - 2 * x);
+}
+
+/** Small live offsets on top of a face (wickmotion.ts): pupils (gx, gy), each
+ *  brow (bl, br; negative is up), each lid (ll, lr; below 0 lifts the lid,
+ *  above 0 is drawn as closure by the caller), and the tip (tu). */
+export interface FaceAccent { gx: number; gy: number; bl: number; br: number; ll: number; lr: number; tu: number }
+
+/** The face with accents applied. Returns `p` itself when there are none. */
+export function accentFace(p: FaceP, a: FaceAccent): FaceP {
+  if (!a.gx && !a.gy && !a.bl && !a.br && a.ll >= 0 && a.lr >= 0 && !a.tu) return p;
+  const lid = [a.ll, a.lr];
+  return {
+    ...p,
+    eyes: p.eyes.map((e, i) => {
+      const lift = Math.min(0, lid[i] ?? 0) * 24;
+      return { ...e, pdx: e.pdx + a.gx, pdy: e.pdy + a.gy, lidL: e.lidL + lift, lidR: e.lidR + lift };
+    }),
+    brows: p.brows.map((b, i) => {
+      const dy = i === 0 ? a.bl : a.br;
+      return dy ? { ...b, c: b.c.map((q) => [q[0]!, q[1]! + dy]) } : b;
+    }),
+    tip: { ...p.tip, dy: p.tip.dy + a.tu },
+  };
 }
 
 // ── geometry (art units) ──
