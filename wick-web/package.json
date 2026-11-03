@@ -24,10 +24,10 @@
   "devDependencies": {
     "@types/qrcode": "^1.5.6",
     "typescript": "^5.7.2",
-    "vite": "^6.0.5"
+    "vite": "^6.4.5"
   },
   "dependencies": {
-    "mediabunny": "1.61.4",
+    "mediabunny": "1.63.0",
     "qrcode": "^1.5.4"
   }
 }
