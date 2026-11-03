@@ -10,6 +10,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- **Race Showdown.** A live race is now a head to head: both Wicks side by
+  side (YOU and OPPONENT, painted by heat band only), a live lead (YOU LEAD,
+  THEY LEAD, TIED) from best warmth, and the clock. A 3, 2, 1, GUESS face-off
+  plays over the first three seconds of the real clock with input live.
+  Momentum lines (YOU'RE HOTTER, THEY'RE CLOSING IN, DEAD HEAT, SUDDEN HEAT,
+  FINAL MINUTE, 15 SECONDS), at most one every two seconds. The final 15
+  seconds grow the timer and count 5 to 1. The recap shows guess counts,
+  best heat, lead changes and heat trails, with REMATCH or RACE SOMEONE NEW
+  and a share line. A dropped race gets its own network screen. Same state
+  and tests on web (raceshow.ts) and iOS (RaceShowdown.swift). No protocol
+  change.
 - **New Wick look.** Sharper dark purple brows with a smirk, a new app icon
   (App Store, website favicons, and the README), and two more faces, Warm
   and Hot, between Sly and Flustered.
