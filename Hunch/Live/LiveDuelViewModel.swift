@@ -151,7 +151,7 @@ final class LiveDuelViewModel: ObservableObject, MatchClientDelegate {
     // MARK: Race Showdown helpers
 
     /// Milliseconds on the wall clock: the race state's time base.
-    static func nowMs() -> Double { Date().timeIntervalSince1970 * 1000 }
+    nonisolated static func nowMs() -> Double { Date().timeIntervalSince1970 * 1000 }
 
     /// The server clock carried forward to `now`, or nil before the first snapshot.
     func raceClock(_ now: Double = LiveDuelViewModel.nowMs()) -> (elapsedMs: Int, remainingMs: Int)? {
