@@ -14,6 +14,7 @@
 
 import Foundation
 import Combine
+import UIKit
 
 @MainActor
 final class LiveDuelViewModel: ObservableObject, MatchClientDelegate {
@@ -67,6 +68,44 @@ final class LiveDuelViewModel: ObservableObject, MatchClientDelegate {
     @Published private(set) var opponentWord: (word: String, language: String)?
     @Published private(set) var banner: String?
 
+    // MARK: 3.8 Race Showdown state (RaceShowdown.swift does the thinking)
+
+    /// The latest momentum frame: lead, the event on screen, lead changes.
+    @Published private(set) var raceFrame: RaceShowdown.Frame?
+    /// The presentation phase from the server's remaining time.
+    @Published private(set) var racePhase: RaceShowdown.Phase = .opening
+    /// This match opened inside its first three seconds: play the face-off.
+    @Published private(set) var faceOff = false
+    /// Reaction cues for the two seat Wicks (a scored guess, a new lead).
+    @Published private(set) var youCue = 0
+    @Published private(set) var youCueKind: String? = nil
+    @Published private(set) var oppCue = 0
+    @Published private(set) var oppCueKind: String? = nil
+    /// Everything the recap shows, captured when the result lands. It stays
+    /// on screen while a friend rematch waits for the other player.
+    @Published private(set) var recapInfo: RecapInfo?
+    /// A friend rematch was tapped and is waiting for the other player.
+    @Published private(set) var waitingRematch = false
+
+    struct RecapInfo {
+        var recap: RaceShowdown.Recap
+        var reason: EndReason
+        var word: String?
+        var opponentWord: (word: String, language: String)?
+        var leadChanges: Int
+        var youTrail: [RaceShowdown.Band]
+        var themTrail: [RaceShowdown.Band]
+        /// The local Wick's last non-solved score, for where his color starts.
+        var youStartScore: Double?
+    }
+
+    private var raceShow = RaceShowdown.Show()
+    private var trails = RaceShowdown.TrailRecorder()
+    private var clockFix: RaceShowdown.ClockFix?
+    private var oppSeen = 0
+    private var rematchGate = RaceShowdown.RematchGate()
+    private var raceTask: Task<Void, Never>?
+
     /// This device's player id (used to read the winner out of a result).
     let myId = LiveConfig.kid
 
@@ -109,19 +148,94 @@ final class LiveDuelViewModel: ObservableObject, MatchClientDelegate {
         return w >= (others.max() ?? 0) ? .closest : .colder
     }
 
+    // MARK: Race Showdown helpers
+
+    /// Milliseconds on the wall clock: the race state's time base.
+    static func nowMs() -> Double { Date().timeIntervalSince1970 * 1000 }
+
+    /// The server clock carried forward to `now`, or nil before the first snapshot.
+    func raceClock(_ now: Double = LiveDuelViewModel.nowMs()) -> (elapsedMs: Int, remainingMs: Int)? {
+        clockFix.map { RaceShowdown.clock($0, now: now) }
+    }
+
+    /// The local seat's best warmth (0...1): the server's, or a fresher scored guess.
+    var youBest: Double {
+        max(snapshot?.you.bestWarmth ?? 0, (guesses.compactMap { $0.warmth }.max() ?? 0) / 100)
+    }
+    var youSolved: Bool { snapshot?.you.solved == true || guesses.contains { $0.correct } }
+    var youScoredCount: Int { max(snapshot?.you.guessCount ?? 0, guesses.filter { $0.warmth != nil }.count) }
+    /// The opponent seat: public progress only, painted by band.
+    var opponentSeat: RaceShowdown.OpponentSeat {
+        let o = snapshot?.opponent
+        return RaceShowdown.opponentSeat(bestWarmth: o?.bestWarmth ?? 0, guessCount: o?.guessCount ?? 0,
+                                         solved: o?.solved ?? false, connected: o?.connected ?? true)
+    }
+
+    /// The face-off pose for one seat right now (+1 local, -1 opponent).
+    func faceOffStance(side: Double, rm: Bool) -> RaceShowdown.Stance? {
+        guard faceOff, let c = raceClock(), c.elapsedMs < RaceShowdown.faceOffMs + 200 else { return nil }
+        return RaceShowdown.faceOffStance(Double(c.elapsedMs), side: side, rm: rm)
+    }
+
+    /// Feed public state into the momentum machine and act on what it says.
+    private func raceStep() {
+        guard phase == .playing, let snap = snapshot, let c = raceClock() else { return }
+        let f = raceShow.update(.init(now: Self.nowMs(), youBest: youBest, themBest: snap.opponent.bestWarmth,
+                                      youSolved: youSolved, themSolved: snap.opponent.solved,
+                                      remainingMs: c.remainingMs, result: false))
+        // The Wick that just took the lead gets one attention accent (the perk clip).
+        if f.accent == .you { youCueKind = "leap"; youCue += 1 }
+        if f.accent == .them { oppCueKind = "leap"; oppCue += 1 }
+        if f != raceFrame { raceFrame = f }
+        let p = RaceShowdown.phase(remainingMs: c.remainingMs, hasResult: false)
+        if p != racePhase { racePhase = p }
+        let loc = Loc(lang: .storedUI)
+        for k in f.voice { announce(loc.key(k)) }
+    }
+
+    /// Step the race ten times a second while it is live.
+    private func startRaceLoop() {
+        raceTask?.cancel()
+        raceTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .milliseconds(100))
+                guard let self, self.phase == .playing else { return }
+                self.raceStep()
+            }
+        }
+    }
+
+    private func announce(_ text: String) {
+        UIAccessibility.post(notification: .announcement, argument: text)
+    }
+
     // MARK: Intents
+
+    /// The recap's primary button: a friend rematch on the same code (the
+    /// recap stays up until both have tapped), or a new Quick Match. A second
+    /// tap does nothing.
+    func playAgain() {
+        guard rematchGate.request() else { return }
+        if isFriendMatch, let code = requestedFriendCode {
+            waitingRematch = true
+            find(mode: requestedMode, friendCode: code, keepRecap: true)
+        } else {
+            find()
+        }
+    }
 
     /// Connect and queue for a live match. Pass a `friendCode` to pair privately.
     /// `create` (3.1): true = host a fresh invite, false = join one, nil = legacy.
-    func find(mode: MatchMode = .casual, friendCode: String? = nil, create: Bool? = nil) {
-        resetState()
+    /// `keepRecap` (3.8): stay on the recap until the pairing opens the face-off.
+    func find(mode: MatchMode = .casual, friendCode: String? = nil, create: Bool? = nil, keepRecap: Bool = false) {
+        resetState(keepRecap: keepRecap)
         requestedMode = mode
         let code = friendCode?.trimmingCharacters(in: .whitespacesAndNewlines)
         requestedFriendCode = (code?.isEmpty ?? true) ? nil : code
         requestedCreate = requestedFriendCode == nil ? nil : create
         isFriendMatch = requestedFriendCode != nil
         isHosting = create == true
-        phase = .searching
+        if !keepRecap { phase = .searching }
         let c = MatchClient()
         c.delegate = self
         client = c
@@ -137,15 +251,12 @@ final class LiveDuelViewModel: ObservableObject, MatchClientDelegate {
     /// Rematch the same friend on the same code — both players tapping "Rematch"
     /// re-present the code and re-pair (legacy first-hosts/second-joins; no new link
     /// to exchange). Falls back to Quick Match if this wasn't a friend match.
-    func rematch() {
-        guard isFriendMatch, let code = requestedFriendCode else { find(); return }
-        find(mode: requestedMode, friendCode: code)
-    }
+    func rematch() { playAgain() }
 
     /// Submit a word guess. Warmth fills in when the server's `scored` frame lands.
     func submitGuess(_ raw: String) {
         let word = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard phase == .playing, !word.isEmpty else { return }
+        guard phase == .playing, racePhase != .expired, !word.isEmpty else { return }
         guesses.insert(Guess(word: word, warmth: nil, correct: false), at: 0)
         client?.guess(word)
     }
@@ -198,6 +309,12 @@ final class LiveDuelViewModel: ObservableObject, MatchClientDelegate {
         case .paired(let p):
             opponentKind = p.opponentKind
             startsAt = nil
+            // A rematch kept the last recap up until now: clear it.
+            waitingRematch = false
+            result = nil
+            revealedWord = nil
+            opponentWord = nil
+            recapInfo = nil
             phase = .playing
 
         case .queued(let waitMs):
@@ -209,6 +326,25 @@ final class LiveDuelViewModel: ObservableObject, MatchClientDelegate {
             // "searching" (e.g. we quit and relaunched), adopt the match.
             if phase == .searching { phase = .playing }
             RaceMusic.shared.update(remainingMs: s.clock.remainingMs)
+            // 3.8: the clock, the face-off, the opponent's cue and both trails.
+            let first = clockFix == nil
+            clockFix = RaceShowdown.ClockFix(elapsedMs: s.clock.elapsedMs, remainingMs: s.clock.remainingMs, at: Self.nowMs())
+            if first {
+                faceOff = RaceShowdown.faceOffEligible(s.clock.elapsedMs)
+                oppSeen = s.opponent.guessCount
+                if faceOff { announce(Loc(lang: .storedUI).raceFoundVoice) }
+                startRaceLoop()
+            }
+            // The opponent Wick only moves when their public progress changes.
+            if s.opponent.guessCount != oppSeen {
+                oppSeen = s.opponent.guessCount
+                oppCueKind = nil
+                oppCue += 1
+            }
+            trails.push(.you, RaceShowdown.band(youBest, solved: youSolved), guessCount: youScoredCount)
+            trails.push(.them, RaceShowdown.band(s.opponent.bestWarmth, solved: s.opponent.solved),
+                        guessCount: s.opponent.guessCount)
+            raceStep()
 
         case .scored(let guess, let score, let rank, let notAWord):
             if let i = guesses.firstIndex(where: { $0.word == guess && $0.warmth == nil }) {
@@ -221,6 +357,11 @@ final class LiveDuelViewModel: ObservableObject, MatchClientDelegate {
                 guesses[i].warmth = score
                 guesses[i].rank = rank
                 if score >= 100 { guesses[i].correct = true }
+                // 3.8: one reaction per scored guess, and the local trail.
+                youCueKind = nil
+                youCue += 1
+                trails.push(.you, RaceShowdown.band(youBest, solved: youSolved), guessCount: youScoredCount)
+                raceStep()
                 // Same feel + sound as the single-player board: a solved chime, a
                 // sparkle when this is a new best, otherwise the pitched "warmer"
                 // note (score IS the 0…100 closeness the tone scale expects).
@@ -249,6 +390,18 @@ final class LiveDuelViewModel: ObservableObject, MatchClientDelegate {
             }
             result = r
             revealedWord = word
+            // 3.8: the recap, from the server's result only.
+            let recap = RaceShowdown.recap(
+                reason: r.reason.rawValue, winner: r.winner, draw: r.draw,
+                players: r.players.map { .init(id: $0.id, solvedAtMs: $0.solvedAtMs, bestWarmth: $0.bestWarmth, guessCount: $0.guessCount) },
+                myId: myId)
+            recapInfo = RecapInfo(recap: recap, reason: r.reason, word: word, opponentWord: opponentWord,
+                                  leadChanges: raceFrame?.leadChanges ?? 0,
+                                  youTrail: trails.you, themTrail: trails.them,
+                                  youStartScore: guesses.first { $0.warmth != nil && !$0.correct }?.warmth)
+            rematchGate = RaceShowdown.RematchGate()
+            waitingRematch = false
+            raceTask?.cancel()
             phase = .finished
 
         case .opponentLeft:
@@ -280,6 +433,11 @@ final class LiveDuelViewModel: ObservableObject, MatchClientDelegate {
         if phase == .searching || phase == .playing {
             phase = .disconnected
             if banner == nil { banner = Loc(lang: .storedUI).liveConnectionLost }
+        } else if waitingRematch && !clean {
+            // The rematch could not connect: let the button work again.
+            waitingRematch = false
+            rematchGate.reset()
+            banner = Loc(lang: .storedUI).liveConnectionLost
         }
     }
 
@@ -290,17 +448,32 @@ final class LiveDuelViewModel: ObservableObject, MatchClientDelegate {
 
     // MARK: Helpers
 
-    private func resetState() {
+    private func resetState(keepRecap: Bool = false) {
         guesses = []
         replies = []
         snapshot = nil
         opponentKind = nil
         startsAt = nil
-        result = nil
-        revealedWord = nil
-        opponentWord = nil
+        if !keepRecap {
+            result = nil
+            revealedWord = nil
+            opponentWord = nil
+            recapInfo = nil
+            waitingRematch = false
+        }
         banner = nil
         isHosting = false
+        raceTask?.cancel()
+        raceTask = nil
+        raceShow = RaceShowdown.Show()
+        trails = RaceShowdown.TrailRecorder()
+        clockFix = nil
+        raceFrame = nil
+        racePhase = .opening
+        faceOff = false
+        oppSeen = 0
+        youCueKind = nil
+        oppCueKind = nil
     }
 
     /// Guesses are always single words, so a space or a trailing "?" marks a

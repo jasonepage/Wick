@@ -1016,3 +1016,118 @@ a.btn { display: block; box-sizing: border-box; text-align: center; text-decorat
 }
 @keyframes live-blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
 @media (prefers-reduced-motion: reduce) { .live-badge, .live-dot { animation: none; } }
+
+/* ── 3.8 Race Showdown: the two-seat arena ────────────────────────────────
+   Two equal seats on every width (never stacked: that breaks the duel), the
+   lead and the clock under them, and one fixed-height slot for momentum
+   events. Every height here is fixed, so an event or a phase change never
+   moves the guess field. */
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+}
+.race-card { gap: 12px; align-self: flex-start; }
+.arena {
+  position: relative; border-radius: 22px; padding: 12px 10px 8px;
+  background: rgba(var(--p-keeper), 0.10); border: 1px solid rgba(var(--p-keeper), 0.22);
+  transition: background 0.5s ease, border-color 0.5s ease;
+}
+.arena[data-phase="finalMinute"] { background: rgba(var(--p-keeper), 0.16); border-color: rgba(var(--p-keeper), 0.4); }
+.arena[data-phase="final15"] { background: rgba(var(--p-keeper), 0.2); border-color: rgba(var(--p-boiling), 0.5); }
+.arena[data-phase="expired"] { background: rgba(var(--p-keeper), 0.08); }
+.seats { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; max-width: 420px; margin: 0 auto; }
+.seat {
+  display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 0;
+  padding: 4px 2px 6px; border-radius: 16px; transition: background 0.5s ease, box-shadow 0.5s ease;
+}
+.seat-label { font-size: 0.72rem; font-weight: 800; letter-spacing: 0.08em; opacity: 0.7; }
+.seat-wick { display: flex; justify-content: center; }
+.seat-status {
+  font-size: 0.78rem; font-weight: 800; letter-spacing: 0.04em; line-height: 1.15; text-align: center;
+  min-height: 2.3em; display: flex; align-items: center; justify-content: center; overflow-wrap: anywhere;
+}
+.seat-count { font-size: 0.76rem; opacity: 0.65; font-variant-numeric: tabular-nums; }
+.arena[data-phase="finalMinute"] .seat-them .seat-status,
+.arena[data-phase="final15"] .seat-them .seat-status { filter: brightness(1.25); }
+.arena-center { position: relative; display: flex; flex-direction: column; align-items: center; margin-top: 2px; }
+.arena-live { display: flex; flex-direction: column; align-items: center; }
+.lead { font-size: 1rem; font-weight: 900; letter-spacing: 0.06em; height: 1.4em; }
+.lead[data-lead="you"] { color: rgb(var(--p-hot)); }
+.lead[data-lead="them"] { color: var(--opp); }
+.arena[data-phase="finalMinute"] .lead, .arena[data-phase="final15"] .lead { filter: brightness(1.2); }
+.lead.out { animation: race-lead-out 100ms ease-in forwards; }
+.lead.in { animation: race-lead-in 160ms ease-out; }
+@keyframes race-lead-out { to { opacity: 0; transform: translateY(-5px); } }
+@keyframes race-lead-in { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: none; } }
+.timer-row { position: relative; display: flex; align-items: center; justify-content: center; height: 2.6rem; }
+.timer {
+  font-size: 1.7rem; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums;
+  transform-origin: center; opacity: 0.85;
+}
+.arena[data-phase="finalMinute"] .timer { opacity: 1; }
+.arena[data-phase="final15"] .timer { opacity: 1; color: rgb(var(--p-boiling)); }
+.final-count {
+  position: absolute; left: calc(50% + 4.2rem); font-size: 2.1rem; font-weight: 900; line-height: 1;
+  color: rgb(var(--p-boiling)); font-variant-numeric: tabular-nums;
+}
+.final-count.hit { animation: race-plant 300ms ease-out; }
+.momentum { height: 1.5em; font-size: 0.9rem; font-weight: 900; letter-spacing: 0.06em; opacity: 0; text-align: center; }
+.momentum.show { animation: race-momentum 800ms ease-out forwards; }
+.momentum[data-event="youHotter"] { color: rgb(var(--p-hot)); }
+.momentum[data-event="closingIn"] { color: var(--opp); }
+.momentum[data-event="deadHeat"], .momentum[data-event="suddenHeat"] { color: var(--gold); }
+.momentum[data-event="finalMinute"] { color: #b9a8ff; }
+.momentum[data-event="final15"] { color: rgb(var(--p-boiling)); }
+@keyframes race-momentum {
+  0% { opacity: 0; transform: scale(0.94); }
+  18% { opacity: 1; transform: scale(1); }
+  78% { opacity: 1; }
+  100% { opacity: 0; }
+}
+/* The face-off sits over the lead and clock for its three seconds. */
+.faceoff {
+  position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+}
+.faceoff[hidden] { display: none; }
+.arena.in-faceoff .arena-live { visibility: hidden; }
+.faceoff-title { font-size: 0.78rem; font-weight: 900; letter-spacing: 0.06em; text-align: center; line-height: 1.2; }
+.faceoff-step { font-size: 2.2rem; font-weight: 900; line-height: 1; color: #b9a8ff; }
+.faceoff-step.hit { animation: race-plant 260ms ease-out; }
+@keyframes race-plant { from { transform: scale(1.16); } to { transform: scale(1); } }
+@keyframes race-fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes race-fade-out { to { opacity: 0; } }
+@keyframes race-momentum-fade { 0% { opacity: 0; } 18% { opacity: 1; } 78% { opacity: 1; } 100% { opacity: 0; } }
+/* Reduced Motion: opacity only. No slide, no scale. */
+@media (prefers-reduced-motion: reduce) {
+  .lead.out { animation: race-fade-out 100ms forwards; }
+  .lead.in { animation: race-fade-in 160ms; }
+  .faceoff-step.hit, .final-count.hit { animation: race-fade-in 200ms; }
+  .momentum.show { animation: race-momentum-fade 800ms forwards; }
+  .arena, .seat { transition: none; }
+}
+.theme-light .arena { background: rgba(var(--p-keeper), 0.08); }
+.theme-light .faceoff-step, .theme-light .momentum[data-event="finalMinute"] { color: rgb(var(--p-keeper)); }
+
+/* ── 3.8 Race Showdown: the recap ─────────────────────────────────────── */
+.arena-result { padding-bottom: 10px; }
+.seat.green { background: rgba(var(--p-solved), 0.22); box-shadow: inset 0 0 0 1px rgba(var(--p-solved), 0.5); }
+.arena-result.even .seat { background: rgba(var(--p-keeper), 0.10); }
+.recap-title { text-align: center; letter-spacing: 0.02em; }
+.recap-title.outcome-win { color: rgb(var(--p-solved)); }
+.recap-line { font-size: 0.88rem; opacity: 0.8; margin: 0; }
+.recap { display: grid; gap: 6px; font-size: 0.88rem; }
+.recap-row { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr) minmax(0, 1fr); gap: 8px; align-items: center; }
+.recap-head { font-size: 0.72rem; font-weight: 800; letter-spacing: 0.08em; opacity: 0.65; }
+.recap-k { opacity: 0.72; }
+.recap-v { text-align: center; font-weight: 700; font-size: 0.82rem; line-height: 1.2; overflow-wrap: break-word; }
+.trail { display: inline-flex; align-items: center; flex-wrap: wrap; justify-content: center; row-gap: 4px; }
+.trail-dot { display: inline-block; width: 10px; height: 10px; border-radius: 999px; }
+.trail-dot.band-solved { box-shadow: 0 0 0 2px rgba(var(--p-solved), 0.35); }
+.trail-link { display: inline-block; width: 5px; height: 2px; background: rgba(255, 255, 255, 0.25); }
+.theme-light .trail-link { background: rgba(80, 64, 130, 0.25); }
+.conn-lost .conn-icon { display: flex; justify-content: center; color: rgba(var(--p-keeper), 0.9); margin-top: 6px; }
+@media (min-width: 720px) {
+  .race-card { max-width: 520px; }
+  .timer { font-size: 2rem; }
+}
+.race-card .guess-row .field:disabled, .race-card .guess-row .send:disabled { opacity: 0.45; cursor: not-allowed; }

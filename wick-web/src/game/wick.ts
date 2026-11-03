@@ -276,7 +276,13 @@ export interface WickOptions {
    *  beat, an Ask Wick answer). `kind` is a wickpersonality.ts reaction kind,
    *  "question", or null for a plain guess. The first value seen is not cued. */
   cue?: { seq: number; kind: string | null };
+  /** 3.8 Race Showdown: a small pose added on top of his motion every frame
+   *  (the face-off glance and lean). Return null for none. */
+  stance?: (() => WickStance | null) | null;
 }
+
+/** Pupils, tip lean and a scale squash, in wickmotion.ts channel units. */
+export interface WickStance { gx: number; tip: number; sx: number; sy: number }
 
 export interface Wick {
   readonly el: SVGSVGElement;
@@ -302,6 +308,8 @@ export interface Wick {
   cue(kind: string | null): void;
   /** 3.8: the input field's focus, and a keystroke (typing awareness). */
   input(focused: boolean, typed?: boolean): void;
+  /** 3.8: the extra pose read every frame (see WickOptions.stance). */
+  setStance(fn: (() => WickStance | null) | null): void;
   /** The face he is wearing. */
   readonly face: FaceName;
   /** Stop animating and remove the SVG. */
@@ -409,6 +417,7 @@ interface Inst {
   director: MotionDirector;
   mo: Motion;
   pose: Pose;
+  stance: (() => WickStance | null) | null;
 }
 
 const instances = new Set<Inst>();
@@ -536,6 +545,9 @@ function frame(i: Inst, t: number, rm: boolean): void {
     mood: motionMood(i.mood), rm, solveE: se, transitionE: te >= 0 && te < 2 ? te : null, pulse,
     style: i.danceStyle, intensity: i.danceIntensity,
   }, mo);
+  // 3.8 Race Showdown: the face-off pose (it already obeys Reduced Motion).
+  const st = i.stance ? i.stance() : null;
+  if (st) { mo.gx += st.gx; mo.tip += st.tip; mo.sx += st.sx; mo.sy += st.sy; }
   const pose = i.pose;
   pose.x = mo.x * SIZE; pose.y = mo.y * SIZE; pose.rot = mo.rot;
   pose.sx = 1 + mo.sx; pose.sy = 1 + mo.sy;
@@ -673,7 +685,7 @@ export function mountWick(host: HTMLElement, opts: WickOptions): Wick {
     nextBlinkAt: t0 + nextBlinkDelay(), blinkAt: null, visible: true, dance: !!opts.dance,
     danceStyle: opts.danceStyle ?? "swagger", danceIntensity: opts.danceIntensity ?? 1,
     pulse: opts.pulse ?? musicPulse, io: null, lastFlicker: 0.5, lastTip: "", lastPath: d0,
-    director: new MotionDirector(seedFor(id)), mo: motionZero(),
+    director: new MotionDirector(seedFor(id)), mo: motionZero(), stance: opts.stance ?? null,
     pose: { x: 0, y: 0, rot: 0, sx: 1, sy: 1, flicker: 0.5, opacity: 1 },
   };
   const setSparkles = (m: WickMood): void => {
@@ -760,6 +772,7 @@ export function mountWick(host: HTMLElement, opts: WickOptions): Wick {
     },
     cue(kind) { inst.director.cue(now(), kind); wake(); },
     input(focused, typed = false) { inst.director.input(now(), focused, typed); wake(); },
+    setStance(fn) { inst.stance = fn; wake(); },
     get face() { return inst.face; },
     destroy() { teardown(inst); el.remove(); },
   };
@@ -780,6 +793,7 @@ export function ensureWick(host: HTMLElement, opts: WickOptions): Wick {
     have.setScore(opts.score, opts.neutral);
     have.setFlags({ race: !!opts.race, focus: !!opts.focus, showcase: !!opts.showcase });
     have.setFace(opts.face ?? null);
+    have.setStance(opts.stance ?? null);
     if (opts.dance !== undefined) have.setDance(opts.dance, opts.danceStyle, opts.danceIntensity);
     const seen = cueSeen.get(have) ?? 0;
     if (opts.cue && opts.cue.seq !== seen) {

@@ -513,6 +513,49 @@ struct Loc {
     /// "The word was %@": the practice replay's end card formats it itself.
     var replayAnswerWasFormat: String { s("replayAnswerWas") }
 
+    // MARK: - Race Showdown (3.8)
+    /// A string by key, for keys the race state names itself (RaceShowdown.swift).
+    func key(_ k: String) -> String { s(k) }
+    var raceFaceOffTitle: String { s("raceFaceOffTitle") }
+    var raceFaceOffGo: String { s("raceFaceOffGo") }
+    var raceFoundVoice: String { s("raceFoundVoice") }
+    var raceBandSearching: String { s("raceBandSearching") }
+    var raceBandTrail: String { s("raceBandTrail") }
+    var raceBandHeating: String { s("raceBandHeating") }
+    var raceBandClose: String { s("raceBandClose") }
+    var raceBandDanger: String { s("raceBandDanger") }
+    var raceBandSolved: String { s("raceBandSolved") }
+    var raceYouLead: String { s("raceYouLead") }
+    var raceTheyLead: String { s("raceTheyLead") }
+    var raceTied: String { s("raceTied") }
+    var raceYoureHotter: String { s("raceYoureHotter") }
+    var raceClosingIn: String { s("raceClosingIn") }
+    var raceDeadHeat: String { s("raceDeadHeat") }
+    var raceSuddenHeat: String { s("raceSuddenHeat") }
+    var raceFinalMinute: String { s("raceFinalMinute") }
+    var race15Seconds: String { s("race15Seconds") }
+    var raceYouTurnedGreen: String { s("raceYouTurnedGreen") }
+    var raceTheyGotThere: String { s("raceTheyGotThere") }
+    var raceSomeoneNew: String { s("raceSomeoneNew") }
+    var raceRematch: String { s("raceRematch") }
+    var raceSeatYou: String { s("raceSeatYou") }
+    var raceSeatOpponent: String { s("raceSeatOpponent") }
+    var raceReconnecting: String { s("raceReconnecting") }
+    var raceRecapFinish: String { s("raceRecapFinish") }
+    var raceRecapGuesses: String { s("raceRecapGuesses") }
+    var raceRecapBest: String { s("raceRecapBest") }
+    var raceRecapLeadChanges: String { s("raceRecapLeadChanges") }
+    var raceRecapTrail: String { s("raceRecapTrail") }
+    var raceShareResult: String { s("raceShareResult") }
+    func raceShareWon(_ a0: Int) -> String { f("raceShareWon", a0) }
+    var raceShareLost: String { s("raceShareLost") }
+    var raceShareDraw: String { s("raceShareDraw") }
+    var raceWaitingRematch: String { s("raceWaitingRematch") }
+    var raceConnLostTitle: String { s("raceConnLostTitle") }
+    var raceConnLostBody: String { s("raceConnLostBody") }
+    var raceTimeUpWaiting: String { s("raceTimeUpWaiting") }
+    func raceSeatVoice(_ a0: String, _ a1: String, _ a2: Int) -> String { f("raceSeatVoice", a0, a1, a2) }
+
     // MARK: - Tables
 
     /// All string tables, keyed by language code. Adding a language = adding
@@ -528,6 +571,46 @@ struct Loc {
     /// English — the source language and universal fallback. Every key MUST
     /// exist here.
     static let en: [String: String] = [
+        // 3.8 Race Showdown
+        "raceFaceOffTitle": "FIRST TO TURN WICK GREEN WINS",
+        "raceFaceOffGo": "GUESS",
+        "raceFoundVoice": "Race found. Starts in three.",
+        "raceBandSearching": "SEARCHING",
+        "raceBandTrail": "FOUND A TRAIL",
+        "raceBandHeating": "HEATING UP",
+        "raceBandClose": "VERY CLOSE",
+        "raceBandDanger": "DANGEROUSLY CLOSE",
+        "raceBandSolved": "SOLVED",
+        "raceYouLead": "YOU LEAD",
+        "raceTheyLead": "THEY LEAD",
+        "raceTied": "TIED",
+        "raceYoureHotter": "YOU'RE HOTTER",
+        "raceClosingIn": "THEY'RE CLOSING IN",
+        "raceDeadHeat": "DEAD HEAT",
+        "raceSuddenHeat": "SUDDEN HEAT",
+        "raceFinalMinute": "FINAL MINUTE",
+        "race15Seconds": "15 SECONDS",
+        "raceYouTurnedGreen": "YOU TURNED WICK GREEN",
+        "raceTheyGotThere": "THEY GOT THERE FIRST",
+        "raceSomeoneNew": "RACE SOMEONE NEW",
+        "raceRematch": "REMATCH",
+        "raceSeatYou": "YOU",
+        "raceSeatOpponent": "OPPONENT",
+        "raceReconnecting": "RECONNECTING",
+        "raceRecapFinish": "Finish time",
+        "raceRecapGuesses": "Guesses",
+        "raceRecapBest": "Best heat",
+        "raceRecapLeadChanges": "Lead changes",
+        "raceRecapTrail": "Heat trail",
+        "raceShareResult": "Share result",
+        "raceShareWon": "I won a Wick race in %d guesses. Race me:",
+        "raceShareLost": "I just lost a close Wick race. Race me:",
+        "raceShareDraw": "My Wick race ended in a draw. Race me:",
+        "raceWaitingRematch": "Waiting for them to tap Rematch",
+        "raceConnLostTitle": "Connection lost",
+        "raceConnLostBody": "This is a network problem, not a loss.",
+        "raceTimeUpWaiting": "TIME'S UP",
+        "raceSeatVoice": "%@. %@. %d guesses.",
         // The Reveal (3.2)
         "revealFound": "You found %@ in %d",
         "revealCaption": "Distance from the center is how close you were in meaning; similar guesses sit near each other.",
@@ -915,6 +998,46 @@ struct Loc {
 
     /// Spanish.
     static let es: [String: String] = [
+        // 3.8 Race Showdown
+        "raceFaceOffTitle": "GANA QUIEN PONGA A WICK VERDE PRIMERO",
+        "raceFaceOffGo": "ADIVINA",
+        "raceFoundVoice": "Carrera encontrada. Empieza en tres.",
+        "raceBandSearching": "BUSCANDO",
+        "raceBandTrail": "HAY UNA PISTA",
+        "raceBandHeating": "SE CALIENTA",
+        "raceBandClose": "MUY CERCA",
+        "raceBandDanger": "A UN PASO",
+        "raceBandSolved": "RESUELTO",
+        "raceYouLead": "VAS DELANTE",
+        "raceTheyLead": "VA DELANTE",
+        "raceTied": "EMPATE",
+        "raceYoureHotter": "ARDES MÁS",
+        "raceClosingIn": "SE ACERCA",
+        "raceDeadHeat": "EMPATE TOTAL",
+        "raceSuddenHeat": "CALOR SÚBITO",
+        "raceFinalMinute": "ÚLTIMO MINUTO",
+        "race15Seconds": "15 SEGUNDOS",
+        "raceYouTurnedGreen": "PUSISTE A WICK VERDE",
+        "raceTheyGotThere": "LLEGÓ PRIMERO",
+        "raceSomeoneNew": "NUEVO RIVAL",
+        "raceRematch": "REVANCHA",
+        "raceSeatYou": "TÚ",
+        "raceSeatOpponent": "RIVAL",
+        "raceReconnecting": "RECONECTANDO",
+        "raceRecapFinish": "Tiempo final",
+        "raceRecapGuesses": "Intentos",
+        "raceRecapBest": "Mejor calor",
+        "raceRecapLeadChanges": "Cambios de líder",
+        "raceRecapTrail": "Rastro de calor",
+        "raceShareResult": "Compartir resultado",
+        "raceShareWon": "Gané una carrera de Wick en %d intentos. Échame una carrera:",
+        "raceShareLost": "Acabo de perder una carrera reñida en Wick. Échame una carrera:",
+        "raceShareDraw": "Mi carrera de Wick acabó en empate. Échame una carrera:",
+        "raceWaitingRematch": "Esperando a que pulse Revancha",
+        "raceConnLostTitle": "Conexión perdida",
+        "raceConnLostBody": "Es un problema de red, no una derrota.",
+        "raceTimeUpWaiting": "SE ACABÓ EL TIEMPO",
+        "raceSeatVoice": "%@. %@. %d intentos.",
         // The Reveal (3.2)
         "revealFound": "Encontraste %@ en %d",
         "revealCaption": "La distancia al centro indica lo cerca que estuviste en significado; las palabras parecidas quedan juntas.",
@@ -1299,6 +1422,46 @@ struct Loc {
     /// sentences here are phrased to fit ("Apprendre l'anglais", "traduit vers
     /// l'anglais").
     static let fr: [String: String] = [
+        // 3.8 Race Showdown
+        "raceFaceOffTitle": "LE PREMIER QUI REND WICK VERT GAGNE",
+        "raceFaceOffGo": "DEVINE",
+        "raceFoundVoice": "Course trouvée. Départ dans trois.",
+        "raceBandSearching": "CHERCHE",
+        "raceBandTrail": "UNE PISTE",
+        "raceBandHeating": "ÇA CHAUFFE",
+        "raceBandClose": "TOUT PRÈS",
+        "raceBandDanger": "À UN CHEVEU",
+        "raceBandSolved": "TROUVÉ",
+        "raceYouLead": "TU MÈNES",
+        "raceTheyLead": "L'AUTRE MÈNE",
+        "raceTied": "ÉGALITÉ",
+        "raceYoureHotter": "TU CHAUFFES PLUS",
+        "raceClosingIn": "L'AUTRE SE RAPPROCHE",
+        "raceDeadHeat": "COUDE À COUDE",
+        "raceSuddenHeat": "COUP DE CHAUD",
+        "raceFinalMinute": "DERNIÈRE MINUTE",
+        "race15Seconds": "15 SECONDES",
+        "raceYouTurnedGreen": "TU AS RENDU WICK VERT",
+        "raceTheyGotThere": "L'AUTRE EST ARRIVÉ PREMIER",
+        "raceSomeoneNew": "NOUVEL ADVERSAIRE",
+        "raceRematch": "REVANCHE",
+        "raceSeatYou": "TOI",
+        "raceSeatOpponent": "ADVERSAIRE",
+        "raceReconnecting": "RECONNEXION",
+        "raceRecapFinish": "Temps final",
+        "raceRecapGuesses": "Essais",
+        "raceRecapBest": "Meilleure chaleur",
+        "raceRecapLeadChanges": "Changements de tête",
+        "raceRecapTrail": "Trace de chaleur",
+        "raceShareResult": "Partager le résultat",
+        "raceShareWon": "J'ai gagné une course Wick en %d essais. Affronte-moi :",
+        "raceShareLost": "Je viens de perdre une course Wick serrée. Affronte-moi :",
+        "raceShareDraw": "Ma course Wick s'est finie à égalité. Affronte-moi :",
+        "raceWaitingRematch": "On attend que l'autre touche Revanche",
+        "raceConnLostTitle": "Connexion perdue",
+        "raceConnLostBody": "C'est un problème de réseau, pas une défaite.",
+        "raceTimeUpWaiting": "TEMPS ÉCOULÉ",
+        "raceSeatVoice": "%@. %@. %d essais.",
         // The Reveal (3.2)
         "revealFound": "%@ trouv\u{00E9} en %d",
         "revealCaption": "La distance au centre indique votre proximit\u{00E9} de sens ; les mots proches sont regroup\u{00E9}s.",
@@ -1683,6 +1846,46 @@ struct Loc {
     /// sentences here are phrased to fit ("Impara l'inglese", "tradotto verso
     /// l'inglese").
     static let it: [String: String] = [
+        // 3.8 Race Showdown
+        "raceFaceOffTitle": "VINCE CHI RENDE WICK VERDE PER PRIMO",
+        "raceFaceOffGo": "INDOVINA",
+        "raceFoundVoice": "Gara trovata. Si parte tra tre.",
+        "raceBandSearching": "CERCANDO",
+        "raceBandTrail": "SULLA PISTA",
+        "raceBandHeating": "SI SCALDA",
+        "raceBandClose": "VICINISSIMO",
+        "raceBandDanger": "A UN PASSO",
+        "raceBandSolved": "RISOLTO",
+        "raceYouLead": "SEI IN TESTA",
+        "raceTheyLead": "È IN TESTA",
+        "raceTied": "PARI",
+        "raceYoureHotter": "SEI PIÙ CALDO",
+        "raceClosingIn": "SI AVVICINA",
+        "raceDeadHeat": "TESTA A TESTA",
+        "raceSuddenHeat": "CALDO IMPROVVISO",
+        "raceFinalMinute": "ULTIMO MINUTO",
+        "race15Seconds": "15 SECONDI",
+        "raceYouTurnedGreen": "HAI RESO WICK VERDE",
+        "raceTheyGotThere": "L'ALTRO È ARRIVATO PRIMA",
+        "raceSomeoneNew": "NUOVO AVVERSARIO",
+        "raceRematch": "RIVINCITA",
+        "raceSeatYou": "TU",
+        "raceSeatOpponent": "AVVERSARIO",
+        "raceReconnecting": "RICONNESSIONE",
+        "raceRecapFinish": "Tempo finale",
+        "raceRecapGuesses": "Tentativi",
+        "raceRecapBest": "Calore massimo",
+        "raceRecapLeadChanges": "Cambi in testa",
+        "raceRecapTrail": "Scia di calore",
+        "raceShareResult": "Condividi risultato",
+        "raceShareWon": "Ho vinto una gara di Wick in %d tentativi. Sfidami:",
+        "raceShareLost": "Ho appena perso una gara di Wick combattuta. Sfidami:",
+        "raceShareDraw": "La mia gara di Wick è finita pari. Sfidami:",
+        "raceWaitingRematch": "In attesa che l'altro tocchi Rivincita",
+        "raceConnLostTitle": "Connessione persa",
+        "raceConnLostBody": "È un problema di rete, non una sconfitta.",
+        "raceTimeUpWaiting": "TEMPO SCADUTO",
+        "raceSeatVoice": "%@. %@. %d tentativi.",
         // The Reveal (3.2)
         "revealFound": "Hai trovato %@ in %d",
         "revealCaption": "La distanza dal centro indica quanto eri vicino nel significato; le parole simili stanno vicine.",
@@ -2066,6 +2269,46 @@ struct Loc {
     /// German. Language names arrive bare ("Englisch"); the learn strings put
     /// the verb last ("Englisch lernen"), as German wants.
     static let de: [String: String] = [
+        // 3.8 Race Showdown
+        "raceFaceOffTitle": "WER WICK ZUERST GRÜN MACHT, GEWINNT",
+        "raceFaceOffGo": "RATE",
+        "raceFoundVoice": "Rennen gefunden. Start in drei.",
+        "raceBandSearching": "SUCHT",
+        "raceBandTrail": "EINE SPUR",
+        "raceBandHeating": "WIRD WARM",
+        "raceBandClose": "SEHR NAH",
+        "raceBandDanger": "GEFÄHRLICH NAH",
+        "raceBandSolved": "GELÖST",
+        "raceYouLead": "DU FÜHRST",
+        "raceTheyLead": "GEGNER FÜHRT",
+        "raceTied": "GLEICHSTAND",
+        "raceYoureHotter": "DU BIST HEISSER",
+        "raceClosingIn": "GEGNER HOLT AUF",
+        "raceDeadHeat": "KOPF AN KOPF",
+        "raceSuddenHeat": "PLÖTZLICH HEISS",
+        "raceFinalMinute": "LETZTE MINUTE",
+        "race15Seconds": "15 SEKUNDEN",
+        "raceYouTurnedGreen": "DU HAST WICK GRÜN GEMACHT",
+        "raceTheyGotThere": "GEGNER WAR SCHNELLER",
+        "raceSomeoneNew": "NEUER GEGNER",
+        "raceRematch": "REVANCHE",
+        "raceSeatYou": "DU",
+        "raceSeatOpponent": "GEGNER",
+        "raceReconnecting": "VERBINDET NEU",
+        "raceRecapFinish": "Zielzeit",
+        "raceRecapGuesses": "Versuche",
+        "raceRecapBest": "Beste Hitze",
+        "raceRecapLeadChanges": "Führungswechsel",
+        "raceRecapTrail": "Hitzespur",
+        "raceShareResult": "Ergebnis teilen",
+        "raceShareWon": "Ich habe ein Wick-Rennen mit %d Versuchen gewonnen. Fordere mich heraus:",
+        "raceShareLost": "Ich habe gerade ein knappes Wick-Rennen verloren. Fordere mich heraus:",
+        "raceShareDraw": "Mein Wick-Rennen endete unentschieden. Fordere mich heraus:",
+        "raceWaitingRematch": "Warte, bis der Gegner Revanche tippt",
+        "raceConnLostTitle": "Verbindung verloren",
+        "raceConnLostBody": "Das ist ein Netzwerkproblem, keine Niederlage.",
+        "raceTimeUpWaiting": "ZEIT ABGELAUFEN",
+        "raceSeatVoice": "%@. %@. %d Versuche.",
         // The Reveal (3.2)
         "revealFound": "%@ in %d gefunden",
         "revealCaption": "Der Abstand zur Mitte zeigt, wie nah du der Bedeutung warst; \u{00E4}hnliche W\u{00F6}rter liegen beieinander.",

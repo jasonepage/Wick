@@ -167,6 +167,9 @@ struct KeeperView: View {
     /// changes on each keystroke.
     var inputFocused: Bool = false
     var typingTick: Int = 0
+    /// 3.8 Race Showdown: a small pose added on top of his motion every frame
+    /// (the face-off glance and lean, the loser's side-eye). nil = none.
+    var stance: (() -> RaceShowdown.Stance?)? = nil
 
     /// Picks his face from the mood and runs the blink-and-morph between faces.
     @State private var animator = KeeperFaceAnimator()
@@ -225,7 +228,15 @@ struct KeeperView: View {
         let input = WickMotion.Input(mood: mood.motionMood, rm: reduceMotion,
                                      solveE: animator.solveElapsed(at: t), transitionE: frame.transitionE,
                                      pulse: pulse, style: danceStyle, intensity: danceIntensity)
-        return director.sample(t, input)
+        var m = director.sample(t, input)
+        // 3.8 Race Showdown: the stance already obeys Reduced Motion.
+        if let st = stance?() {
+            m.gx += st.gx
+            m.tip += st.tip
+            m.sx += st.sx
+            m.sy += st.sy
+        }
+        return m
     }
 
     /// 3.8: fire the done callback once, on the main queue after the frame.

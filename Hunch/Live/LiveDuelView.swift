@@ -30,6 +30,12 @@ struct LiveDuelView: View {
     @State private var didAutoStart = false
     @FocusState private var focused: Bool
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.horizontalSizeClass) private var hSizeClass
+    /// 3.8: the race music switch, right on the race screen.
+    @AppStorage("hunch.music") private var musicOn = true
+    /// 3.8: the recap's Wicks act out the result once it is on screen.
+    @State private var recapShown = false
 
     /// Localized UI strings for the player's chosen language (3.1).
     private var loc: Loc { Loc(lang: .storedUI) }
@@ -51,6 +57,24 @@ struct LiveDuelView: View {
                 ToolbarItem(placement: .topBarLeading) {
                     Button { model.leave(); dismiss() } label: {
                         Label(loc.liveLeave, systemImage: "xmark")
+                    }
+                }
+                // Music mute stays one tap away during the race.
+                ToolbarItem(placement: .topBarTrailing) {
+                    if model.phase == .playing || model.phase == .finished {
+                        Button {
+                            musicOn.toggle()
+                            if musicOn, model.phase == .playing {
+                                RaceMusic.shared.start()
+                                RaceMusic.shared.update(remainingMs: model.remainingMs)
+                            } else if !musicOn {
+                                RaceMusic.shared.stop()
+                            }
+                        } label: {
+                            Image(systemName: musicOn ? "speaker.wave.2.fill" : "speaker.slash.fill")
+                        }
+                        .accessibilityLabel(loc.musicToggle)
+                        .accessibilityAddTraits(musicOn ? .isSelected : [])
                     }
                 }
             }
@@ -222,128 +246,139 @@ struct LiveDuelView: View {
         return String(format: "%d:%02d", secs / 60, secs % 60)
     }
 
-    // MARK: Playing
+    // MARK: Playing (3.8 Race Showdown)
+    //
+    // One compact two-seat arena on top (never stacked: that breaks the duel),
+    // then the latest result and the input, then the scrolling guess history.
+    // Every height in the arena is fixed, so an event never moves the input.
 
     private var playingView: some View {
-        ScrollView {
-            VStack(spacing: HunchTheme.Spacing.l) {
-                opponentStrip
-                clockView
-                if let latest = model.guesses.first {
-                    heroCard(latest)
-                } else {
-                    welcomeCard
-                }
-                inputArea
-                feedSection
-            }
-            .padding(HunchTheme.Spacing.l)
-            .frame(maxWidth: 640)
-            .frame(maxWidth: .infinity)
-        }
-    }
-
-    // MARK: Opponent strip
-
-    private var opponentStrip: some View {
-        let score = model.opponentGuesses > 0 ? model.opponentWarmth * 100 : 0
-        let live = model.opponentKind == .human
-        return HStack(spacing: HunchTheme.Spacing.m) {
-            ZStack {
-                Circle().fill(HunchTheme.Palette.keeper.opacity(0.18))
-                    .frame(width: 44, height: 44)
-                Image(systemName: live ? "person.fill" : "flame.fill")
-                    .font(.title3)
-                    .foregroundStyle(live ? HunchTheme.Palette.keeper : HunchTheme.Palette.flame)
-            }
-            VStack(alignment: .leading, spacing: 6) {
-                HStack {
-                    Text(opponentLabel).font(.headline)
-                    if model.snapshot?.opponent.connected == false {
-                        Text(loc.liveReconnecting).font(.caption2).foregroundStyle(.secondary)
-                    }
-                    Spacer(minLength: 0)
-                    Text(loc.liveGuessesCount(model.opponentGuesses))
-                        .font(.caption).foregroundStyle(.secondary)
-                }
-                ClosenessBar(fill: model.opponentWarmth, color: HunchTheme.color(for: score))
-            }
-        }
-        .padding(HunchTheme.Spacing.l)
-        .frame(maxWidth: .infinity)
-        .hunchCard()
-    }
-
-    private var clockView: some View {
-        Label(Self.fmtClock(model.remainingMs), systemImage: "timer")
-            .font(.title3.monospacedDigit().weight(.semibold))
-            .foregroundStyle(model.remainingMs < 30_000 ? HunchTheme.Palette.boiling : Color.secondary)
-    }
-
-    // MARK: Welcome (before the first guess) — 1:1 with GameView.welcomeCard
-
-    private var welcomeCard: some View {
-        VStack(spacing: HunchTheme.Spacing.s) {
-            KeeperView(mood: .idle, size: 96, dances: true)   // dances to the race music
-            KeeperSpeech(
-                text: loc.liveWelcome(KeeperView.name)
-            )
-        }
-        .frame(maxWidth: .infinity)
-        .padding(HunchTheme.Spacing.xl)
-        .hunchCard(tint: HunchTheme.Palette.keeper, radius: HunchTheme.Radius.hero)
-    }
-
-    // MARK: Hero (latest guess) — warmth ring + Wick, mirrors GameView
-
-    @ViewBuilder
-    private func heroCard(_ g: LiveDuelViewModel.Guess) -> some View {
-        let pending = g.warmth == nil
-        let score = g.warmth ?? 0
-        let color = g.correct ? HunchTheme.Palette.solved
-                  : (pending ? HunchTheme.Palette.keeper : HunchTheme.color(for: score))
-        let fill = g.correct ? 1.0 : (pending ? 0.02 : score / 100)
-        // A close guess reveals its Contexto "#N" (like the daily board); heat word otherwise.
-        let big = Self.heatLabel(warmth: g.warmth, rank: g.rank, correct: g.correct)
-        let label = g.correct ? loc.liveYouGotItLower : (pending ? loc.liveScoring : hint(for: score))
-        let mood: KeeperMood = g.correct ? .celebrating : (pending ? .thinking : .forScore(score))
-
         VStack(spacing: HunchTheme.Spacing.m) {
-            HStack(spacing: HunchTheme.Spacing.xl) {
-                ZStack {
-                    Circle().stroke(color.opacity(0.15), lineWidth: 12)
-                    Circle()
-                        .trim(from: 0, to: max(0.02, fill))
-                        .stroke(color, style: StrokeStyle(lineWidth: 12, lineCap: .round))
-                        .rotationEffect(.degrees(-90))
-                    VStack(spacing: 0) {
-                        Text(big)
-                            .font(.system(size: 34, weight: .bold, design: .rounded))
-                            .foregroundStyle(color)
-                            .minimumScaleFactor(0.5).lineLimit(1)
-                        Text(label)
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(color)
-                    }
-                    .padding(.horizontal, 10)
-                }
-                .frame(width: 124, height: 124)
-                .animation(.spring(response: 0.5, dampingFraction: 0.8), value: g.id)
-
-                // Dances to the race music; 3.8: one reaction clip per scored guess.
-                KeeperView(mood: mood, size: 72, dances: true,
-                           cue: model.guesses.filter { $0.warmth != nil }.count)
+            arena
+            latestRow
+            inputArea
+            ScrollView {
+                feedSection
+                    .padding(.bottom, HunchTheme.Spacing.l)
             }
-            Text(g.word).font(HunchTheme.Fonts.cardTitle)
-            if let t = model.latestTrajectory { trajectoryPill(t) }
+            .scrollDismissesKeyboard(.interactively)
         }
+        .padding(.horizontal, HunchTheme.Spacing.l)
+        .padding(.top, HunchTheme.Spacing.s)
+        .frame(maxWidth: 560)
         .frame(maxWidth: .infinity)
-        .padding(HunchTheme.Spacing.xl)
-        .hunchCard(tint: color, radius: HunchTheme.Radius.hero)
-        .animation(.easeInOut(duration: 0.25), value: g.id)
+        // On GUESS the input takes focus (it was usable all along).
+        .task(id: model.faceOff) {
+            guard model.faceOff, let c = model.raceClock() else { return }
+            let wait = max(0, RaceShowdown.faceOffMs - c.elapsedMs)
+            try? await Task.sleep(for: .milliseconds(wait))
+            if !Task.isCancelled { focused = true }
+        }
     }
 
-    private func hint(for score: Double) -> String { loc.liveKeepGoing }
+    /// Wicks scale down on a phone but their faces stay readable.
+    private var seatSize: CGFloat { hSizeClass == .regular ? 96 : 68 }
+
+    private var arena: some View {
+        let phase = model.racePhase
+        let tint: Double = phase == .finalMinute ? 0.16 : phase == .final15 ? 0.20 : phase == .expired ? 0.08 : 0.10
+        let stroke: Color = phase == .final15 ? HunchTheme.Palette.boiling.opacity(0.5)
+            : HunchTheme.Palette.keeper.opacity(phase == .finalMinute ? 0.4 : 0.22)
+        return VStack(spacing: 2) {
+            HStack(alignment: .top, spacing: HunchTheme.Spacing.s) {
+                youSeat
+                themSeat
+            }
+            .frame(maxWidth: 420)
+            RaceArenaCenter(model: model, loc: loc, reduceMotion: reduceMotion)
+        }
+        .padding(.horizontal, 10).padding(.top, 10).padding(.bottom, 6)
+        .frame(maxWidth: .infinity)
+        .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(HunchTheme.Palette.keeper.opacity(tint)))
+        .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).strokeBorder(stroke, lineWidth: 1))
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.5), value: phase)
+    }
+
+    /// Local seat: color and face from the latest scored guess, status from the best.
+    private var youSeat: some View {
+        let latest = model.guesses.first { $0.warmth != nil }?.warmth
+        let mood: KeeperMood = latest.map { KeeperMood.forScore($0) } ?? .idle
+        let band = RaceShowdown.band(model.youBest, solved: model.youSolved)
+        let style = RaceShowdown.dance(model.racePhase)
+        let m = model
+        let rm = reduceMotion
+        return seat(label: loc.raceSeatYou, band: band, count: model.youScoredCount, connected: true,
+                    paint: latest == nil ? nil : band.paintScore) {
+            KeeperView(mood: mood, size: seatSize, dances: style != nil, danceStyle: style ?? .groove, race: true,
+                       cue: model.youCue, cueKind: model.youCueKind, inputFocused: focused,
+                       stance: { m.faceOffStance(side: 1, rm: rm) })
+        }
+    }
+
+    /// Opponent seat: public progress only (OpponentView), painted by band.
+    private var themSeat: some View {
+        let seatInfo = model.opponentSeat
+        let mood: KeeperMood = seatInfo.paintScore.map { KeeperMood.forScore($0) } ?? .idle
+        let style = RaceShowdown.dance(model.racePhase)
+        let m = model
+        let rm = reduceMotion
+        return seat(label: opponentLabel, band: seatInfo.band, count: seatInfo.guessCount,
+                    connected: seatInfo.connected, paint: seatInfo.paintScore) {
+            KeeperView(mood: mood, size: seatSize, dances: style != nil, danceStyle: style ?? .groove, race: true,
+                       cue: model.oppCue, cueKind: model.oppCueKind,
+                       stance: { m.faceOffStance(side: -1, rm: rm) })
+        }
+    }
+
+    private func seat<W: View>(label: String, band: RaceShowdown.Band, count: Int, connected: Bool,
+                               paint: Double?, green: Bool = false, @ViewBuilder wick: () -> W) -> some View {
+        let status = connected ? loc.key(band.key) : loc.raceReconnecting
+        let color: Color = (paint == nil || !connected) ? .primary : HunchTheme.color(for: paint!)
+        return VStack(spacing: 2) {
+            Text(label)
+                .font(.caption2.weight(.heavy)).tracking(1)
+                .foregroundStyle(.secondary)
+            wick()
+            Text(status)
+                .font(.caption.weight(.heavy))
+                .multilineTextAlignment(.center)
+                .lineLimit(2).minimumScaleFactor(0.75)
+                .foregroundStyle(color)
+                .frame(minHeight: 32)
+            Text(loc.liveGuessesCount(count))
+                .font(.caption2).monospacedDigit()
+                .foregroundStyle(.secondary)
+        }
+        .padding(.vertical, 4)
+        .frame(maxWidth: .infinity)
+        .background(RoundedRectangle(cornerRadius: 16, style: .continuous)
+            .fill(green ? HunchTheme.Palette.solved.opacity(0.22) : Color.clear))
+        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous)
+            .strokeBorder(green ? HunchTheme.Palette.solved.opacity(0.5) : Color.clear, lineWidth: 1))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(loc.raceSeatVoice(label, status, count))
+    }
+
+    /// The latest guess and its heat, in one fixed-height line.
+    @ViewBuilder
+    private var latestRow: some View {
+        if let g = model.guesses.first {
+            let color = g.correct ? HunchTheme.Palette.solved
+                : (g.warmth == nil ? HunchTheme.Palette.keeper : HunchTheme.color(for: g.warmth ?? 0))
+            HStack(spacing: HunchTheme.Spacing.s) {
+                Text(g.word).font(.headline).lineLimit(1).minimumScaleFactor(0.7)
+                Text(Self.heatLabel(warmth: g.warmth, rank: g.rank, correct: g.correct))
+                    .font(.subheadline.weight(.bold))
+                    .foregroundStyle(color)
+                    .padding(.horizontal, 10).padding(.vertical, 4)
+                    .background(color.opacity(0.14), in: Capsule())
+                if let t = model.latestTrajectory { trajectoryPill(t) }
+            }
+            .frame(height: 32)
+        } else {
+            Color.clear.frame(height: 32)
+        }
+    }
 
     @ViewBuilder
     private func trajectoryPill(_ t: LiveDuelViewModel.Trajectory) -> some View {
@@ -374,6 +409,7 @@ struct LiveDuelView: View {
                     .focused($focused)
                     .submitLabel(.send)
                     .onSubmit(send)
+                    .disabled(model.racePhase == .expired)
                     .padding(.horizontal, 14).padding(.vertical, 12)
                     .background(
                         Color(.secondarySystemBackground),
@@ -384,7 +420,7 @@ struct LiveDuelView: View {
                         .font(.system(size: 34))
                         .foregroundStyle(HunchTheme.Palette.keeper)
                 }
-                .disabled(entry.trimmingCharacters(in: .whitespaces).isEmpty)
+                .disabled(entry.trimmingCharacters(in: .whitespaces).isEmpty || model.racePhase == .expired)
             }
 
             if model.guesses.isEmpty && model.replies.isEmpty {
@@ -516,59 +552,176 @@ struct LiveDuelView: View {
         .padding(.vertical, 2)
     }
 
-    // MARK: Finished
+    // MARK: Finished (3.8 recap)
 
     private var finishedView: some View {
-        let tint = model.isDraw ? HunchTheme.Palette.keeper
-                 : (model.didIWin ? HunchTheme.Palette.solved : HunchTheme.Palette.neutral)
-        let mood: KeeperMood = model.isDraw ? .idle : (model.didIWin ? .celebrating : .defeated)
+        ScrollView {
+            if let info = model.recapInfo {
+                recapContent(info)
+                    .padding(HunchTheme.Spacing.xl)
+                    .frame(maxWidth: 560)
+                    .frame(maxWidth: .infinity)
+            }
+        }
+        // Let the Wicks start from their race pose, then act out the result.
+        .task(id: model.result?.endedAtMs) {
+            recapShown = false
+            try? await Task.sleep(for: .milliseconds(80))
+            recapShown = true
+        }
+    }
+
+    private func recapContent(_ info: LiveDuelViewModel.RecapInfo) -> some View {
+        let r = info.recap
+        // Only a seat the server marks solved is green. A local solve plays the
+        // solved sequence; a loss gives the opponent a short accent and the
+        // local Wick one annoyed side-eye. Timeouts and draws keep both still.
+        let youRest: KeeperMood = r.youGuesses == 0 ? .idle
+            : KeeperMood.forScore(info.youStartScore ?? (r.youBand == .solved ? RaceShowdown.Band.danger : r.youBand).paintScore)
+        let youMood: KeeperMood = r.youGreen && recapShown ? .celebrating : youRest
+        let themMood: KeeperMood = r.themGreen ? .celebrating
+            : (r.themGuesses == 0 ? .idle : KeeperMood.forScore(r.themBand.paintScore))
+        let loss = r.outcome == .loss
         return VStack(spacing: HunchTheme.Spacing.m) {
-            Spacer()
-            KeeperView(mood: mood, size: 100)
-            Text(outcomeTitle).font(.title.bold())
-            if let r = model.result {
-                Text(outcomeSubtitle(r))
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+            HStack(alignment: .top, spacing: HunchTheme.Spacing.s) {
+                seat(label: loc.raceSeatYou, band: r.youBand, count: r.youGuesses, connected: true,
+                     paint: r.youGuesses == 0 ? nil : r.youBand.paintScore, green: r.youGreen) {
+                    KeeperView(mood: youMood, size: seatSize, race: true,
+                               cue: loss && recapShown ? 1 : 0, cueKind: "repeat",
+                               stance: loss ? { () -> RaceShowdown.Stance? in RaceShowdown.sideEye } : nil)
+                }
+                seat(label: opponentLabel, band: r.themBand, count: r.themGuesses, connected: true,
+                     paint: r.themGuesses == 0 ? nil : r.themBand.paintScore, green: r.themGreen) {
+                    KeeperView(mood: themMood, size: seatSize, race: true,
+                               cue: r.themGreen && recapShown ? 1 : 0, cueKind: "leap")
+                }
+            }
+            .frame(maxWidth: 420)
+            .padding(10)
+            .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(HunchTheme.Palette.keeper.opacity(0.08)))
+
+            Text(recapHeadline(r.headline))
+                .font(.title2.bold())
+                .multilineTextAlignment(.center)
+                .foregroundStyle(r.outcome == .win ? HunchTheme.Palette.solved : Color.primary)
+            if let res = model.result, r.outcome != .void {
+                Text(outcomeSubtitle(res))
+                    .font(.subheadline).foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
             }
-            if let word = model.revealedWord {
+            if let word = info.word {
                 VStack(spacing: 2) {
                     Text(loc.liveTheWordWas).font(.subheadline).foregroundStyle(.secondary)
                     Text(word).font(HunchTheme.Fonts.revealWord)
-                    if let theirs = model.opponentWord {
+                    if let theirs = info.opponentWord {
                         Text(loc.raceTheirWord(theirs.word, theirs.language))
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                            .padding(.top, 2)
+                            .font(.footnote).foregroundStyle(.secondary).padding(.top, 2)
                     }
                 }
-                .padding(.top, HunchTheme.Spacing.s)
             }
-            Button(action: { model.isFriendMatch ? model.rematch() : model.find() }) {
-                Label(model.isFriendMatch ? loc.liveRematch : loc.livePlayAgain,
-                      systemImage: "flag.checkered.2.crossed")
+            // Finish time when someone solved; a timeout already says so above.
+            Text((r.finishMs.map { "\(loc.raceRecapFinish) \(RaceShowdown.fmtElapsed($0)) · " } ?? "")
+                 + "\(loc.raceRecapLeadChanges) \(info.leadChanges)")
+                .font(.subheadline).foregroundStyle(.secondary)
+
+            Grid(alignment: .center, horizontalSpacing: 10, verticalSpacing: 6) {
+                GridRow {
+                    Color.clear.frame(height: 1)
+                    Text(loc.raceSeatYou).font(.caption2.weight(.heavy)).foregroundStyle(.secondary)
+                    Text(loc.raceSeatOpponent).font(.caption2.weight(.heavy)).foregroundStyle(.secondary)
+                }
+                GridRow {
+                    Text(loc.raceRecapGuesses).gridColumnAlignment(.leading).foregroundStyle(.secondary)
+                    Text("\(r.youGuesses)").bold()
+                    Text("\(r.themGuesses)").bold()
+                }
+                GridRow {
+                    Text(loc.raceRecapBest).foregroundStyle(.secondary)
+                    Text(loc.key(r.youBand.key)).font(.caption.weight(.bold)).multilineTextAlignment(.center)
+                    Text(loc.key(r.themBand.key)).font(.caption.weight(.bold)).multilineTextAlignment(.center)
+                }
+                if !info.youTrail.isEmpty {
+                    // The opponent trail only shows when this device saw their progress live.
+                    GridRow {
+                        Text(loc.raceRecapTrail).foregroundStyle(.secondary)
+                        trailView(info.youTrail)
+                        if info.themTrail.isEmpty { Color.clear.frame(height: 1) } else { trailView(info.themTrail) }
+                    }
+                }
+            }
+            .font(.subheadline)
+            .frame(maxWidth: 420)
+
+            Button {
+                Haptics.selection()
+                model.playAgain()
+            } label: {
+                Text(model.waitingRematch ? loc.raceWaitingRematch
+                     : (model.isFriendMatch ? loc.raceRematch : loc.raceSomeoneNew))
                     .font(.headline)
                     .frame(maxWidth: .infinity).padding(.vertical, 12)
             }
             .buttonStyle(.borderedProminent)
-            .tint(tint)
+            .tint(r.outcome == .win ? HunchTheme.Palette.solved : HunchTheme.Palette.keeper)
+            .disabled(model.waitingRematch)
+
+            Button {
+                Haptics.selection()
+                let text = r.outcome == .win ? loc.raceShareWon(r.youGuesses)
+                    : (r.outcome == .loss ? loc.raceShareLost : loc.raceShareDraw)
+                ShareSheet.present([text, URL(string: "https://guesswick.com")!])
+            } label: {
+                Text(loc.raceShareResult).font(.headline).frame(maxWidth: .infinity).padding(.vertical, 10)
+            }
+            .buttonStyle(.bordered)
+            .tint(HunchTheme.Palette.keeper)
+
             Button(loc.liveDone) { model.leave(); dismiss() }
-                .buttonStyle(.bordered)
-            Spacer()
+                .buttonStyle(.borderless)
         }
-        .padding(HunchTheme.Spacing.xl)
-        .frame(maxWidth: 640)
-        .frame(maxWidth: .infinity)
+    }
+
+    private func recapHeadline(_ h: RaceShowdown.Headline) -> String {
+        switch h {
+        case .turnedGreen:   return loc.raceYouTurnedGreen
+        case .gotThereFirst: return loc.raceTheyGotThere
+        case .won:           return loc.liveYouWin
+        case .lost:          return loc.liveYouLost
+        case .draw:          return loc.liveDraw
+        case .void:          return loc.liveBothDropped
+        }
+    }
+
+    /// A heat trail as dots, oldest first, painted by band (no scores).
+    private func trailView(_ bands: [RaceShowdown.Band]) -> some View {
+        let capped = RaceShowdown.capTrail(bands)
+        return HStack(spacing: 3) {
+            ForEach(Array(capped.enumerated()), id: \.offset) { _, b in
+                Circle()
+                    .fill(HunchTheme.color(for: b.paintScore))
+                    .frame(width: 10, height: 10)
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(capped.map { loc.key($0.key) }.joined(separator: ", "))
     }
 
     // MARK: Disconnected
 
+    /// A dropped race is a network problem, never drawn as a loss.
     private var disconnectedView: some View {
         VStack(spacing: HunchTheme.Spacing.m) {
             Spacer()
-            KeeperView(mood: .defeated, size: 88)
-            Text(loc.liveConnectionLost).font(.title2.bold())
+            Image(systemName: "wifi.slash")
+                .font(.system(size: 46, weight: .semibold))
+                .foregroundStyle(HunchTheme.Palette.keeper)
+                .accessibilityHidden(true)
+            Text(loc.raceConnLostTitle).font(.title2.bold())
+            if model.snapshot != nil {
+                Text(loc.raceConnLostBody)
+                    .font(.subheadline).foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+            }
             Button(action: { model.find() }) {
                 Label(loc.liveTryAgain, systemImage: "arrow.clockwise")
                     .font(.headline)
@@ -614,18 +767,14 @@ struct LiveDuelView: View {
         model.guesses.compactMap { $0.warmth }.max() ?? 0
     }
 
+    /// The opponent seat's label. Anonymous for a person; a practice flame
+    /// (a bot) is always labeled honestly.
     private var opponentLabel: String {
         switch model.opponentKind {
-        case .human: return loc.liveLiveOpponent
-        case .bot:   return loc.livePracticeFlame
-        case .ghost: return loc.liveGhost
-        case .none:  return loc.liveOpponent
+        case .bot:   return loc.livePracticeFlame.uppercased()
+        case .ghost: return loc.liveGhost.uppercased()
+        default:     return loc.raceSeatOpponent
         }
-    }
-
-    private var outcomeTitle: String {
-        if model.isDraw { return loc.liveDraw }
-        return model.didIWin ? loc.liveYouWin : loc.liveYouLost
     }
 
     private func outcomeSubtitle(_ r: MatchResult) -> String {
@@ -637,9 +786,125 @@ struct LiveDuelView: View {
         }
     }
 
-    private static func fmtClock(_ ms: Int) -> String {
-        let total = max(0, ms) / 1000
-        return String(format: "%d:%02d", total / 60, total % 60)
+}
+
+// MARK: - Race Showdown arena center (3.8)
+
+/// The face-off, the lead, the clock and the momentum slot, redrawn every
+/// frame from the server clock. Its height never changes, so nothing below it
+/// moves. Reduced Motion: opacity only, no slide or scale.
+struct RaceArenaCenter: View {
+    @ObservedObject var model: LiveDuelViewModel
+    let loc: Loc
+    let reduceMotion: Bool
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { ctx in
+            let now = ctx.date.timeIntervalSince1970 * 1000
+            let c = model.raceClock(now)
+            let remaining = c?.remainingMs ?? 0
+            let elapsed = c?.elapsedMs ?? 0
+            let phase: RaceShowdown.Phase = c == nil ? .opening : RaceShowdown.phase(remainingMs: remaining, hasResult: false)
+            let step: Int? = model.faceOff && c != nil ? RaceShowdown.faceOffStep(elapsed) : nil
+            VStack(spacing: 0) {
+                ZStack {
+                    live(remaining: remaining, phase: phase, hasClock: c != nil)
+                        .opacity(step == nil ? 1 : 0)
+                    faceOffView(step: step, elapsed: elapsed)
+                        .opacity(step == nil ? 0 : 1)
+                }
+                momentum(now: now)
+            }
+        }
+    }
+
+    // Lead and clock.
+    private func live(remaining: Int, phase: RaceShowdown.Phase, hasClock: Bool) -> some View {
+        let lead = model.raceFrame?.lead ?? .tied
+        let pulse = RaceShowdown.timerPulse(remaining, rm: reduceMotion)
+        let grow = phase == .final15 ? RaceShowdown.timerGrow : 1
+        let count = RaceShowdown.finalCount(remaining)
+        let since = Double((1000 - remaining % 1000) % 1000)
+        let leadColor: Color = lead == .you ? HunchTheme.Palette.hot : (lead == .them ? HunchTheme.Palette.cold : .primary)
+        let timerText = !hasClock ? " " : (phase == .expired ? loc.raceTimeUpWaiting : RaceShowdown.fmtClock(remaining))
+        return VStack(spacing: 0) {
+            ZStack {
+                Text(loc.key(lead.key))
+                    .id(lead)
+                    .transition(.asymmetric(
+                        insertion: .opacity.combined(with: .offset(y: reduceMotion ? 0 : 5)).animation(.easeOut(duration: 0.16).delay(0.1)),
+                        removal: .opacity.combined(with: .offset(y: reduceMotion ? 0 : -5)).animation(.easeIn(duration: 0.1))))
+                    .font(.subheadline.weight(.black)).tracking(1)
+                    .foregroundStyle(leadColor)
+                    .brightness(phase == .finalMinute || phase == .final15 ? 0.08 : 0)
+            }
+            .frame(height: 22)
+            .animation(.easeOut(duration: 0.16), value: lead)
+            Text(timerText)
+                .font(.system(size: 30, weight: .heavy, design: .rounded))
+                .monospacedDigit()
+                .lineLimit(1).minimumScaleFactor(0.6)
+                .foregroundStyle(phase == .final15 ? HunchTheme.Palette.boiling : Color.primary)
+                .opacity((phase == .opening ? 0.85 : 1) * pulse.opacity)
+                .scaleEffect(grow * pulse.scale)
+                .frame(height: 40)
+                .overlay(alignment: .trailing) {
+                    if let n = count {
+                        Text("\(n)")
+                            .font(.system(size: 34, weight: .black, design: .rounded))
+                            .foregroundStyle(HunchTheme.Palette.boiling)
+                            .scaleEffect(reduceMotion ? 1 : 1 + 0.16 * (1 - WickMotion.smoother(since / 300)))
+                            .opacity(reduceMotion ? WickMotion.smoother(since / 200) : 1)
+                            .offset(x: 52)
+                            .accessibilityHidden(true)
+                    }
+                }
+                .accessibilityAddTraits(.updatesFrequently)
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    // 3, 2, 1, GUESS over the first seconds of the real clock.
+    private func faceOffView(step: Int?, elapsed: Int) -> some View {
+        let start = step.map { $0 == 0 ? RaceShowdown.faceOffMs : (3 - $0) * 1000 } ?? 0
+        let e = Double(max(0, elapsed - start))
+        return VStack(spacing: 2) {
+            Text(loc.raceFaceOffTitle)
+                .font(.caption.weight(.black)).tracking(0.6)
+                .multilineTextAlignment(.center)
+                .lineLimit(2).minimumScaleFactor(0.8)
+            Text(step == 0 ? loc.raceFaceOffGo : "\(step ?? 3)")
+                .font(.system(size: 36, weight: .black, design: .rounded))
+                .foregroundStyle(HunchTheme.Palette.keeper)
+                .scaleEffect(reduceMotion ? 1 : 1 + 0.16 * (1 - WickMotion.smoother(e / 260)))
+                .opacity(reduceMotion ? WickMotion.smoother(e / 200) : 1)
+                .accessibilityHidden(true)
+        }
+        .frame(minHeight: 62)
+    }
+
+    // One slot under the clock: an event shows for 800 ms and never covers input.
+    private func momentum(now: Double) -> some View {
+        let ev = model.raceFrame?.event
+        let age = now - (model.raceFrame?.eventAt ?? 0)
+        let u = age / RaceShowdown.momentumShowMs
+        let alpha = ev == nil || u >= 1 ? 0 : (u < 0.18 ? u / 0.18 : (u > 0.78 ? (1 - u) / 0.22 : 1))
+        let color: Color
+        switch ev {
+        case .youHotter: color = HunchTheme.Palette.hot
+        case .closingIn: color = HunchTheme.Palette.cold
+        case .deadHeat, .suddenHeat: color = HunchTheme.Palette.coin
+        case .final15: color = HunchTheme.Palette.boiling
+        default: color = HunchTheme.Palette.keeper
+        }
+        return Text(ev.map { loc.key($0.key) } ?? " ")
+            .font(.subheadline.weight(.black)).tracking(1)
+            .foregroundStyle(color)
+            .lineLimit(1).minimumScaleFactor(0.7)
+            .opacity(max(0, alpha))
+            .scaleEffect(reduceMotion || u >= 0.18 ? 1 : 0.94 + 0.06 * (u / 0.18))
+            .frame(height: 22)
+            .accessibilityHidden(true)
     }
 }
 

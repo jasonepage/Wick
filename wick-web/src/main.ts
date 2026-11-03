@@ -41,6 +41,12 @@ import {
 import { play as playSound, playGuessTone, soundEnabled, setSoundEnabled, armAudioUnlock } from "./game/sound.ts";
 import { t, getLang, setLang, LANGS, LANG_LABEL } from "./i18n.ts";
 import { startRaceMusic, updateRaceMusic, stopRaceMusic, musicEnabled, setMusicEnabled } from "./game/music.ts";
+import {
+  RaceShow, TrailRecorder, RematchGate, heatBand, opponentSeat, racePhase, phaseDance, clockAt, fmtRaceClock,
+  fmtElapsed, finalCount, timerPulse, faceOffStep, faceOffEligible, faceOffStance, capTrail, recapOf,
+  BAND_KEY, BAND_SCORE, LEAD_KEY, MOMENTUM_KEY, FACEOFF_MS, TIMER_GROW, SIDE_EYE,
+  type ClockFix, type RaceFrame, type HeatBand, type Headline, type Outcome, type Stance,
+} from "./game/raceshow.ts";
 import { loadGloss, guessGloss, answerGloss, withGloss } from "./game/gloss.ts";
 import { playLang, playNative, setPlayNative, canPlayNative, type PlayLang } from "./game/playlang.ts";
 import type { Lang } from "./i18n.ts";
@@ -516,6 +522,7 @@ function rerender(fn: () => void): void { navDir = 0; fn(); }
  *  layer and animated away, so the incoming screen can slide in over it. The
  *  nodes are being discarded anyway, so re-parenting them is free. */
 function clear(_hint?: "light" | "dark"): void {
+  if (race.raf !== null) { cancelAnimationFrame(race.raf); race.raf = null; }
   if (clockTimer !== null) {
     window.clearInterval(clockTimer);
     clockTimer = null;
@@ -2384,7 +2391,7 @@ function toggleMusic(): void {
   setMusicEnabled(on);   // turning it off fades the music out right away
   renderMusicPill();
   // Turned back on mid-race: start it again, from a fade.
-  if (on && live.snapshot && document.querySelector("#hero")) {
+  if (on && live.snapshot && app.querySelector("#arena")) {
     void startRaceMusic().then(() => { if (live.snapshot) updateRaceMusic(live.snapshot.clock.remainingMs); });
   }
   toast(on ? "🔊 " + t("musicOn") : "🔇 " + t("musicOff"));
@@ -2499,7 +2506,8 @@ function hostRace(): void {
   startLive("casual", genCode(), true);
 }
 
-function startLive(mode: MatchMode, friendCode?: string, create?: boolean, opts?: { fillNow?: boolean }): void {
+function startLive(mode: MatchMode, friendCode?: string, create?: boolean, opts?: { fillNow?: boolean; keepScreen?: boolean }): void {
+  resetRace();
   live.opponentKind = null;
   live.snapshot = null;
   live.guesses = [];
@@ -2533,10 +2541,11 @@ function startLive(mode: MatchMode, friendCode?: string, create?: boolean, opts?
       },
       // Use the duration, not the server's wall time, so a skewed clock can't
       // show a countdown that is already over or an hour long.
-      onQueued: (f) => { live.startsAt = Date.now() + f.waitMs; if (!live.snapshot) screenSearching(); },
+      onQueued: (f) => { live.startsAt = Date.now() + f.waitMs; if (!live.snapshot && !opts?.keepScreen) screenSearching(); },
       onState: (f) => {
         live.snapshot = f.state;
-        if (document.querySelector("#hero")) renderMatch();
+        raceOnState(f.state);
+        if (app.querySelector("#arena")) renderMatch();
         // A resumed match skips `paired`, so make sure the music is going.
         void startRaceMusic().then(() => updateRaceMusic(f.state.clock.remainingMs));
       },
@@ -2551,7 +2560,13 @@ function startLive(mode: MatchMode, friendCode?: string, create?: boolean, opts?
           return;
         }
         const g = live.guesses.find((x) => normalize(x.word) === normalize(f.guess) && x.warmth === null);
-        if (g) { g.warmth = Math.max(0, Math.min(1, f.score / 100)); g.rank = f.rank ?? null; renderMatch(); }
+        if (g) {
+          g.warmth = Math.max(0, Math.min(1, f.score / 100));
+          g.rank = f.rank ?? null;
+          race.youCue = { seq: race.youCue.seq + 1, kind: null };   // one reaction per scored guess
+          race.trails.push("you", heatBand(raceYouBest(), raceYouSolved()), 1);
+          renderMatch();
+        }
       },
       onAnswer: (f) => {
         const r = live.replies.find((x) => x.question === f.question && x.pending);
@@ -2560,10 +2575,14 @@ function startLive(mode: MatchMode, friendCode?: string, create?: boolean, opts?
       onResult: (f) => { stopRaceMusic(); screenResult(f.result, f.word, f.words); },
       onOpponentLeft: () => { live.opponentLeft = true; renderMatch(); },
       onError: (e) => { if (live.client === me) handleLiveError(e, create); },
-      onClose: ({ clean }) => { if (live.client === me && !clean && !live.snapshot) showError(t("connLost")); },
+      // A drop mid-race is a network problem, not a loss: its own screen.
+      onClose: ({ clean }) => {
+        if (live.client !== me || clean || race.ended) return;
+        if (live.snapshot) screenRaceConnLost(); else showError(t("connLost"));
+      },
     },
   });
-  screenSearching();
+  if (!opts?.keepScreen) screenSearching();
   live.client.connect();
 }
 
@@ -2640,12 +2659,183 @@ function fmtCountdown(at: number): string {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 }
 
+// ── 3.8 Race Showdown: two seats, one clock ──
+//
+//  The race state itself (bands, lead, phases, momentum, trails, recap) is
+//  pure and lives in game/raceshow.ts, in lockstep with iOS. This part only
+//  draws it. The opponent seat is built from opponentSeat(), which copies the
+//  four public progress fields and nothing else.
+
+const race = {
+  show: new RaceShow(),
+  trails: new TrailRecorder(),
+  /** The last server clock and when it arrived (Date.now()). */
+  clock: null as ClockFix | null,
+  /** This match opened inside its first three seconds: play the face-off. */
+  faceOff: false,
+  frame: null as RaceFrame | null,
+  youCue: { seq: 0, kind: null as string | null },
+  oppCue: { seq: 0, kind: null as string | null },
+  oppSeen: 0,
+  raf: null as number | null,
+  /** What the arena last painted, so a frame only touches what changed. */
+  paint: { lead: "", timer: "", phase: "", step: "", count: "", event: 0, style: "" },
+  /** The result has arrived: nothing may show "connection lost" over it. */
+  ended: false,
+};
+/** One rematch per recap (a new recap gets a new gate). */
+let recapGate = new RematchGate();
+
+function resetRace(): void {
+  if (race.raf !== null) cancelAnimationFrame(race.raf);
+  race.show = new RaceShow();
+  race.trails = new TrailRecorder();
+  race.clock = null;
+  race.faceOff = false;
+  race.frame = null;
+  race.youCue = { seq: 0, kind: null };
+  race.oppCue = { seq: 0, kind: null };
+  race.oppSeen = 0;
+  race.raf = null;
+  race.paint = { lead: "", timer: "", phase: "", step: "", count: "", event: 0, style: "" };
+  race.ended = false;
+}
+
+/** The server clock carried forward to now. */
+function raceClock(): { elapsedMs: number; remainingMs: number } | null {
+  return race.clock ? clockAt(race.clock, Date.now()) : null;
+}
+
+/** The local seat's best warmth: the server's, or a fresher scored guess. */
+function raceYouBest(): number {
+  const own = live.guesses.reduce((m, g) => (g.warmth !== null && g.warmth > m ? g.warmth : m), 0);
+  return Math.max(live.snapshot?.you.bestWarmth ?? 0, own);
+}
+function raceYouSolved(): boolean {
+  return !!live.snapshot?.you.solved || live.guesses.some((g) => g.warmth !== null && g.warmth >= 1);
+}
+
+/** Speak to screen readers through the polite live region. */
+function raceSay(text: string): void {
+  const r = app.querySelector<HTMLDivElement>("#race-voice");
+  if (!r) return;
+  r.textContent = "";
+  window.setTimeout(() => { r.textContent = text; }, 30);
+}
+
+/** Feed the public state into the momentum machine and act on what it says. */
+function raceStep(): RaceFrame | null {
+  const snap = live.snapshot;
+  const c = raceClock();
+  if (!snap || !c || race.ended) return null;
+  const f = race.show.update({
+    now: Date.now(),
+    youBest: raceYouBest(), themBest: snap.opponent.bestWarmth,
+    youSolved: raceYouSolved(), themSolved: snap.opponent.solved,
+    remainingMs: c.remainingMs, result: false,
+  });
+  race.frame = f;
+  // The Wick that just took the lead gets one attention accent (the perk clip).
+  if (f.accent === "you") race.youCue = { seq: race.youCue.seq + 1, kind: "leap" };
+  if (f.accent === "them") race.oppCue = { seq: race.oppCue.seq + 1, kind: "leap" };
+  if (f.accent) renderSeats();
+  for (const k of f.voice) raceSay(t(k));
+  return f;
+}
+
+/** A new public snapshot: the clock, the trails, the opponent's cue. */
+function raceOnState(s: StateSnapshot): void {
+  const first = race.clock === null;
+  race.clock = { elapsedMs: s.clock.elapsedMs, remainingMs: s.clock.remainingMs, at: Date.now() };
+  if (first) {
+    race.faceOff = faceOffEligible(s.clock.elapsedMs);
+    race.oppSeen = s.opponent.guessCount;
+    if (race.faceOff) raceSay(t("raceFoundVoice"));
+  }
+  // The opponent Wick only moves when their public progress changes.
+  if (s.opponent.guessCount !== race.oppSeen) {
+    race.oppSeen = s.opponent.guessCount;
+    race.oppCue = { seq: race.oppCue.seq + 1, kind: null };
+  }
+  race.trails.push("you", heatBand(raceYouBest(), raceYouSolved()), Math.max(s.you.guessCount, live.guesses.filter((g) => g.warmth !== null).length));
+  race.trails.push("them", heatBand(s.opponent.bestWarmth, s.opponent.solved), s.opponent.guessCount);
+}
+
+function raceSeatSize(): number {
+  return window.innerWidth < 380 ? 64 : window.innerWidth >= 720 ? 96 : 80;
+}
+
+/** The face-off pose for one seat right now, or null once it is over. */
+function raceStance(side: 1 | -1): Stance | null {
+  if (!race.faceOff) return null;
+  const c = raceClock();
+  if (!c || c.elapsedMs >= FACEOFF_MS + 200) return null;
+  return faceOffStance(c.elapsedMs, side, prefersReducedMotion());
+}
+
+/** The opponent seat's label. Anonymous for a person; a practice flame (a
+ *  bot) is always labeled honestly. */
+function opponentLabel(): string {
+  const kind = live.opponentKind ?? "human";
+  return kind === "bot" ? t("livePracticeFlame").toLocaleUpperCase() : kind === "ghost" ? t("liveGhost").toLocaleUpperCase() : t("raceSeatOpponent");
+}
+
+function seatEl(side: "you" | "them"): HTMLDivElement {
+  return el("div", { id: `seat-${side}`, class: `seat seat-${side}`, role: "group" }, [
+    el("div", { class: "seat-label" }, [side === "you" ? t("raceSeatYou") : opponentLabel()]),
+    el("div", { class: "seat-wick" }),
+    el("div", { class: "seat-status" }),
+    el("div", { class: "seat-count" }),
+  ]);
+}
+
+/** Both Wicks, their public temperature and guess counts. */
+function renderSeats(): void {
+  const snap = live.snapshot;
+  const you = app.querySelector<HTMLDivElement>("#seat-you");
+  const them = app.querySelector<HTMLDivElement>("#seat-them");
+  if (!you || !them) return;
+  const c = raceClock();
+  const phase = c ? racePhase(c.remainingMs, false) : "opening";
+  const style = phaseDance(phase);
+  const size = raceSeatSize();
+  // Local seat: color and face from the latest scored guess, status from the best.
+  const latest = live.guesses.find((g) => g.warmth !== null);
+  const youScore = latest ? latest.warmth! * 100 : null;
+  const youCount = Math.max(snap?.you.guessCount ?? 0, live.guesses.filter((g) => g.warmth !== null).length);
+  const youBand = heatBand(raceYouBest(), raceYouSolved());
+  ensureWick(you.querySelector<HTMLDivElement>(".seat-wick")!, {
+    score: youScore, size, id: "race-you", race: true, dance: style !== null, danceStyle: style ?? undefined,
+    cue: race.youCue, stance: () => raceStance(1),
+  });
+  // Opponent seat: public progress only, painted by band.
+  const seat = opponentSeat(snap?.opponent ?? { bestWarmth: 0, guessCount: 0, solved: false, connected: true });
+  ensureWick(them.querySelector<HTMLDivElement>(".seat-wick")!, {
+    score: seat.paintScore, size, id: "race-them", race: true, dance: style !== null, danceStyle: style ?? undefined,
+    cue: race.oppCue, stance: () => raceStance(-1),
+  });
+  paintSeat(you, youBand, youCount, youScore === null ? null : BAND_SCORE[youBand], t("raceSeatYou"), true);
+  paintSeat(them, seat.band, seat.guessCount, seat.paintScore, opponentLabel(), seat.connected);
+}
+
+function paintSeat(seat: HTMLDivElement, band: HeatBand, count: number, paint: number | null, label: string, connected: boolean): void {
+  const status = seat.querySelector<HTMLDivElement>(".seat-status")!;
+  const text = connected ? t(BAND_KEY[band]) : t("raceReconnecting");
+  if (status.textContent !== text) status.textContent = text;
+  status.style.color = paint === null || !connected ? "" : scoreColor(paint);
+  const countText = t("liveGuessesCount", count);
+  const countEl = seat.querySelector<HTMLDivElement>(".seat-count")!;
+  if (countEl.textContent !== countText) countEl.textContent = countText;
+  seat.dataset.band = band;
+  seat.setAttribute("aria-label", t("raceSeatVoice", label, text, count));
+}
+
 function screenMatch(): void {
   clear("dark");
   const input = el("input", { class: "field", placeholder: t("guessOrAskPlaceholder"), autocomplete: "off", spellcheck: false });
   const submit = () => {
     const text = input.value.trim();
-    if (!text) return;
+    if (!text || input.disabled) return;
     // A question (space or "?") → ask Wick; the server answers on the room
     // secret and replies via `answer`. A single bare word → a guess.
     if (looksLikeQuestion(text)) {
@@ -2663,62 +2853,139 @@ function screenMatch(): void {
     renderMatch();
   };
   input.addEventListener("keydown", (e) => { if (e.key === "Enter") submit(); });
+  // The arena: two equal seats, then the lead, the clock and one slot for
+  // momentum events. Fixed heights, so nothing below it ever moves.
+  const arena = el("section", { id: "arena", class: "arena", "aria-label": t("liveLiveRace") } as Partial<HTMLElement>, [
+    el("div", { class: "seats" }, [seatEl("you"), seatEl("them")]),
+    el("div", { class: "arena-center" }, [
+      el("div", { class: "faceoff", hidden: true }, [
+        el("div", { class: "faceoff-title" }, [t("raceFaceOffTitle")]),
+        el("div", { class: "faceoff-step", "aria-hidden": "true" } as Partial<HTMLElement>),
+      ]),
+      el("div", { class: "arena-live" }, [
+        el("div", { class: "lead" }, [el("span", { class: "lead-text" })]),
+        el("div", { class: "timer-row" }, [
+          el("div", { class: "timer", role: "timer" }),
+          el("div", { class: "final-count", "aria-hidden": "true" } as Partial<HTMLElement>),
+        ]),
+      ]),
+      el("div", { class: "momentum", "aria-hidden": "true" } as Partial<HTMLElement>),
+    ]),
+  ]);
   app.append(
-    el("main", { class: "card" }, [
-      el("div", { id: "opp-strip", class: "opp-strip" }),
-      el("div", { id: "hero", class: "hero" }),
+    el("main", { class: "card race-card" }, [
+      arena,
       el("div", { id: "latest", class: "latest" }),
-      el("div", { id: "clock", class: "clock" }),
       el("div", { id: "banner", class: "banner" }),
       el("div", { class: "guess-row" }, [
         input,
-        el("button", { class: "send", onclick: submit, title: "Guess or ask" }, ["↑"]),
+        el("button", { class: "send", onclick: submit, title: t("guessOrAskPlaceholder"), "aria-label": t("guessOrAskPlaceholder") } as Partial<HTMLButtonElement>, ["↑"]),
       ]),
       el("div", { id: "keeper", class: "keeper" }),
       el("div", { id: "live-log-head", class: "log-head" }),
       el("ul", { id: "my-guesses", class: "guesses" }),
+      el("div", { id: "race-voice", class: "sr-only", "aria-live": "polite" } as Partial<HTMLElement>),
     ]),
   );
   input.focus();
   renderMatch();
-  clockTimer = window.setInterval(() => {
-    const c = document.querySelector<HTMLDivElement>("#clock");
-    if (c && live.snapshot) c.textContent = "⏱ " + fmtClock(Math.max(0, live.snapshot.clock.remainingMs));
-  }, 250);
+  if (race.raf !== null) cancelAnimationFrame(race.raf);
+  race.raf = requestAnimationFrame(raceLoop);
+}
+
+/** One arena frame: clock, phase, face-off, lead, momentum. Touches the DOM
+ *  only where something changed. */
+function raceLoop(): void {
+  race.raf = null;
+  const arena = app.querySelector<HTMLElement>("#arena");
+  if (!arena) return;
+  const f = raceStep();
+  const c = raceClock();
+  const rm = prefersReducedMotion();
+  const p = race.paint;
+  if (c) {
+    const phase = racePhase(c.remainingMs, false);
+    if (p.phase !== phase) {
+      p.phase = phase;
+      arena.dataset.phase = phase;
+      renderSeats();                       // the dance vocabulary follows the phase
+      const frozen = phase === "expired";
+      app.querySelectorAll<HTMLInputElement | HTMLButtonElement>(".race-card .guess-row input, .race-card .guess-row button")
+        .forEach((n) => { n.disabled = frozen; });
+    }
+    // Face-off: 3, 2, 1, GUESS over the first seconds of the real clock.
+    const step = race.faceOff ? faceOffStep(c.elapsedMs) : null;
+    const stepKey = step === null ? "" : String(step);
+    if (p.step !== stepKey) {
+      const wasGo = p.step === "0";
+      p.step = stepKey;
+      const box = arena.querySelector<HTMLDivElement>(".faceoff")!;
+      box.hidden = step === null;
+      arena.classList.toggle("in-faceoff", step !== null);
+      const n = box.querySelector<HTMLDivElement>(".faceoff-step")!;
+      n.textContent = step === null ? "" : step === 0 ? t("raceFaceOffGo") : String(step);
+      n.classList.remove("hit");
+      void n.offsetWidth;                  // restart the planted pulse
+      if (step !== null) n.classList.add("hit");
+      if (step === 0 && !wasGo) {
+        const inp = app.querySelector<HTMLInputElement>(".race-card .guess-row input");
+        if (inp && document.activeElement !== inp) inp.focus();
+      }
+    }
+    // Timer: the strongest text in the final 15 seconds, one pulse a second.
+    const timerText = phase === "expired" ? t("raceTimeUpWaiting") : fmtRaceClock(c.remainingMs);
+    const timer = arena.querySelector<HTMLDivElement>(".timer")!;
+    if (p.timer !== timerText) { p.timer = timerText; timer.textContent = timerText; }
+    const pulse = timerPulse(c.remainingMs, rm);
+    const grow = phase === "final15" ? TIMER_GROW : 1;
+    timer.style.transform = grow * pulse.scale === 1 ? "" : `scale(${(grow * pulse.scale).toFixed(3)})`;
+    timer.style.opacity = pulse.opacity === 1 ? "" : pulse.opacity.toFixed(3);
+    const count = finalCount(c.remainingMs);
+    const countText = count === null ? "" : String(count);
+    if (p.count !== countText) {
+      p.count = countText;
+      const fc = arena.querySelector<HTMLDivElement>(".final-count")!;
+      fc.textContent = countText;
+      fc.classList.remove("hit");
+      void fc.offsetWidth;
+      if (count !== null) fc.classList.add("hit");
+    }
+  }
+  if (f) {
+    // Lead: the old label out over 100 ms, the new one in over 160 ms.
+    if (p.lead !== f.lead) {
+      const first = p.lead === "";
+      p.lead = f.lead;
+      const lead = arena.querySelector<HTMLDivElement>(".lead")!;
+      const text = lead.querySelector<HTMLSpanElement>(".lead-text")!;
+      const apply = () => {
+        text.textContent = t(LEAD_KEY[f.lead]);
+        lead.dataset.lead = f.lead;
+        lead.classList.remove("out");
+        if (!first) { lead.classList.remove("in"); void lead.offsetWidth; lead.classList.add("in"); }
+      };
+      if (first) apply();
+      else { lead.classList.remove("in"); lead.classList.add("out"); window.setTimeout(apply, 100); }
+    }
+    // Momentum: one slot under the clock, 800 ms, never over the input.
+    if (f.event && p.event !== f.eventAt) {
+      p.event = f.eventAt;
+      const m = arena.querySelector<HTMLDivElement>(".momentum")!;
+      m.textContent = t(MOMENTUM_KEY[f.event]);
+      m.dataset.event = f.event;
+      m.classList.remove("show");
+      void m.offsetWidth;
+      m.classList.add("show");
+    }
+  }
+  race.raf = requestAnimationFrame(raceLoop);
 }
 
 function renderMatch(): void {
-  const snap = live.snapshot;
-  const strip = document.querySelector<HTMLDivElement>("#opp-strip");
-  if (strip) {
-    const kind = live.opponentKind ?? "human";
-    const label = kind === "human" ? t("liveLiveOpponent")
-                : kind === "bot" ? t("livePracticeFlame")
-                : t("liveGhost");
-    const oppW = snap ? snap.opponent.bestWarmth : 0;
-    const oppG = snap ? snap.opponent.guessCount : 0;
-    const oppScore = oppG > 0 ? oppW * 100 : null;
-    const bar = el("i");
-    bar.style.width = `${Math.round(oppW * 100)}%`;
-    bar.style.background = scoreColor(oppScore);
-    const mini = strip.querySelector<HTMLDivElement>(".mini") ?? el("div", { class: "mini" });
-    ensureWick(mini, { score: oppScore, size: 46, id: "opp", race: true });
-    strip.replaceChildren(
-      mini,
-      el("div", { class: "opp-info" }, [
-        el("div", { class: "opp-top" }, [
-          el("span", { class: `tag ${kind}` }, [label]),
-          el("span", { class: "opp-count" }, [t("liveGuessesCount", oppG)]),
-        ]),
-        el("div", { class: "mini-bar" }, [bar]),
-      ]),
-    );
-  }
+  if (!app.querySelector("#arena")) return;
+  renderSeats();
   const latest = live.guesses[0];
   setBackdropHeat(bestScore(live.guesses));
-  renderHero("#hero", "you", latest, false, true, !!live.replies[0]?.pending, null, {
-    cue: { seq: live.guesses.filter((g) => g.warmth !== null).length, kind: null },
-  });
   const latestEl = document.querySelector<HTMLDivElement>("#latest");
   if (latestEl) renderLatestChip(latestEl, latest);
   // Wick's most recent in-match answer (if any).
@@ -2733,11 +3000,33 @@ function renderMatch(): void {
   }
 }
 
+/** A heat trail as dots, oldest first, painted by band (no scores). */
+function trailEl(bands: readonly HeatBand[]): HTMLElement {
+  const capped = capTrail(bands);
+  const row = el("span", { class: "trail", role: "img", "aria-label": capped.map((b) => t(BAND_KEY[b])).join(", ") } as Partial<HTMLElement>);
+  capped.forEach((b, i) => {
+    if (i > 0) row.append(el("i", { class: "trail-link" }));
+    const dot = el("i", { class: `trail-dot band-${b}` });
+    dot.style.background = scoreColor(BAND_SCORE[b]);
+    row.append(dot);
+  });
+  return row;
+}
+
 function screenResult(result: MatchResult, word?: string, words?: Record<string, string>): void {
+  race.ended = true;
   clear("dark");
-  const me = result.players.find((p) => p.id === live.kid);
-  const youWon = result.winner === live.kid;
-  const headline = result.draw ? t("resultDraw") : youWon ? t("resultWon") : t("resultLost");
+  recapGate = new RematchGate();
+  const recap = recapOf(result, live.kid);
+  const leadChanges = race.frame?.leadChanges ?? 0;
+  const headline: Record<Headline, string> = {
+    turnedGreen: t("raceYouTurnedGreen"),
+    gotThereFirst: t("raceTheyGotThere"),
+    won: t("resultWon"),
+    lost: t("resultLost"),
+    draw: t("resultDraw"),
+    void: t("reasonVoid"),
+  };
   const reason: Record<MatchResult["reason"], string> = {
     solved: t("reasonSolved"),
     timeout: t("reasonTimeout"),
@@ -2745,16 +3034,18 @@ function screenResult(result: MatchResult, word?: string, words?: Record<string,
     void: t("reasonVoid"),
   };
 
-  // Winner → green happy Wick; loser → grey "-_-" deadpan Wick (never the blue
-  // sad face); draw → resting purple.
-  const mascot = result.draw
-    ? wickBox("mascot-wrap", { score: null, size: 128, id: "result" })
-    : youWon
-      ? wickBox("mascot-wrap", { score: 100, size: 128, id: "result" })
-      : wickBox("mascot-wrap", { score: null, neutral: true, size: 128, id: "result" });
+  // The arena in its final state: only a seat the server marks solved is green.
+  const arena = el("section", { class: `arena arena-result outcome-${recap.outcome}` }, [
+    el("div", { class: "seats" }, [seatEl("you"), seatEl("them")]),
+  ]);
+  const youSeat = arena.querySelector<HTMLDivElement>("#seat-you")!;
+  const themSeat = arena.querySelector<HTMLDivElement>("#seat-them")!;
+  youSeat.classList.toggle("green", recap.youGreen);
+  themSeat.classList.toggle("green", recap.themGreen);
+  arena.classList.toggle("even", recap.outcome === "draw" || recap.outcome === "void");
 
   // The word is revealed to BOTH players — winner in green, loser in red.
-  const revealColor = result.draw ? "rgb(125,92,235)" : youWon ? "rgb(77,158,71)" : "rgb(232,66,54)";
+  const revealColor = recap.outcome === "win" ? "rgb(77,158,71)" : recap.outcome === "loss" ? "rgb(232,66,54)" : "rgb(125,92,235)";
   const reveal = el("div", { class: "reveal" }, [
     el("p", { class: "center muted reveal-label" }, [t("theWordWas")]),
   ]);
@@ -2767,27 +3058,87 @@ function screenResult(result: MatchResult, word?: string, words?: Record<string,
     if (theirs) reveal.append(el("p", { class: "center muted reveal-label" }, [t("raceTheirWord", theirs[1], LANG_LABEL[theirs[0] as Lang] ?? theirs[0])]));
   }
 
+  const stat = (label: string, you: Node | string, them: Node | string) =>
+    el("div", { class: "recap-row" }, [el("span", { class: "recap-k" }, [label]), el("span", { class: "recap-v" }, [you]), el("span", { class: "recap-v" }, [them])]);
+  const stats = el("div", { class: "recap" }, [
+    el("div", { class: "recap-row recap-head" }, [el("span"), el("span", { class: "recap-v" }, [t("raceSeatYou")]), el("span", { class: "recap-v" }, [t("raceSeatOpponent")])]),
+    stat(t("raceRecapGuesses"), String(recap.youGuesses), String(recap.themGuesses)),
+    stat(t("raceRecapBest"), t(BAND_KEY[recap.youBand]), t(BAND_KEY[recap.themBand])),
+  ]);
+  if (race.trails.you.length > 0) {
+    // The opponent trail only shows when this client saw their progress live.
+    stats.append(stat(t("raceRecapTrail"), trailEl(race.trails.you), race.trails.them.length > 0 ? trailEl(race.trails.them) : ""));
+  }
+  // Finish time when someone solved; a timeout already says so in the line above.
+  const summary = el("p", { class: "center recap-line" }, [
+    recap.finishMs !== null ? `${t("raceRecapFinish")} ${fmtElapsed(recap.finishMs)} · ` : "",
+    `${t("raceRecapLeadChanges")} ${leadChanges}`,
+  ]);
+
+  // One tap: a friend rematch re-presents the same code; a Quick Match races
+  // someone new. The gate makes a second tap do nothing.
+  const again = el("button", { id: "result-again", class: "btn primary" }, [live.friendCode ? t("raceRematch") : t("raceSomeoneNew")]);
+  again.onclick = () => {
+    if (!recapGate.request()) return;
+    void playSound("tap");
+    again.disabled = true;
+    if (live.friendCode) {
+      again.textContent = t("raceWaitingRematch");
+      // Stay on this recap until both have tapped; pairing opens the face-off.
+      startLive(live.mode, live.friendCode, undefined, { keepScreen: true });
+    } else {
+      startLive(live.mode);
+    }
+  };
+
   app.append(
-    el("main", { class: "card" }, [
-      mascot,
-      el("h2", {}, [headline]),
+    el("main", { class: "card race-card" }, [
+      arena,
+      el("h2", { class: `recap-title outcome-${recap.outcome}` }, [headline[recap.headline]]),
       el("p", { class: "center muted" }, [reason[result.reason]]),
-      me
-        ? el("p", { class: "center" }, [
-            me.solvedAtMs !== null
-              ? t("resultSolvedLine", (me.solvedAtMs / 1000).toFixed(1), me.guessCount)
-              : t("resultUnsolvedLine", me.guessCount, `${Math.round(me.bestWarmth * 100)}%`),
-          ])
-        : el("p", { class: "center muted" }, [t("resultMatchOver")]),
       ...(word ? [reveal] : []),
-      // One tap (or Enter) back into the queue: the streamer's loop.
-      el("button", { id: "result-again", class: "btn primary", onclick: () => { void playSound("tap"); startLive(live.mode, live.friendCode); } },
-        [live.friendCode ? t("rematch") : t("raceAgain")]),
+      summary,
+      stats,
+      again,
+      el("button", { class: "btn secondary", onclick: () => { void shareRaceResult(recap.outcome, recap.youGuesses); } }, [t("raceShareResult")]),
       el("button", { class: "btn ghost", onclick: () => { leaveLive(); } }, [t("backHome")]),
     ]),
   );
 
-  if (youWon && !result.draw) launchConfetti();
+  // The Wicks act out the result. A local solve plays the solved sequence and
+  // stays green; the opponent freezes in its last public color. A loss turns
+  // only the opponent green, with a short accent, and the local Wick gives one
+  // annoyed side-eye. Timeouts and draws keep both non-green and still.
+  const size = raceSeatSize();
+  const latest = live.guesses.find((g) => g.warmth !== null && g.warmth < 1);
+  const youStart = latest ? latest.warmth! * 100 : recap.youGuesses > 0 ? BAND_SCORE[recap.youBand === "solved" ? "danger" : recap.youBand] : null;
+  const youWick = ensureWick(youSeat.querySelector<HTMLDivElement>(".seat-wick")!, {
+    score: youStart, size, id: "recap-you", race: true, dance: false,
+    stance: recap.outcome === "loss" ? () => SIDE_EYE : null,
+  });
+  if (recap.youGreen) youWick.setScore(100);
+  else if (recap.outcome === "loss") youWick.cue("repeat");
+  const themWick = ensureWick(themSeat.querySelector<HTMLDivElement>(".seat-wick")!, {
+    score: recap.themGreen ? 100 : BAND_SCORE[recap.themBand], size, id: "recap-them", race: true, dance: false,
+  });
+  if (recap.themGreen) themWick.cue("leap");
+  paintSeat(youSeat, recap.youBand, recap.youGuesses, recap.youGreen ? 100 : BAND_SCORE[recap.youBand], t("raceSeatYou"), true);
+  paintSeat(themSeat, recap.themBand, recap.themGuesses, recap.themGreen ? 100 : BAND_SCORE[recap.themBand], opponentLabel(), true);
+
+  if (recap.outcome === "win") launchConfetti();
+  document.querySelector<HTMLButtonElement>("#result-again")?.focus({ preventScroll: true });
+}
+
+/** Share a public-safe line: the outcome and guess count, never the word. */
+async function shareRaceResult(outcome: Outcome, guesses: number): Promise<void> {
+  const text = outcome === "win" ? t("raceShareWon", guesses) : outcome === "loss" ? t("raceShareLost") : t("raceShareDraw");
+  const url = "https://guesswick.com";
+  if (typeof navigator.share === "function") {
+    try { await navigator.share({ text, url }); return; }
+    catch (e) { if ((e as { name?: string }).name === "AbortError") return; }
+  }
+  try { await navigator.clipboard.writeText(`${text} ${url}`); toast(t("duelCopied")); }
+  catch { toast(`${text} ${url}`); }
 }
 
 /** A generous confetti burst over the whole viewport (winner celebration). */
@@ -2832,6 +3183,24 @@ function showError(message: string): void {
   );
 }
 
+/** A dropped race: clearly a network problem, never drawn as a loss. */
+function screenRaceConnLost(): void {
+  stopRaceMusic();
+  race.ended = true;
+  clear("dark");
+  const icon = el("div", { class: "conn-icon", "aria-hidden": "true" } as Partial<HTMLElement>);
+  icon.innerHTML = '<svg viewBox="0 0 24 24" width="56" height="56" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 8.8a15 15 0 0 1 20 0"/><path d="M5.5 12.3a10 10 0 0 1 13 0"/><path d="M9 15.8a5 5 0 0 1 6 0"/><circle cx="12" cy="19.2" r="0.9" fill="currentColor"/><path d="M3 3l18 18"/></svg>';
+  app.append(
+    el("main", { class: "card race-card conn-lost" }, [
+      icon,
+      el("h2", {}, [t("raceConnLostTitle")]),
+      el("p", { class: "center muted" }, [t("raceConnLostBody")]),
+      el("button", { class: "btn primary", onclick: () => { void playSound("tap"); startLive(live.mode, live.friendCode); } }, [t("retry")]),
+      el("button", { class: "btn ghost", onclick: leaveLive }, [t("backHome")]),
+    ]),
+  )
+}
+
 // ── shared ──
 /** The answer's meaning for the solved/revealed line: the menu-language word
  *  when playing in English, the English word when playing in another language. */
@@ -2862,11 +3231,6 @@ function renderGuessList(sel: string, guesses: Guess[]): void {
   const list = document.querySelector<HTMLUListElement>(sel);
   if (!list) return;
   list.replaceChildren(...guesses.map(guessRowEl));
-}
-
-function fmtClock(ms: number): string {
-  const total = Math.ceil(ms / 1000);
-  return `${Math.floor(total / 60)}:${(total % 60).toString().padStart(2, "0")}`;
 }
 
 // ── boot ──
