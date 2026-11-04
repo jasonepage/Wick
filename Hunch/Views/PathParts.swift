@@ -69,6 +69,9 @@ struct RaisedButtonStyle: ButtonStyle {
 struct GuessSignalLine: View {
     let signal: RouteAnalysis.Signal
     let loc: Loc
+    /// A big hit's gain. It stays here for anyone who misses the burst or has
+    /// Reduce Motion on.
+    var gain: Int? = nil
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var colorScheme
@@ -84,7 +87,7 @@ struct GuessSignalLine: View {
             Image(systemName: signal.symbol)
                 .font(.caption2.weight(.black))
                 .accessibilityHidden(true)
-            Text(loc.key(signal.key))
+            Text(loc.key(signal.key) + (gain.map { " +\($0)\u{00B0}" } ?? ""))
                 .font(PathStyle.font(13))
         }
         .foregroundStyle(gold ? AnyShapeStyle(goldInk(colorScheme))
@@ -95,6 +98,54 @@ struct GuessSignalLine: View {
             guard emphasis == .pulse else { return }
             withAnimation(.spring(response: 0.18, dampingFraction: 0.5)) { lit = true }
             withAnimation(.easeIn(duration: 0.3).delay(0.18)) { lit = false }
+        }
+    }
+}
+
+/// A big jump's moment: the gain pops up and flies off the card, and the
+/// biggest ones throw gold sparks. It only decorates, so it hides from VoiceOver
+/// and draws nothing under Reduce Motion. The parent gives it a new `id` per guess.
+struct HitFloat: View {
+    let hit: RouteAnalysis.Hit
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// 0 waiting, 1 popped in, 2 flying off.
+    @State private var phase = 0
+
+    private var size: CGFloat { hit.tier == 3 ? 50 : (hit.tier == 2 ? 42 : 32) }
+
+    var body: some View {
+        ZStack {
+            if !reduceMotion {
+                if hit.tier == 3 {
+                    ForEach(0..<10, id: \.self) { i in
+                        let angle = Double(i) / 10 * 2 * Double.pi
+                        RoundedRectangle(cornerRadius: 3, style: .continuous)
+                            .fill(PathStyle.gold)
+                            .frame(width: 10, height: 10)
+                            .rotationEffect(.degrees(phase == 0 ? 0 : 160))
+                            .offset(x: phase == 0 ? 0 : cos(angle) * 120, y: phase == 0 ? 0 : sin(angle) * 90)
+                            .opacity(phase == 2 ? 0 : 1)
+                    }
+                }
+                Text(verbatim: "+\(hit.gain)\u{00B0}")
+                    .font(PathStyle.font(size))
+                    .foregroundStyle(PathStyle.gold)
+                    .shadow(color: PathStyle.lip, radius: 0, x: 0, y: 3)
+                    .shadow(color: PathStyle.lip.opacity(0.8), radius: 3)
+                    .scaleEffect(phase == 0 ? 0.5 : 1)
+                    .offset(y: phase == 2 ? -70 : (phase == 1 ? -14 : 24))
+                    .opacity(phase == 0 || phase == 2 ? 0 : 1)
+            }
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+        .task {
+            guard !reduceMotion else { return }
+            withAnimation(.spring(response: 0.28, dampingFraction: 0.55)) { phase = 1 }
+            try? await Task.sleep(for: .milliseconds(620))
+            if Task.isCancelled { return }
+            withAnimation(.easeIn(duration: 0.34)) { phase = 2 }
         }
     }
 }

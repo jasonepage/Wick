@@ -22,6 +22,8 @@
 //
 
 import { capTrail, heatBand, type HeatBand } from "./raceshow.ts";
+import type { FaceName } from "./wickface.ts";
+import type { WickReactionKind } from "./wickpersonality.ts";
 
 // ── thresholds ──────────────────────────────────────────────────────────────
 
@@ -49,6 +51,16 @@ export const ROUTE = {
   coachCircleDirections: 2,
   coachCircleFlatMoves: 3,
   coachBacktracks: 2,
+  /** Hit moments. Tier 1 starts at Breakthrough's own gain. */
+  hitTier2Gain: 25,
+  hitTier3Gain: 40,
+  /** A Breakthrough that lands this warm is always the biggest moment. */
+  hitTier3Score: 60,
+  /** At least this many guesses between Wick's lines. Breakthrough and
+   *  Backtrack skip it: a drop right after a big hit is his best moment. */
+  talkGap: 2,
+  /** Warmer is good news for the player, so Wick only sometimes admits it. */
+  talkWarmerEvery: 3,
 } as const;
 
 /** Clamp to 0..100 and round. Both platforms score in whole numbers, and web
@@ -129,6 +141,64 @@ export type SignalEmphasis = "none" | "pulse" | "static";
 export function signalEmphasis(signal: GuessSignal, reduceMotion: boolean): SignalEmphasis {
   if (signal !== "breakthrough") return "none";
   return reduceMotion ? "static" : "pulse";
+}
+
+// ── big hit moments ─────────────────────────────────────────────────────────
+
+/** A jump worth celebrating on the board. Tier 1 to 3, biggest last. */
+export interface Hit { gain: number; tier: 1 | 2 | 3 }
+
+/** The moment for a new best, or null. Fires exactly when the signal is
+ *  Breakthrough, so the signal line and the burst always agree. */
+export function hitMoment(rawPrior: readonly number[], rawScore: number): Hit | null {
+  const prior = rawPrior.map(normScore);
+  const score = normScore(rawScore);
+  if (prior.length === 0 || score >= 100) return null;
+  const gain = score - Math.max(...prior);
+  if (gain < ROUTE.breakthroughGain) return null;
+  if (gain >= ROUTE.hitTier3Gain || score >= ROUTE.hitTier3Score) return { gain, tier: 3 };
+  return { gain, tier: gain >= ROUTE.hitTier2Gain ? 2 : 1 };
+}
+
+// ── Wick talks back ─────────────────────────────────────────────────────────
+
+/** A hand-written line for this move, and how Wick acts it out. */
+export interface Talk { key: string; face: FaceName; clip: WickReactionKind }
+
+/** Lines the round has used, so Wick never repeats himself. */
+export interface TalkState { lastGuess: number; used: Set<string> }
+
+export function newTalkState(): TalkState {
+  return { lastGuess: -99, used: new Set() };
+}
+
+const TALK: Record<GuessSignal, { keys: readonly string[]; face: FaceName; clip: WickReactionKind }> = {
+  breakthrough: { keys: ["talkBreakthrough1", "talkBreakthrough2", "talkBreakthrough3", "talkBreakthrough4"], face: "flustered", clip: "leap" },
+  warmer: { keys: ["talkWarmer1", "talkWarmer2"], face: "warm", clip: "leap" },
+  backtrack: { keys: ["talkBacktrack1", "talkBacktrack2", "talkBacktrack3", "talkBacktrack4"], face: "sly", clip: "regress" },
+  sameNeighborhood: { keys: ["talkNeighborhood1", "talkNeighborhood2", "talkNeighborhood3"], face: "focus", clip: "repeat" },
+  sideways: { keys: ["talkSideways1", "talkSideways2", "talkSideways3"], face: "sly", clip: "stall" },
+  newDirection: { keys: ["talkDirection1", "talkDirection2", "talkDirection3"], face: "shocked", clip: "topic" },
+};
+
+/**
+ * Wick's line for a signal, or null to stay quiet. The words are authored, so
+ * they cannot hint at the answer: a line depends only on the signal and the
+ * guess number, and it never sees a word. Same round, same lines.
+ */
+export function talkBack(state: TalkState, signal: GuessSignal, guessCount: number): Talk | null {
+  const always = signal === "breakthrough" || signal === "backtrack";
+  if (!always && guessCount - state.lastGuess < ROUTE.talkGap) return null;
+  if (signal === "warmer" && guessCount % ROUTE.talkWarmerEvery !== 0) return null;
+  const { keys, face, clip } = TALK[signal];
+  for (let i = 0; i < keys.length; i++) {
+    const key = keys[(guessCount + i) % keys.length]!;
+    if (state.used.has(key)) continue;
+    state.used.add(key);
+    state.lastGuess = guessCount;
+    return { key, face, clip };
+  }
+  return null;
 }
 
 // ── route statistics ────────────────────────────────────────────────────────
@@ -510,4 +580,5 @@ export const PATH_KEYS: readonly string[] = [
   "pathCoachFirstTry", "pathCoachUnfinished", "pathCoachSteady",
   "pathCardSolved", "pathCardUnsolved", "pathCardEfficiency", "pathCardJump", "cardBrandRace",
   ...Object.values(SIGNAL_KEY), ...Object.values(CATEGORY_KEY), ...COMPARE_KEYS,
+  ...Object.values(TALK).flatMap((t) => t.keys),
 ];

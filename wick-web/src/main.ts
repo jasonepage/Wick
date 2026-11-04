@@ -24,9 +24,9 @@ import type { WarmthResult } from "./net/api.ts";
 import { computeStats } from "./game/stats.ts";
 import { revealSVG, shareRevealCard, cardPng, type CardMeta } from "./game/revealcard.ts";
 import {
-  ProgressRecorder, classifySignal, comparisonOf, pathCardLine, pathFacts, pathSequence, routeReport, broadCategory,
-  signalEmphasis, CATEGORY_KEY, ROUTE, SIGNAL_GLYPH, SIGNAL_KEY,
-  type ComparisonSeat, type GuessSignal, type PathComparison, type RouteReport,
+  ProgressRecorder, classifySignal, comparisonOf, hitMoment, newTalkState, pathCardLine, pathFacts, pathSequence,
+  routeReport, broadCategory, signalEmphasis, talkBack, CATEGORY_KEY, ROUTE, SIGNAL_GLYPH, SIGNAL_KEY,
+  type ComparisonSeat, type GuessSignal, type Hit, type PathComparison, type RouteReport,
 } from "./game/route.ts";
 import { WORD_CATEGORIES } from "./game/wordcategories.ts";
 import { PALETTE, wickStillMarkup } from "./game/wickface.ts";
@@ -92,6 +92,12 @@ interface Guess {
   signal?: GuessSignal | null;
   /** Breakthrough's gold pulse has played. Boards redraw often; it plays once. */
   pulsed?: boolean;
+  /** 3.9: this guess's big hit moment, when it was one. */
+  hit?: Hit | null;
+  /** 3.9: the key of what Wick said back to this guess. */
+  talkKey?: string | null;
+  /** His line has popped in. Same rule as `pulsed`. */
+  talked?: boolean;
 }
 
 /** Heat readout for a guess: "#N" when close (top 100), else the heat word. */
@@ -127,6 +133,8 @@ const sp = {
    *  -1 when this isn't a practice round. */
   practiceIndex: -1,
   personality: newWickPersonalityState(),
+  /** 3.9: the lines Wick has used this round. */
+  talk: newTalkState(),
   reaction: null as WickReaction | null,
   /** 3.8 motion: bumped once per scored guess or reaction, read by Wick. */
   wickCue: { seq: 0, kind: null as string | null },
@@ -166,6 +174,7 @@ function tapPracticeTitle(): void {
 
 function resetWickPersonality(): void {
   sp.personality = newWickPersonalityState();
+  sp.talk = newTalkState();
   sp.reaction = null;
   sp.wickCue = { seq: 0, kind: null };
   sp.coldReactionStreak = 0;
@@ -849,15 +858,23 @@ function applyGuessWarmth(
             })
           : null,
       });
+      g.hit = hitMoment(older.map((x) => (x.warmth as number) * 100).reverse(), score);
       const isNewBest = previousBest === null || score > previousBest;
       sp.coldReactionStreak = isNewBest ? 0 : sp.coldReactionStreak + 1;
-      const reaction = reactionForGuess(sp.personality, {
+      const directed = reactionForGuess(sp.personality, {
         word: g.word,
         score,
         previousBest,
         guessCount: sp.guesses.length,
         coldStreak: sp.coldReactionStreak,
       });
+      // 3.9: Wick talks back. His line takes the slot, and he acts it out with
+      // the same faces and clips as his other beats.
+      const talk = g.signal ? talkBack(sp.talk, g.signal, sp.guesses.length) : null;
+      g.talkKey = talk?.key ?? null;
+      const reaction: WickReaction | null = !talk ? directed
+        : directed ? { ...directed, line: undefined }
+        : { kind: talk.clip, face: talk.face, poke: false, durationMs: 1300, reason: `the ${g.signal} signal` };
       playWickReaction(reaction, g.word);
       // 3.8 motion: every scored guess plays one clip; a personality beat
       // picks its own clip, otherwise the temperature's entrance plays.
@@ -866,6 +883,40 @@ function applyGuessWarmth(
   }
   saveDaily();
   renderSolo();
+  if (announce && g.hit && sp.guesses[0] === g) playHit(g.hit);
+}
+
+/** A big jump's moment: the gain flies up off the warmth chip, the board gives a
+ *  bounce, and the biggest ones throw gold sparks. It lives on the page body, so
+ *  a board redraw cannot cut it off. Reduce Motion keeps the gain on the signal
+ *  line and skips the rest. Sound follows the player's Sound switch. */
+function playHit(hit: Hit): void {
+  const chip = document.querySelector<HTMLElement>("#latest .chip");
+  if (!chip) return;
+  if (hit.tier >= 2) void playSound(hit.tier === 3 ? "closest" : "sparkle");
+  if (hit.tier === 3) buzz([20, 30, 40]);
+  if (prefersReducedMotion()) return;
+  chip.classList.add("pop");
+  const hero = document.querySelector<HTMLElement>("#hero");
+  if (hero) { hero.classList.remove("hit-pop"); void hero.offsetWidth; hero.classList.add("hit-pop"); }
+  // It starts above the word, so it never covers what the player just typed.
+  const box = (document.querySelector<HTMLElement>("#latest .word") ?? chip).getBoundingClientRect();
+  const fx = el("div", { class: `hit-fx tier-${hit.tier}` }, [`+${hit.gain}\u00B0`]);
+  fx.setAttribute("aria-hidden", "true");
+  fx.style.left = `${box.left + box.width / 2}px`;
+  fx.style.top = `${box.top - 26}px`;
+  if (hit.tier === 3) {
+    const sparks = 10;
+    for (let i = 0; i < sparks; i++) {
+      const spark = el("i", { class: "hit-spark" });
+      const angle = (i / sparks) * 2 * Math.PI;
+      spark.style.setProperty("--dx", `${Math.round(Math.cos(angle) * 110)}px`);
+      spark.style.setProperty("--dy", `${Math.round(Math.sin(angle) * 80)}px`);
+      fx.append(spark);
+    }
+  }
+  document.body.append(fx);
+  window.setTimeout(() => fx.remove(), 1200);
 }
 
 function startPractice(): void {
@@ -1946,12 +1997,25 @@ function signalLine(g: Guess): HTMLElement {
   const glyph = el("span", { class: "signal-glyph" }, [SIGNAL_GLYPH[g.signal]]);
   glyph.setAttribute("aria-hidden", "true");
   line.append(glyph, t(SIGNAL_KEY[g.signal]));
+  // The gain stays here too, for anyone who misses the burst or has it off.
+  if (g.hit) line.append(` +${g.hit.gain}\u00B0`);
   if (emphasis !== "none") {
     line.classList.add("gold");
     if (emphasis === "pulse" && !g.pulsed) line.classList.add("pulse");
     g.pulsed = true;
   }
   return line;
+}
+
+/** What Wick said back, in a small bubble. The slot keeps its height when he
+ *  is quiet, so the input never jumps. */
+function talkLine(g: Guess): HTMLElement {
+  const slot = el("div", { class: "talk-slot" });
+  if (!g.talkKey) return slot;
+  const bubble = el("span", { class: `talk${g.talked ? "" : " pop"}`, role: "status" }, [t(g.talkKey)]);
+  g.talked = true;
+  slot.append(bubble);
+  return slot;
 }
 
 function renderLatestChip(latestEl: HTMLDivElement, latest: Guess | undefined): void {
@@ -1967,7 +2031,7 @@ function renderLatestChip(latestEl: HTMLDivElement, latest: Guess | undefined): 
   const chip = el("span", { class: "chip" }, [t("heat." + scoreLabel(score).label)]);
   chip.style.background = scoreColorA(score, 0.18);
   chip.style.color = scoreColor(score);
-  latestEl.replaceChildren(el("span", { class: "word" }, [latest.word]), chip, signalLine(latest));
+  latestEl.replaceChildren(el("span", { class: "word" }, [latest.word]), chip, signalLine(latest), talkLine(latest));
 }
 
 // ════════════════════════════════════════════════════════════════════════════

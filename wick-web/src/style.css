@@ -1136,7 +1136,7 @@ a.btn { display: block; box-sizing: border-box; text-align: center; text-decorat
 /* A game reward screen: bright raised plates on a darker lip, heavy rounded
    type, and things that pop in with a little bounce. Scoped to the new 3.9
    surfaces, so the rest of Wick keeps its look. */
-.path-report, .cmp, .signal {
+.path-report, .cmp, .signal, .talk, .hit-fx {
   --face: #7d55f2; --face-top: #9472f7; --lip: #4c2bb0; --gold: #ffd35c; --gold-lip: #c9971f;
   font-family: ui-rounded, "SF Pro Rounded", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
 }
@@ -1219,3 +1219,31 @@ button.path-tile:focus-visible { outline: 3px solid var(--gold); outline-offset:
 .cmp-line { margin: 0; text-align: center; font-size: 0.92rem; font-weight: 900; }
 .cmp .trail-dot { width: 12px; height: 12px; }
 .trail-dot.jump { box-shadow: 0 0 0 3px #edb02e; }
+
+/* Wick talks back: a small bubble under the guess. The slot keeps its height. */
+.talk-slot { display: flex; justify-content: center; min-height: 36px; }
+.talk { position: relative; align-self: flex-start; margin-top: 7px; padding: 4px 13px; border-radius: 12px;
+  font-size: 0.84rem; font-weight: 800; line-height: 1.2;
+  background: rgba(var(--p-keeper), 0.16); border: 2px solid rgba(var(--p-keeper), 0.55); }
+.talk::before { content: ""; position: absolute; top: -7px; left: 50%; width: 10px; height: 10px; transform: translateX(-50%) rotate(45deg);
+  background: rgba(var(--p-keeper), 0.3); border-left: 2px solid rgba(var(--p-keeper), 0.55); border-top: 2px solid rgba(var(--p-keeper), 0.55);
+  clip-path: polygon(0 0, 100% 0, 0 100%); }
+.talk.pop { animation: path-bounce 0.28s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+
+/* A big hit: the gain flies up off the chip, and the board gives a bounce. */
+.chip.pop { animation: chip-pop 0.42s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+@keyframes chip-pop { 0% { transform: scale(0.7); } 55% { transform: scale(1.28); } 100% { transform: scale(1); } }
+.hero.hit-pop { animation: hero-pop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+@keyframes hero-pop { 0% { transform: scale(1); } 40% { transform: scale(1.03); } 100% { transform: scale(1); } }
+.hit-fx { position: fixed; z-index: 60; pointer-events: none; transform: translate(-50%, -50%); font-weight: 900; line-height: 1;
+  font-size: 2rem; color: var(--gold); -webkit-text-stroke: 6px var(--lip); paint-order: stroke fill;
+  animation: hit-rise 1.05s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.hit-fx.tier-2 { font-size: 2.6rem; }
+.hit-fx.tier-3 { font-size: 3.2rem; }
+@keyframes hit-rise { 0% { opacity: 0; margin-top: 10px; scale: 0.5; } 22% { opacity: 1; scale: 1.18; } 40% { scale: 1; }
+  72% { opacity: 1; } 100% { opacity: 0; margin-top: -92px; scale: 1; } }
+.hit-spark { position: absolute; left: 50%; top: 50%; width: 11px; height: 11px; border-radius: 3px; background: var(--gold);
+  box-shadow: 0 2px 0 var(--gold-lip); animation: hit-spark 0.7s ease-out both; }
+@keyframes hit-spark { from { transform: translate(-50%, -50%) rotate(0); opacity: 1; }
+  to { transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) rotate(160deg); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .talk.pop, .chip.pop, .hero.hit-pop { animation: none; } }

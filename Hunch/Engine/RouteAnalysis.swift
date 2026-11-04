@@ -46,6 +46,16 @@ nonisolated enum RouteAnalysis {
     static let coachCircleDirections = 2
     static let coachCircleFlatMoves = 3
     static let coachBacktracks = 2
+    /// Hit moments. Tier 1 starts at Breakthrough's own gain.
+    static let hitTier2Gain = 25
+    static let hitTier3Gain = 40
+    /// A Breakthrough that lands this warm is always the biggest moment.
+    static let hitTier3Score = 60
+    /// At least this many guesses between Wick's lines. Breakthrough and
+    /// Backtrack skip it: a drop right after a big hit is his best moment.
+    static let talkGap = 2
+    /// Warmer is good news for the player, so Wick only sometimes admits it.
+    static let talkWarmerEvery = 3
 
     /// Clamp to 0...100 and round to a whole number.
     static func normScore(_ s: Double) -> Int {
@@ -123,6 +133,77 @@ nonisolated enum RouteAnalysis {
     static func emphasis(_ signal: Signal, reduceMotion: Bool) -> Emphasis {
         guard signal == .breakthrough else { return .none }
         return reduceMotion ? .still : .pulse
+    }
+
+    // MARK: Big hit moments
+
+    /// A jump worth celebrating on the board. Tier 1 to 3, biggest last.
+    nonisolated struct Hit: Equatable, Sendable {
+        var gain: Int
+        var tier: Int
+    }
+
+    /// The moment for a new best, or nil. Fires exactly when the signal is
+    /// Breakthrough, so the signal line and the burst always agree.
+    static func hitMoment(prior rawPrior: [Double], score rawScore: Double) -> Hit? {
+        let prior = rawPrior.map(normScore)
+        let score = normScore(rawScore)
+        guard let best = prior.max(), score < 100 else { return nil }
+        let gain = score - best
+        guard gain >= breakthroughGain else { return nil }
+        if gain >= hitTier3Gain || score >= hitTier3Score { return Hit(gain: gain, tier: 3) }
+        return Hit(gain: gain, tier: gain >= hitTier2Gain ? 2 : 1)
+    }
+
+    // MARK: Wick talks back
+
+    /// A hand-written line for this move, and how Wick acts it out. `face` and
+    /// `clip` are the raw names of KeeperFaceName and WickReactionKind.
+    nonisolated struct Talk: Equatable, Sendable {
+        var key: String
+        var face: String
+        var clip: String
+    }
+
+    /// Lines the round has used, so Wick never repeats himself.
+    nonisolated struct TalkState: Equatable, Sendable {
+        var lastGuess = -99
+        var used: Set<String> = []
+    }
+
+    private static func talkPool(_ signal: Signal) -> (keys: [String], face: String, clip: String) {
+        switch signal {
+        case .breakthrough:
+            return (["talkBreakthrough1", "talkBreakthrough2", "talkBreakthrough3", "talkBreakthrough4"], "flustered", "leap")
+        case .warmer:
+            return (["talkWarmer1", "talkWarmer2"], "warm", "leap")
+        case .backtrack:
+            return (["talkBacktrack1", "talkBacktrack2", "talkBacktrack3", "talkBacktrack4"], "sly", "regress")
+        case .sameNeighborhood:
+            return (["talkNeighborhood1", "talkNeighborhood2", "talkNeighborhood3"], "focus", "repeat")
+        case .sideways:
+            return (["talkSideways1", "talkSideways2", "talkSideways3"], "sly", "stall")
+        case .newDirection:
+            return (["talkDirection1", "talkDirection2", "talkDirection3"], "shocked", "topic")
+        }
+    }
+
+    /// Wick's line for a signal, or nil to stay quiet. The words are authored,
+    /// so they cannot hint at the answer: a line depends only on the signal
+    /// and the guess number, and it never sees a word. Same round, same lines.
+    static func talkBack(_ state: inout TalkState, signal: Signal, guessCount: Int) -> Talk? {
+        let always = signal == .breakthrough || signal == .backtrack
+        if !always && guessCount - state.lastGuess < talkGap { return nil }
+        if signal == .warmer && guessCount % talkWarmerEvery != 0 { return nil }
+        let pool = talkPool(signal)
+        for i in 0..<pool.keys.count {
+            let key = pool.keys[(guessCount + i) % pool.keys.count]
+            if state.used.contains(key) { continue }
+            state.used.insert(key)
+            state.lastGuess = guessCount
+            return Talk(key: key, face: pool.face, clip: pool.clip)
+        }
+        return nil
     }
 
     // MARK: Route statistics
@@ -493,5 +574,6 @@ nonisolated enum RouteAnalysis {
          "pathCmpConverged", "pathCmpDifferent"]
         + Signal.allCases.map(\.key)
         + BroadCategory.allCases.map(\.key)
+        + Signal.allCases.flatMap { talkPool($0).keys }
     }
 }

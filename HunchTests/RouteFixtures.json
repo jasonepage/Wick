@@ -146,6 +146,28 @@
         "you": { "bands": ["searching", "searching", "searching", "searching", "heating", "heating", "heating", "solved"], "jumpNode": 4, "efficiency": 85, "guessCount": 15, "solved": true },
         "them": { "bands": ["searching"], "jumpNode": null, "efficiency": null, "guessCount": 1, "solved": false } } }
   ],
+  "hits": [
+    { "name": "the first guess is no hit", "prior": [], "score": 60, "gain": null, "tier": null },
+    { "name": "solving is its own moment", "prior": [40], "score": 100, "gain": null, "tier": null },
+    { "name": "14 is not a hit", "prior": [20], "score": 34, "gain": null, "tier": null },
+    { "name": "tier 1 starts at 15", "prior": [20], "score": 35, "gain": 15, "tier": 1 },
+    { "name": "24 is still tier 1", "prior": [20], "score": 44, "gain": 24, "tier": 1 },
+    { "name": "tier 2 starts at 25", "prior": [20], "score": 45, "gain": 25, "tier": 2 },
+    { "name": "tier 3 starts at 40", "prior": [10], "score": 50, "gain": 40, "tier": 3 },
+    { "name": "landing boiling is tier 3", "prior": [45], "score": 60, "gain": 15, "tier": 3 },
+    { "name": "gain is from the best, not the last guess", "prior": [30, 50, 10], "score": 64, "gain": null, "tier": null }
+  ],
+  "talk": [
+    { "name": "gaps, the Breakthrough exception and rare Warmer lines",
+      "steps": [["backtrack", 2, "talkBacktrack3"], ["sideways", 3, null], ["sideways", 4, "talkSideways2"],
+                ["breakthrough", 5, "talkBreakthrough2"], ["warmer", 6, null], ["warmer", 7, null], ["warmer", 9, "talkWarmer2"]] },
+    { "name": "a line never repeats in a round, then Wick goes quiet",
+      "steps": [["sameNeighborhood", 3, "talkNeighborhood1"], ["sameNeighborhood", 6, "talkNeighborhood2"],
+                ["sameNeighborhood", 9, "talkNeighborhood3"], ["sameNeighborhood", 12, null]] },
+    { "name": "a drop right after a big hit still gets a line",
+      "steps": [["breakthrough", 4, "talkBreakthrough1"], ["backtrack", 5, "talkBacktrack2"], ["backtrack", 6, "talkBacktrack3"], ["sideways", 7, null]] },
+    { "name": "new direction", "steps": [["newDirection", 1, "talkDirection2"], ["newDirection", 2, null], ["newDirection", 3, "talkDirection1"]] }
+  ],
   "categories": [
     ["animal", "animal"], ["structure", "place"], ["naturalPlace", "place"], ["object", "object"],
     ["plant", "nature"], ["naturalPhenomenon", "nature"], ["food", "food"], ["artMusic", "artMusic"],

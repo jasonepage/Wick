@@ -123,6 +123,28 @@ final class GameViewModel {
     func signal(for g: Guess) -> RouteAnalysis.Signal? {
         lastSignal?.guessID == g.id ? lastSignal?.signal : nil
     }
+    /// 3.9: the latest guess's big hit moment and what Wick said back, tied to
+    /// that guess the same way.
+    struct HitState: Equatable {
+        let guessID: UUID
+        let hit: RouteAnalysis.Hit
+    }
+    struct TalkLine: Equatable {
+        let guessID: UUID
+        let key: String
+    }
+    private(set) var lastHit: HitState?
+    private(set) var lastTalk: TalkLine?
+    @ObservationIgnored private var talkState = RouteAnalysis.TalkState()
+    /// The hit moment to play on `g`, if it was one.
+    func hit(for g: Guess) -> RouteAnalysis.Hit? {
+        lastHit?.guessID == g.id ? lastHit?.hit : nil
+    }
+    /// Wick's line for the latest guess. Fixed text: it cannot carry the word.
+    var wickTalk: String? {
+        guard !solved, !revealed, let talk = lastTalk, talk.guessID == lastSubmitted?.id else { return nil }
+        return loc.key(talk.key)
+    }
     /// Consecutive known guesses that did NOT beat the running best. Used to
     /// notice when the player is stuck so Wick can proactively offer help.
     private(set) var coldStreak = 0
@@ -952,13 +974,27 @@ final class GameViewModel {
         reactionFace = nil
         reactionNeutral = false
         personality = WickPersonalityState()
+        talkState = RouteAnalysis.TalkState()
+        lastHit = nil
+        lastTalk = nil
         ensureRanking()   // start building the rank list now, off the main thread
     }
 
-    private func performWickReaction(word: String, score: Double, previousBest: Double?) {
+    private func performWickReaction(word: String, score: Double, previousBest: Double?, talk: RouteAnalysis.Talk?) {
         let input = WickGuessReactionInput(word: word, score: score, previousBest: previousBest,
                                            guessCount: guesses.count, coldStreak: coldStreak)
-        let reaction = WickPersonality.reaction(forGuess: input, state: &personality)
+        var reaction = WickPersonality.reaction(forGuess: input, state: &personality)
+        // 3.9: Wick talks back. His line takes the slot, and he acts it out with
+        // the same faces and clips as his other beats.
+        if let talk {
+            if reaction == nil {
+                reaction = WickReaction(kind: WickReactionKind(rawValue: talk.clip) ?? .topic,
+                                        face: KeeperFaceName(rawValue: talk.face) ?? .sly,
+                                        poke: false, durationMs: 1300)
+            } else {
+                reaction?.line = nil
+            }
+        }
         play(reaction)
         // Every scored guess plays one clip; the solve has its own sequence.
         if !solved && score < 100 {
@@ -1219,14 +1255,23 @@ final class GameViewModel {
             // 3.9: one small signal, from the scores and the similarity between
             // the player's own guesses. Never from the target, beyond the score
             // they just saw. A hint is Wick's guess, and the tutorial has its coach.
+            var talk: RouteAnalysis.Talk? = nil
             if submittingHint || mode == .tutorial {
                 lastSignal = nil
+                lastHit = nil
+                lastTalk = nil
             } else {
                 let prior = prevKnown.sorted { $0.order < $1.order }
                 let nearby = prior.suffix(RouteAnalysis.recentWindow).reversed()
                     .map { engine.similarity(word, $0.word) }
-                lastSignal = RouteAnalysis.classify(prior: prior.map(\.score), score: s, similarity: nearby)
-                    .map { SignalState(guessID: g.id, signal: $0) }
+                let signal = RouteAnalysis.classify(prior: prior.map(\.score), score: s, similarity: nearby)
+                lastSignal = signal.map { SignalState(guessID: g.id, signal: $0) }
+                lastHit = RouteAnalysis.hitMoment(prior: prior.map(\.score), score: s)
+                    .map { HitState(guessID: g.id, hit: $0) }
+                if let signal {
+                    talk = RouteAnalysis.talkBack(&talkState, signal: signal, guessCount: guesses.count)
+                }
+                lastTalk = talk.map { TalkLine(guessID: g.id, key: $0.key) }
             }
 
             let isNewBest = prevBest == nil || s > prevBest!
@@ -1238,7 +1283,7 @@ final class GameViewModel {
                 prevRank: prevRank
             )
             coldStreak = isNewBest ? 0 : coldStreak + 1
-            performWickReaction(word: word, score: s, previousBest: prevBest)
+            performWickReaction(word: word, score: s, previousBest: prevBest, talk: talk)
 
             // 3.6 weekly Stats: only a guess that reads Cool or colder leaves
             // the phone, so the shared list never hints at the answer.
@@ -1248,6 +1293,8 @@ final class GameViewModel {
 
             if normalized { transientMessage = loc.normalizedTo(typed, word) }
             Feedback.play(isNewBest ? .newClosest(closeness: s) : .guessScored(closeness: s))
+            // 3.9: the bigger hit moments land harder.
+            if let hit = lastHit?.hit, hit.tier >= 2 { Feedback.play(.levelUp) }
             saveDailyState()
             if mode == .tutorial, !submittingHint { tutorialGuessed(isNewBest: isNewBest) }
         } else {

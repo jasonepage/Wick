@@ -37,6 +37,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **A game reward look.** Your Path, the Path Card and the race comparison use
   chunky raised plates, heavy rounded type and quick bounces. Reduce Motion
   shows them still.
+- **Big hit moments.** In a solo round, a big jump now lands: the gain flies up
+  off the board, the board bounces, and the biggest jumps throw gold sparks and
+  land harder. Reduce Motion keeps the gain on the signal line.
+- **Wick talks back.** Short hand-written lines for each signal, in every
+  language, acted out with his faces and clips. Teasing on cold moves, rattled on
+  big jumps. A line never repeats in a round. No AI text.
 
 ### Changed
 

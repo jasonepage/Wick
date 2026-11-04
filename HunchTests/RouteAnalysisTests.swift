@@ -98,6 +98,37 @@ struct RouteAnalysisTests {
         }
     }
 
+    @Test func hitsMatchTheWeb() {
+        for c in list("hits") {
+            let got = R.hitMoment(prior: c["prior"] as? [Double] ?? [], score: c["score"] as? Double ?? 0)
+            #expect(got?.gain == c["gain"] as? Int, "\(c["name"] ?? "")")
+            #expect(got?.tier == c["tier"] as? Int, "\(c["name"] ?? "")")
+        }
+    }
+
+    @Test func talkMatchesTheWeb() {
+        for c in list("talk") {
+            var state = R.TalkState()
+            for step in c["steps"] as? [[Any]] ?? [] {
+                let signal = R.Signal(rawValue: step[0] as? String ?? "") ?? .warmer
+                let got = R.talkBack(&state, signal: signal, guessCount: step[1] as? Int ?? 0)
+                #expect(got?.key == step[2] as? String, "\(c["name"] ?? "") guess \(step[1])")
+            }
+        }
+    }
+
+    @Test func talkActsOutWithRealFacesAndClips() {
+        for signal in R.Signal.allCases {
+            var state = R.TalkState()
+            guard let t = R.talkBack(&state, signal: signal, guessCount: 3) else {
+                Issue.record("\(signal) said nothing")
+                continue
+            }
+            #expect(KeeperFaceName(rawValue: t.face) != nil, "\(t.face)")
+            #expect(WickReactionKind(rawValue: t.clip) != nil, "\(t.clip)")
+        }
+    }
+
     @Test func categoriesMatchTheWeb() {
         for pair in Self.fixtures["categories"] as? [[Any]] ?? [] {
             #expect(R.broadCategory(tag: pair[0] as? String)?.rawValue == pair[1] as? String, "\(pair[0])")

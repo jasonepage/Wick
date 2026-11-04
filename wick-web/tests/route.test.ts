@@ -12,7 +12,7 @@ import { readFileSync } from "node:fs";
 import {
   ROUTE, classifySignal, signalEmphasis, routeReport, efficiency, bestJump, exploration, pathFacts, pathCardLine,
   pathSequence, broadCategory, comparisonOf, ProgressRecorder, opponentSeries, capNode, PATH_KEYS, PATH_SEQUENCE_MS,
-  CATEGORY_KEY, SIGNAL_KEY, SIGNAL_GLYPH,
+  CATEGORY_KEY, SIGNAL_KEY, SIGNAL_GLYPH, hitMoment, talkBack, newTalkState,
   type GuessSignal, type ProgressSample, type RouteGuess,
 } from "../src/game/route.ts";
 import { WORD_CATEGORIES } from "../src/game/wordcategories.ts";
@@ -32,6 +32,8 @@ interface Fixtures {
     them: { samples: [number, number][]; guessCount: number; best: number; solved: boolean };
     expect: null | { sentence: string; you: Record<string, unknown>; them: Record<string, unknown> };
   }[];
+  hits: { name: string; prior: number[]; score: number; gain: number | null; tier: number | null }[];
+  talk: { name: string; steps: [GuessSignal, number, string | null][] }[];
   categories: [string, string | null][];
 }
 const fx = JSON.parse(readFileSync(new URL("../../HunchTests/RouteFixtures.json", import.meta.url), "utf8")) as Fixtures;
@@ -68,6 +70,52 @@ for (const c of fx.comparisons) {
     assert.deepEqual({ ...got.them }, c.expect.them);
   });
 }
+
+for (const c of fx.hits) {
+  test(`hit: ${c.name}`, () => {
+    const got = hitMoment(c.prior, c.score);
+    assert.equal(got?.gain ?? null, c.gain);
+    assert.equal(got?.tier ?? null, c.tier);
+  });
+}
+
+for (const c of fx.talk) {
+  test(`talk: ${c.name}`, () => {
+    const state = newTalkState();
+    for (const [signal, guess, want] of c.steps) {
+      assert.equal(talkBack(state, signal, guess)?.key ?? null, want, `${signal} on guess ${guess}`);
+    }
+  });
+}
+
+test("a hit is exactly a Breakthrough, so the line and the burst agree", () => {
+  for (const prior of [[10], [20, 40], [55, 10, 30]]) {
+    for (let score = 0; score < 100; score++) {
+      assert.equal(hitMoment(prior, score) !== null, classifySignal({ prior, score }) === "breakthrough", `${prior} to ${score}`);
+    }
+  }
+});
+
+test("every signal can talk, and Wick never repeats a line in a round", () => {
+  for (const signal of Object.keys(SIGNAL_KEY) as GuessSignal[]) {
+    const state = newTalkState();
+    const seen: string[] = [];
+    for (let guess = 3; guess < 60; guess += 3) {
+      const key = talkBack(state, signal, guess)?.key;
+      if (key) seen.push(key);
+    }
+    assert.ok(seen.length >= 2, `${signal} said ${seen.length}`);
+    assert.equal(new Set(seen).size, seen.length, `${signal} repeated itself`);
+  }
+});
+
+test("Wick's lines are fixed text: no word or score can get into them", () => {
+  const ph = /%@|%d/;
+  for (const k of PATH_KEYS.filter((x) => x.startsWith("talk"))) {
+    for (const lang of LANGS) assert.ok(!ph.test(TABLES[lang][k]!), `${lang} ${k} has a slot`);
+  }
+  assert.equal(talkBack.length, 3, "signal state, signal and guess number only");
+});
 
 for (const [tag, want] of fx.categories) {
   test(`category: ${tag}`, () => assert.equal(broadCategory(tag), want));

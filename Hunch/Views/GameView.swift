@@ -463,7 +463,7 @@ struct GameView: View {
                     trajectoryPill(t)
                 }
                 if let signal = game.signal(for: g) {
-                    GuessSignalLine(signal: signal, loc: game.loc)
+                    GuessSignalLine(signal: signal, loc: game.loc, gain: game.hit(for: g)?.gain)
                         .id(g.id)
                 }
                 if let line = wickLine {
@@ -482,6 +482,13 @@ struct GameView: View {
             .padding(HunchTheme.Spacing.xl)
             .hunchCard(tint: color, radius: HunchTheme.Radius.hero)
             .animation(.easeInOut(duration: 0.25), value: g.id)
+            // 3.9: a big jump's moment plays over the card, never moving it.
+            .overlay {
+                if let hit = game.hit(for: g) {
+                    HitFloat(hit: hit)
+                        .id(g.id)
+                }
+            }
         } else {
             VStack(spacing: HunchTheme.Spacing.s) {
                 KeeperView(mood: .unamused, size: 72, onPoke: pokeWick)
@@ -1128,7 +1135,7 @@ struct GameView: View {
     /// player is still learning the game — a first-timer needs "cold means wrong
     /// topic, not wrong word" far more than they need "ooh, you're circling it".
     private var wickLine: String? {
-        game.coachTip ?? game.keeperNudge
+        game.coachTip ?? game.wickTalk ?? game.keeperNudge
     }
 
     /// "animal. Boiling. 12. Closest yet. Cold doesn't mean it's a bad word…"
