@@ -6,6 +6,45 @@ numbers.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased] (3.9)
+
+### Added
+
+- **Semantic Arena.** The hidden strategy of a round is now visible, on web
+  and iOS. All of it is worked out by pure, deterministic code with shared test
+  cases (route.ts, RouteAnalysis.swift, HunchTests/RouteFixtures.json). No
+  rankings and no change to the live race protocol.
+- **Strategic guess signals.** One small line under an accepted guess in a
+  solo round: Breakthrough, Warmer, Sideways, Same neighborhood, Backtrack or
+  New direction, with a glyph so it never relies on color. Breakthrough gets one
+  gold pulse, or a still gold state with Reduce Motion. Without similarity data
+  only Breakthrough, Warmer and Backtrack can fire.
+- **Your Path.** The post-round map is now a short debrief: the result, the
+  route through every guess in order, a gold halo on the best jump, then
+  Efficiency, Best Jump and Exploration, one coach line, and Share Path. About
+  1.2 seconds, a tap skips it, and Reduce Motion shows it finished. If the map
+  call fails, the stats still show.
+- **Path Card.** The square share card now shows "SOLVED IN N", an unlabeled
+  route, Efficiency and the best jump's size. Numbers only: it has no field for
+  a word. If the image fails, the same facts share as text. A race share
+  attaches your own card too.
+- **Race comparison.** Two miniature routes and one neutral sentence under the
+  race recap, built only from public progress, so never an opponent's words.
+  Efficiency shows only for a local seat that solved: the protocol hides an
+  opponent's colder guesses. Hidden when this client did not see every guess.
+- **Category chip.** One broad label (ANIMAL, PLACE, and so on) on Your Path,
+  after the round only, and left off when the word has no reliable tag.
+- **A game reward look.** Your Path, the Path Card and the race comparison use
+  chunky raised plates, heavy rounded type and quick bounces. Reduce Motion
+  shows them still.
+
+### Changed
+
+- **wick-api.** `/reveal` also returns the guesses' pairwise similarity, and
+  `/warmth` takes an optional `near` list of the player's own last guesses. Both
+  rescale Gemini's cosine onto the 0 to 1 scale the clients share. Older
+  clients are unaffected.
+
 ## [Unreleased] (3.8)
 
 ### Changed

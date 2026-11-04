@@ -648,6 +648,13 @@ struct LiveDuelView: View {
             .font(.subheadline)
             .frame(maxWidth: 420)
 
+            // 3.9: below the result, never over it. Hidden when the race data
+            // cannot support it.
+            if let comparison = info.comparison {
+                PathComparisonCard(comparison: comparison, opponentLabel: opponentLabel, loc: loc)
+                    .frame(maxWidth: 420)
+            }
+
             Button {
                 Haptics.selection()
                 model.playAgain()
@@ -665,7 +672,16 @@ struct LiveDuelView: View {
                 Haptics.selection()
                 let text = r.outcome == .win ? loc.raceShareWon(r.youGuesses)
                     : (r.outcome == .loss ? loc.raceShareLost : loc.raceShareDraw)
-                ShareSheet.present([text, URL(string: "https://guesswick.com")!])
+                var items: [Any] = [text, URL(string: "https://guesswick.com")!]
+                // 3.9: your own route, as numbers. The text alone if it cannot render.
+                if !info.youScores.isEmpty,
+                   let card = RevealShareCard(brand: loc.key("cardBrandRace"), guesses: r.youGuesses,
+                                              solved: r.youGreen, heat: info.youScores, loc: loc,
+                                              path: RouteAnalysis.pathFacts(scores: info.youScores, solved: r.youGreen,
+                                                                            guesses: r.youGuesses)).rendered() {
+                    items.append(card)
+                }
+                ShareSheet.present(items)
             } label: {
                 Text(loc.raceShareResult).font(.headline).frame(maxWidth: .infinity).padding(.vertical, 10)
             }

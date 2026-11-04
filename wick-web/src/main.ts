@@ -22,7 +22,14 @@ import type { DailyWord, PastPuzzle } from "./game/daily.ts";
 import { fetchWarmth, httpBaseFrom, askKeeper, fetchReveal, fetchLiveCounts } from "./net/api.ts";
 import type { WarmthResult } from "./net/api.ts";
 import { computeStats } from "./game/stats.ts";
-import { revealSVG, shareRevealCard } from "./game/revealcard.ts";
+import { revealSVG, shareRevealCard, cardPng, type CardMeta } from "./game/revealcard.ts";
+import {
+  ProgressRecorder, classifySignal, comparisonOf, pathCardLine, pathFacts, pathSequence, routeReport, broadCategory,
+  signalEmphasis, CATEGORY_KEY, ROUTE, SIGNAL_GLYPH, SIGNAL_KEY,
+  type ComparisonSeat, type GuessSignal, type PathComparison, type RouteReport,
+} from "./game/route.ts";
+import { WORD_CATEGORIES } from "./game/wordcategories.ts";
+import { PALETTE, wickStillMarkup } from "./game/wickface.ts";
 import { buildTimeline, bandToken, toneFor, HIDE_ANSWER, STANDARD_PACING, type ReplayEvent, type WordPolicy } from "./game/replay/timeline.ts";
 import { ReplayScene, W as REPLAY_W, H as REPLAY_H, type ReplayCopy } from "./game/replay/scene.ts";
 import { canRecord, canShareFile, downloadVideo, recordReplay, shareVideo, type Recording } from "./game/replay/record.ts";
@@ -81,6 +88,10 @@ interface Guess {
   /** Monotonic per-round counter, shared with SoloReply, so the two arrays can
    *  be interleaved back into the true action order. */
   seq?: number;
+  /** 3.9: the one strategic signal shown under this guess. */
+  signal?: GuessSignal | null;
+  /** Breakthrough's gold pulse has played. Boards redraw often; it plays once. */
+  pulsed?: boolean;
 }
 
 /** Heat readout for a guess: "#N" when close (top 100), else the heat word. */
@@ -804,6 +815,8 @@ function applyGuessWarmth(
   /** Only a guess the player just typed should make a noise. Resuming a saved
    *  puzzle re-scores every unfinished guess at once, and that must stay silent. */
   announce = false,
+  /** The words sent as `near`, so the answer can be matched back to them. */
+  near: readonly string[] = [],
 ): void {
   const previousBest = sp.guesses
     .filter((x) => x !== g && x.warmth !== null)
@@ -822,6 +835,20 @@ function applyGuessWarmth(
     if (announce) playGuessTone(g.warmth);
     if (announce) {
       const score = g.warmth * 100;
+      // 3.9: one small signal. Scored from this guess's own results, so a
+      // reply that lands late still reads the guesses that came before it.
+      const older = sp.guesses.slice(sp.guesses.indexOf(g) + 1).filter((x) => x.warmth !== null);
+      const sims = result.near;
+      g.signal = classifySignal({
+        prior: older.map((x) => (x.warmth as number) * 100).reverse(),
+        score,
+        similarity: sims
+          ? older.slice(0, ROUTE.recentWindow).map((x) => {
+              const i = near.indexOf(x.word);
+              return i >= 0 ? sims[i] ?? null : null;
+            })
+          : null,
+      });
       const isNewBest = previousBest === null || score > previousBest;
       sp.coldReactionStreak = isNewBest ? 0 : sp.coldReactionStreak + 1;
       const reaction = reactionForGuess(sp.personality, {
@@ -1194,21 +1221,32 @@ function renderSuggest(over: boolean): void {
 async function shareMap(): Promise<void> {
   track("share_map", { n: sp.puzzleNumber });
   const daily = sp.mode === "daily";
+  const brand = daily ? t("cardBrandDaily", sp.puzzleNumber) : t("cardBrandPractice");
+  const heat = cardHeat();
+  const path = pathFacts(heat, sp.solved, sp.guesses.length);
+  const line = pathCardLine(brand, path, location.host, t);
+  const text = `${line}\n${dailyShareText()}`;
   const outcome = await shareRevealCard(
     {
       puzzleNumber: daily ? sp.puzzleNumber : 0,
-      brand: daily ? t("cardBrandDaily", sp.puzzleNumber) : t("cardBrandPractice"),
+      brand,
       guesses: sp.guesses.length,
       solved: sp.solved,
-      heat: cardHeat(),
+      heat,
       host: location.host,
+      path,
+      alt: line,
     },
-    dailyShareText(),
+    text,
   );
   if (outcome === "shared") track("share_card", { n: sp.puzzleNumber, g: 1 });
   else if (outcome === "downloaded") track("share_card", { n: sp.puzzleNumber, g: 2 });
   if (outcome === "downloaded") toast(t("revealShareSaved"));
-  else if (outcome === "failed") toast(t("revealShareFail"));
+  else if (outcome === "failed") {
+    // No image, but the same facts still share as text.
+    try { await navigator.clipboard.writeText(text); toast(t("duelCopied")); }
+    catch { toast(t("revealShareFail")); }
+  }
 }
 
 /** Every scored guess, oldest first, as 0...100 warmth; the word is 100. */
@@ -1216,10 +1254,49 @@ function cardHeat(): number[] {
   return [...sp.guesses].reverse().filter((g) => g.warmth !== null).map((g) => g.correct ? 100 : (g.warmth as number) * 100);
 }
 
+/** One Path Report stat: a label, a value and an optional small line. */
+function pathTile(title: string, value: string, detail?: string, hasInfo = false): HTMLElement {
+  const tag = hasInfo ? "button" : "div";
+  const tile = document.createElement(tag);
+  tile.className = "path-tile";
+  const big = el("span", { class: "path-tile-v" }, [value]);
+  // Sized to its longest word, so a long guess shrinks instead of splitting.
+  const longest = Math.max(...value.split(/\s+/).map((w) => w.length));
+  big.style.fontSize = `${Math.min(24, Math.floor(118 / longest))}px`;
+  tile.append(
+    el("span", { class: "path-tile-k" }, [title, ...(hasInfo ? [el("span", { class: "path-tile-i" }, ["i"])] : [])]),
+    big,
+    ...(detail ? [el("span", { class: "path-tile-d" }, [detail])] : []),
+  );
+  return tile;
+}
+
+/** The report's three stats, with Efficiency's one-line explanation behind a tap. */
+function pathStats(r: RouteReport): HTMLElement[] {
+  const none = t("pathStatNone");
+  const info = el("p", { class: "path-info", hidden: true }, [t("pathEfficiencyInfo")]);
+  const eff = pathTile(t("pathStatEfficiency"), r.efficiency === null ? none : String(r.efficiency), undefined, true);
+  eff.setAttribute("aria-label", `${t("pathEfficiencyInfoBtn")}: ${r.efficiency === null ? none : r.efficiency}`);
+  eff.setAttribute("aria-expanded", "false");
+  eff.addEventListener("click", () => {
+    info.hidden = !info.hidden;
+    eff.setAttribute("aria-expanded", String(!info.hidden));
+  });
+  const jump = r.firstTry
+    ? pathTile(t("pathStatBestJump"), t("pathFirstTry"))
+    : pathTile(t("pathStatBestJump"), r.bestJump?.word ?? none, r.bestJump ? t("pathJumpGain", r.bestJump.gain) : undefined);
+  const tiles = [eff, jump];
+  // Without similarity it is unknown, not zero, so the tile stays off.
+  if (r.exploration !== null) {
+    tiles.push(pathTile(t("pathStatExploration"), t(r.exploration === 1 ? "pathDirections.one" : "pathDirections.other", r.exploration)));
+  }
+  return [el("div", { class: "path-stats" }, tiles), info];
+}
+
 async function screenReveal(): Promise<void> {
   clear("dark");
   const word = sp.secret;
-  const solvedCount = sp.solved ? sp.guesses.length : 0;
+  const solved = sp.solved;
   const guesses = [...sp.guesses].reverse()
     .filter((g) => g.warmth !== null)
     .map((g) => ({ word: g.word, score: g.correct ? 100 : (g.warmth as number) * 100 }));
@@ -1228,32 +1305,48 @@ async function screenReveal(): Promise<void> {
   app.append(el("main", { class: "card" }, [
     el("div", { class: "solo-head" }, [
       el("button", { class: "icon-btn dark", onclick: screenSolo, title: t("back") }, ["←"]),
-      el("span", { class: "solo-title dark" }, [t("revealTitle")]),
+      el("span", { class: "solo-title dark" }, [t("pathTitle")]),
       el("span", {}, [""]),
     ]),
     host,
   ]));
 
-  const points = guesses.length ? await fetchReveal(httpBase, guesses) : [];
-  if (!points) {
-    host.replaceChildren(
-      el("p", { class: "center muted" }, [t("revealFail")]),
-      el("button", { class: "btn secondary", onclick: screenSolo }, [t("back")]),
-    );
-    return;
-  }
-  const kids: (Node | string)[] = [];
-  if (solvedCount > 0) kids.push(el("h2", {}, [t("revealFound", word, solvedCount)]));
+  // Only the map needs the server. The stats are worked out here, so a failed
+  // call loses the picture and Exploration, not the report.
+  const map = guesses.length ? await fetchReveal(httpBase, guesses) : { points: [], similarity: null };
+  const report = routeReport({ guesses, solved, similarity: map?.similarity ?? null });
   track("reveal_view", { n: sp.puzzleNumber });
-  kids.push(raw("reveal-plot", revealSVG(points, word)));
-  kids.push(el("p", { class: "hint" }, [t("revealCaption")]));
-  if (points.length > 0) {
+
+  const reduced = prefersReducedMotion();
+  const beats = pathSequence(reduced);
+  const wick = raw("path-wick", `<svg viewBox="0 0 120 128" width="46" height="49" overflow="visible" aria-hidden="true">${wickStillMarkup(solved ? "sly" : "calm", solved ? PALETTE.solved : PALETTE.neutral, "path")}</svg>`);
+  const category = broadCategory(WORD_CATEGORIES[sp.secretWord?.en ?? ""]);
+  const kids: Node[] = [
+    wick,
+    el("h2", { class: `path-result${solved ? " won" : ""}` }, [solved ? t("pathSolvedIn", sp.guesses.length) : t("pathUnsolved")]),
+  ];
+  if (category) kids.push(el("span", { class: "path-chip" }, [t(CATEGORY_KEY[category])]));
+  if (map) kids.push(raw("reveal-plot", revealSVG(map.points, word, { pivot: report.bestJump?.index ?? null, beats })));
+  else kids.push(el("p", { class: "center muted" }, [t("revealFail")]));
+  kids.push(...pathStats(report));
+  if (report.coachKey) kids.push(el("p", { class: "path-coach" }, [t(report.coachKey)]));
+  if (guesses.length > 0) {
     kids.push(el("button", {
       class: "btn primary",
       onclick: () => { void playSound("tap"); void shareMap(); },
-    }, [t("revealShare")]));
+    }, [t("pathShare")]));
   }
-  host.replaceChildren(...kids);
+  if (sp.mode === "practice") kids.push(el("button", { class: "btn secondary", onclick: startPractice }, [t("newWord")]));
+  kids.push(el("button", { class: "btn secondary", onclick: screenSolo }, [t("back")]));
+  if (map) kids.push(el("p", { class: "hint" }, [t("revealCaption")]));
+
+  const root = el("div", { class: `path-report${reduced ? " still" : ""}` }, kids);
+  root.style.setProperty("--beat-wick", `${beats.wick}ms`);
+  root.style.setProperty("--beat-stats", `${beats.stats}ms`);
+  root.style.setProperty("--beat-coach", `${beats.coach}ms`);
+  // A tap anywhere skips to the finished report.
+  root.addEventListener("click", () => root.classList.add("still"), { once: true });
+  host.replaceChildren(root);
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -1467,7 +1560,9 @@ function screenSolo(): void {
     renderSolo();
     saveDaily();
     if (!correct) {
-      fetchWarmth(httpBase, sp.secret, text, sp.lang).then((r) => applyGuessWarmth(g, r, true));
+      // 3.9: the player's own last words, so the server can say how alike they are.
+      const near = sp.guesses.slice(1, 1 + ROUTE.recentWindow).map((x) => x.word);
+      fetchWarmth(httpBase, sp.secret, text, sp.lang, near).then((r) => applyGuessWarmth(g, r, true, near));
     }
   };
   input.addEventListener("keydown", (e) => { if (e.key === "Enter") submit(); });
@@ -1841,6 +1936,24 @@ function renderHero(
   });
 }
 
+/** One compact line under a guess's warmth: a glyph and a word, muted, with no
+ *  card around it. An empty line still holds its height, so a guess with no
+ *  signal does not nudge the input. */
+function signalLine(g: Guess): HTMLElement {
+  const line = el("span", { class: "signal", role: "status" });
+  if (!g.signal) return line;
+  const emphasis = signalEmphasis(g.signal, prefersReducedMotion());
+  const glyph = el("span", { class: "signal-glyph" }, [SIGNAL_GLYPH[g.signal]]);
+  glyph.setAttribute("aria-hidden", "true");
+  line.append(glyph, t(SIGNAL_KEY[g.signal]));
+  if (emphasis !== "none") {
+    line.classList.add("gold");
+    if (emphasis === "pulse" && !g.pulsed) line.classList.add("pulse");
+    g.pulsed = true;
+  }
+  return line;
+}
+
 function renderLatestChip(latestEl: HTMLDivElement, latest: Guess | undefined): void {
   if (!latest) {
     latestEl.replaceChildren(el("span", { class: "muted" }, [t("firstGuessHint")]));
@@ -1854,7 +1967,7 @@ function renderLatestChip(latestEl: HTMLDivElement, latest: Guess | undefined): 
   const chip = el("span", { class: "chip" }, [t("heat." + scoreLabel(score).label)]);
   chip.style.background = scoreColorA(score, 0.18);
   chip.style.color = scoreColor(score);
-  latestEl.replaceChildren(el("span", { class: "word" }, [latest.word]), chip);
+  latestEl.replaceChildren(el("span", { class: "word" }, [latest.word]), chip, signalLine(latest));
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -2669,6 +2782,8 @@ function fmtCountdown(at: number): string {
 const race = {
   show: new RaceShow(),
   trails: new TrailRecorder(),
+  /** 3.9: the opponent's public progress, one sample per guess. */
+  oppProgress: new ProgressRecorder(),
   /** The last server clock and when it arrived (Date.now()). */
   clock: null as ClockFix | null,
   /** This match opened inside its first three seconds: play the face-off. */
@@ -2690,6 +2805,7 @@ function resetRace(): void {
   if (race.raf !== null) cancelAnimationFrame(race.raf);
   race.show = new RaceShow();
   race.trails = new TrailRecorder();
+  race.oppProgress = new ProgressRecorder();
   race.clock = null;
   race.faceOff = false;
   race.frame = null;
@@ -2759,6 +2875,7 @@ function raceOnState(s: StateSnapshot): void {
   }
   race.trails.push("you", heatBand(raceYouBest(), raceYouSolved()), Math.max(s.you.guessCount, live.guesses.filter((g) => g.warmth !== null).length));
   race.trails.push("them", heatBand(s.opponent.bestWarmth, s.opponent.solved), s.opponent.guessCount);
+  race.oppProgress.push(s.opponent.guessCount, s.opponent.bestWarmth);
 }
 
 function raceSeatSize(): number {
@@ -3000,17 +3117,37 @@ function renderMatch(): void {
   }
 }
 
-/** A heat trail as dots, oldest first, painted by band (no scores). */
-function trailEl(bands: readonly HeatBand[]): HTMLElement {
+/** A heat trail as dots, oldest first, painted by band (no scores). `jumpNode`
+ *  puts a gold ring on one dot. */
+function trailEl(bands: readonly HeatBand[], jumpNode: number | null = null): HTMLElement {
   const capped = capTrail(bands);
   const row = el("span", { class: "trail", role: "img", "aria-label": capped.map((b) => t(BAND_KEY[b])).join(", ") } as Partial<HTMLElement>);
   capped.forEach((b, i) => {
     if (i > 0) row.append(el("i", { class: "trail-link" }));
-    const dot = el("i", { class: `trail-dot band-${b}` });
+    const dot = el("i", { class: `trail-dot band-${b}${i === jumpNode ? " jump" : ""}` });
     dot.style.background = scoreColor(BAND_SCORE[b]);
     row.append(dot);
   });
   return row;
+}
+
+/** Two miniature routes and one neutral sentence, under the race recap. It
+ *  draws bands, counts and a marker only: never a word or an exact opponent
+ *  score. An opponent has no Efficiency here, because the protocol hides the
+ *  guesses where they went colder. */
+function comparisonEl(c: PathComparison): HTMLElement {
+  const row = (name: string, seat: ComparisonSeat) =>
+    el("div", { class: "cmp-row" }, [
+      el("span", { class: "cmp-name" }, [name, el("span", { class: "cmp-count" }, [`${t("raceRecapGuesses")} ${seat.guessCount}`])]),
+      trailEl(seat.bands, seat.jumpNode),
+      el("span", { class: "cmp-eff" }, seat.efficiency === null ? [] : [String(seat.efficiency), el("small", {}, [t("pathStatEfficiency")])]),
+    ]);
+  return el("section", { class: "cmp" }, [
+    el("div", { class: "cmp-title" }, [t("pathCmpTitle").toLocaleUpperCase()]),
+    row(t("raceSeatYou"), c.you),
+    row(opponentLabel(), c.them),
+    el("p", { class: "cmp-line" }, [t(c.sentenceKey)]),
+  ]);
 }
 
 function screenResult(result: MatchResult, word?: string, words?: Record<string, string>): void {
@@ -3069,6 +3206,22 @@ function screenResult(result: MatchResult, word?: string, words?: Record<string,
     // The opponent trail only shows when this client saw their progress live.
     stats.append(stat(t("raceRecapTrail"), trailEl(race.trails.you), race.trails.them.length > 0 ? trailEl(race.trails.them) : ""));
   }
+  // 3.9: your own route from your own scores, and theirs from public progress.
+  // The word that solved a race never comes back scored, so it is added here.
+  const yourScores = [...live.guesses].reverse().filter((g) => g.warmth !== null).map((g) => (g.warmth as number) * 100);
+  if (recap.youGreen && yourScores[yourScores.length - 1] !== 100) yourScores.push(100);
+  const themResult = result.players.find((p) => p.id !== live.kid);
+  const comparison = comparisonOf({
+    voided: result.reason === "void",
+    you: { scores: yourScores, guessCount: recap.youGuesses, solved: recap.youGreen },
+    them: { samples: race.oppProgress.samples, guessCount: recap.themGuesses, best: themResult?.bestWarmth ?? 0, solved: recap.themGreen },
+  });
+  const raceCard: CardMeta | null = yourScores.length === 0 ? null : (() => {
+    const path = pathFacts(yourScores, recap.youGreen, recap.youGuesses);
+    const brand = t("cardBrandRace");
+    return { puzzleNumber: 0, brand, guesses: recap.youGuesses, solved: recap.youGreen, heat: yourScores, host: location.host, path, alt: pathCardLine(brand, path, location.host, t) };
+  })();
+
   // Finish time when someone solved; a timeout already says so in the line above.
   const summary = el("p", { class: "center recap-line" }, [
     recap.finishMs !== null ? `${t("raceRecapFinish")} ${fmtElapsed(recap.finishMs)} · ` : "",
@@ -3099,8 +3252,9 @@ function screenResult(result: MatchResult, word?: string, words?: Record<string,
       ...(word ? [reveal] : []),
       summary,
       stats,
+      ...(comparison ? [comparisonEl(comparison)] : []),
       again,
-      el("button", { class: "btn secondary", onclick: () => { void shareRaceResult(recap.outcome, recap.youGuesses); } }, [t("raceShareResult")]),
+      el("button", { class: "btn secondary", onclick: () => { void shareRaceResult(recap.outcome, recap.youGuesses, raceCard); } }, [t("raceShareResult")]),
       el("button", { class: "btn ghost", onclick: () => { leaveLive(); } }, [t("backHome")]),
     ]),
   );
@@ -3130,9 +3284,17 @@ function screenResult(result: MatchResult, word?: string, words?: Record<string,
 }
 
 /** Share a public-safe line: the outcome and guess count, never the word. */
-async function shareRaceResult(outcome: Outcome, guesses: number): Promise<void> {
+async function shareRaceResult(outcome: Outcome, guesses: number, card: CardMeta | null = null): Promise<void> {
   const text = outcome === "win" ? t("raceShareWon", guesses) : outcome === "loss" ? t("raceShareLost") : t("raceShareDraw");
   const url = "https://guesswick.com";
+  // 3.9: the Path Card goes along where the share sheet takes files. Your own
+  // route only, as numbers. Anywhere else this stays the text line it always was.
+  const file = card ? await cardPng(card) : null;
+  const nav = navigator as Navigator & { canShare?: (d?: ShareData) => boolean };
+  if (file && typeof nav.share === "function" && nav.canShare?.({ files: [file] })) {
+    try { await nav.share({ files: [file], text: `${text} ${url}` }); return; }
+    catch (e) { if ((e as { name?: string }).name === "AbortError") return; }
+  }
   if (typeof navigator.share === "function") {
     try { await navigator.share({ text, url }); return; }
     catch (e) { if ((e as { name?: string }).name === "AbortError") return; }

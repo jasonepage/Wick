@@ -97,10 +97,16 @@ final class LiveDuelViewModel: ObservableObject, MatchClientDelegate {
         var themTrail: [RaceShowdown.Band]
         /// The local Wick's last non-solved score, for where his color starts.
         var youStartScore: Double?
+        /// 3.9: your own scored guesses, oldest first, for your Path Card.
+        var youScores: [Double]
+        /// 3.9: the two routes side by side, when the race data supports it.
+        var comparison: RouteAnalysis.Comparison?
     }
 
     private var raceShow = RaceShowdown.Show()
     private var trails = RaceShowdown.TrailRecorder()
+    /// 3.9: the opponent's public progress, one sample per guess.
+    private var oppProgress = RouteAnalysis.ProgressRecorder()
     private var clockFix: RaceShowdown.ClockFix?
     private var oppSeen = 0
     private var rematchGate = RaceShowdown.RematchGate()
@@ -345,6 +351,7 @@ final class LiveDuelViewModel: ObservableObject, MatchClientDelegate {
             trails.push(.you, RaceShowdown.band(youBest, solved: youSolved), guessCount: youScoredCount)
             trails.push(.them, RaceShowdown.band(s.opponent.bestWarmth, solved: s.opponent.solved),
                         guessCount: s.opponent.guessCount)
+            oppProgress.push(guessCount: s.opponent.guessCount, bestWarmth: s.opponent.bestWarmth)
             raceStep()
 
         case .scored(let guess, let score, let rank, let notAWord):
@@ -396,10 +403,20 @@ final class LiveDuelViewModel: ObservableObject, MatchClientDelegate {
                 reason: r.reason.rawValue, winner: r.winner, draw: r.draw,
                 players: r.players.map { .init(id: $0.id, solvedAtMs: $0.solvedAtMs, bestWarmth: $0.bestWarmth, guessCount: $0.guessCount) },
                 myId: myId)
+            // 3.9: your route from your own scores, theirs from public progress.
+            // The word that solved a race never comes back scored, so add it.
+            var youScores = guesses.reversed().compactMap { $0.warmth }
+            if recap.youGreen && youScores.last != 100 { youScores.append(100) }
+            let comparison = RouteAnalysis.comparison(
+                voided: r.reason.rawValue == "void",
+                youScores: youScores, youGuessCount: recap.youGuesses, youSolved: recap.youGreen,
+                themSamples: oppProgress.samples, themGuessCount: recap.themGuesses,
+                themBest: r.players.first { $0.id != myId }?.bestWarmth ?? 0, themSolved: recap.themGreen)
             recapInfo = RecapInfo(recap: recap, reason: r.reason, word: word, opponentWord: opponentWord,
                                   leadChanges: raceFrame?.leadChanges ?? 0,
                                   youTrail: trails.you, themTrail: trails.them,
-                                  youStartScore: guesses.first { $0.warmth != nil && !$0.correct }?.warmth)
+                                  youStartScore: guesses.first { $0.warmth != nil && !$0.correct }?.warmth,
+                                  youScores: youScores, comparison: comparison)
             rematchGate = RaceShowdown.RematchGate()
             waitingRematch = false
             raceTask?.cancel()
@@ -468,6 +485,7 @@ final class LiveDuelViewModel: ObservableObject, MatchClientDelegate {
         raceTask = nil
         raceShow = RaceShowdown.Show()
         trails = RaceShowdown.TrailRecorder()
+        oppProgress = RouteAnalysis.ProgressRecorder()
         clockFix = nil
         raceFrame = nil
         racePhase = .opening

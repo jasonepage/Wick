@@ -112,6 +112,17 @@ final class GameViewModel {
     /// How the latest guess moved relative to the player's previous best —
     /// drives the "warmer / colder" feedback on the hero card.
     private(set) var trajectory: GuessTrajectory?
+    /// 3.9: the strategic signal for the latest guess, tied to that guess so it
+    /// can never show under a different one.
+    struct SignalState: Equatable {
+        let guessID: UUID
+        let signal: RouteAnalysis.Signal
+    }
+    private(set) var lastSignal: SignalState?
+    /// The signal to show under `g`, if it has one.
+    func signal(for g: Guess) -> RouteAnalysis.Signal? {
+        lastSignal?.guessID == g.id ? lastSignal?.signal : nil
+    }
     /// Consecutive known guesses that did NOT beat the running best. Used to
     /// notice when the player is stuck so Wick can proactively offer help.
     private(set) var coldStreak = 0
@@ -915,6 +926,7 @@ final class GameViewModel {
     }
 
     private func resetRound() {
+        lastSignal = nil
         startRoundClock()
         guesses = []
         questions = []
@@ -1204,6 +1216,19 @@ final class GameViewModel {
             guesses.sort { $0.score > $1.score }
             lastSubmitted = g
 
+            // 3.9: one small signal, from the scores and the similarity between
+            // the player's own guesses. Never from the target, beyond the score
+            // they just saw. A hint is Wick's guess, and the tutorial has its coach.
+            if submittingHint || mode == .tutorial {
+                lastSignal = nil
+            } else {
+                let prior = prevKnown.sorted { $0.order < $1.order }
+                let nearby = prior.suffix(RouteAnalysis.recentWindow).reversed()
+                    .map { engine.similarity(word, $0.word) }
+                lastSignal = RouteAnalysis.classify(prior: prior.map(\.score), score: s, similarity: nearby)
+                    .map { SignalState(guessID: g.id, signal: $0) }
+            }
+
             let isNewBest = prevBest == nil || s > prevBest!
             trajectory = GuessTrajectory(
                 isFirst: prevBest == nil,
@@ -1247,6 +1272,35 @@ final class GameViewModel {
         return RevealMap.layout(words: known.map(\.word),
                                 scores: known.map(\.score),
                                 similarity: { engine.similarity($0, $1) })
+    }
+
+    /// 3.9: the Path Report's stats for this round. Pure arithmetic over the
+    /// player's own guesses (RouteAnalysis.swift).
+    var routeReport: RouteAnalysis.Report {
+        let known = guesses.filter(\.known).sorted { $0.order < $1.order }
+        let words = known.map(\.word)
+        var similarity: [[Double?]]? = nil
+        if engine.hasVocabulary {
+            var m = Array(repeating: Array(repeating: Double?.none, count: words.count), count: words.count)
+            for i in words.indices {
+                m[i][i] = 1
+                for j in words.indices where j > i {
+                    let s = engine.similarity(words[i], words[j])
+                    m[i][j] = s
+                    m[j][i] = s
+                }
+            }
+            similarity = m
+        }
+        return RouteAnalysis.report(words: words, scores: known.map(\.score), solved: solved, similarity: similarity)
+    }
+
+    /// 3.9: the broad category chip's label. Post-round only, and nil for a word
+    /// with no reliable tag.
+    var pathCategory: String? {
+        guard solved || revealed else { return nil }
+        let tag = WordAttributes.category(for: target, language: language)?.rawValue
+        return RouteAnalysis.broadCategory(tag: tag).map { loc.key($0.key) }
     }
 
     /// How the round feed is ordered.
@@ -2062,12 +2116,33 @@ final class GameViewModel {
     func shareImage() -> UIImage? {
         let heat = cardHeat()
         guard !heat.isEmpty else { return nil }
-        let brand: String
+        return RevealShareCard(brand: cardBrand, guesses: guessCount, solved: solved, heat: heat, loc: loc,
+                               path: pathFacts).rendered()
+    }
+
+    private var cardBrand: String {
         switch mode {
-        case .daily, .archive: brand = loc.cardBrandDaily(puzzleNumber)
-        default: brand = loc.cardBrandPractice
+        case .daily, .archive: return loc.cardBrandDaily(puzzleNumber)
+        default: return loc.cardBrandPractice
         }
-        return RevealShareCard(brand: brand, guesses: guessCount, solved: solved, heat: heat, loc: loc).rendered()
+    }
+
+    /// 3.9: what the Path Card says, as numbers. See that card's header.
+    private var pathFacts: RouteAnalysis.PathFacts {
+        RouteAnalysis.pathFacts(scores: cardHeat(), solved: solved, guesses: guessCount)
+    }
+
+    /// 3.9: the Path Card for the share sheet. The text line goes along, and it
+    /// is all that goes if the image cannot be made. Both are spoiler free.
+    func pathShareItems() -> [Any] {
+        let n = mode == .daily ? puzzleNumber : nil
+        Events.track(.shareMap, n: n)
+        var items: [Any] = [loc.pathCardLine(brand: cardBrand, facts: pathFacts, host: "guesswick.com")]
+        if let image = shareImage() {
+            items.append(image)
+            Events.track(.shareCard, n: n, g: 1)
+        }
+        return items
     }
 
     /// Every scored guess, oldest first, as 0...100 warmth; the word is 100.

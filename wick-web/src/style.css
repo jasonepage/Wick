@@ -1131,3 +1131,91 @@ a.btn { display: block; box-sizing: border-box; text-align: center; text-decorat
   .timer { font-size: 2rem; }
 }
 .race-card .guess-row .field:disabled, .race-card .guess-row .send:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* ── 3.9 Semantic Arena ── */
+/* A game reward screen: bright raised plates on a darker lip, heavy rounded
+   type, and things that pop in with a little bounce. Scoped to the new 3.9
+   surfaces, so the rest of Wick keeps its look. */
+.path-report, .cmp, .signal {
+  --face: #7d55f2; --face-top: #9472f7; --lip: #4c2bb0; --gold: #ffd35c; --gold-lip: #c9971f;
+  font-family: ui-rounded, "SF Pro Rounded", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+}
+
+/* The strategic signal: small and plain, no card. Gold only for Breakthrough. */
+.signal { display: inline-flex; align-items: center; gap: 4px; min-height: 1.3em;
+  font-size: 0.8rem; font-weight: 800; opacity: 0.72; }
+.signal-glyph { font-weight: 900; }
+.signal.gold { color: #edb02e; opacity: 1; font-weight: 900; }
+.theme-light .signal.gold { color: #8f6200; }
+.signal.pulse { animation: signal-pop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+@keyframes signal-pop { 0% { transform: scale(0.8); text-shadow: none; }
+  45% { transform: scale(1.12); text-shadow: 0 0 10px rgba(237,176,46,0.75); }
+  100% { transform: scale(1); text-shadow: none; } }
+@media (prefers-reduced-motion: reduce) { .signal.pulse { animation: none; } }
+
+/* The Path Report. The beats come from pathSequence() in game/route.ts. */
+.path-report { display: flex; flex-direction: column; align-items: center; gap: 11px; text-align: center; }
+.path-report > .btn, .path-report > .hint, .path-report > .reveal-plot, .path-report > .path-stats { width: 100%; }
+.path-wick { line-height: 0; animation: path-bounce 0.34s cubic-bezier(0.34, 1.56, 0.64, 1) var(--beat-wick, 0ms) both; }
+.path-result { margin: 0; font-size: 1.9rem; font-weight: 900; line-height: 1.05; letter-spacing: 0.01em; text-transform: uppercase;
+  color: #fff; -webkit-text-stroke: 7px #3d2392; paint-order: stroke fill; text-shadow: 0 4px 0 #3d2392; }
+.path-result.won { -webkit-text-stroke-color: #2c6b27; text-shadow: 0 4px 0 #2c6b27; }
+.path-chip { font-size: 0.72rem; font-weight: 900; letter-spacing: 0.08em; padding: 4px 13px; border-radius: 10px;
+  background: var(--gold); color: #3a2a00; box-shadow: 0 3px 0 var(--gold-lip); transform: rotate(-2deg); }
+.path-stats { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 9px; padding-bottom: 5px; }
+.path-tile { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+  min-height: 86px; padding: 9px 5px; min-width: 0; border-radius: 16px; font-family: inherit;
+  border: 2px solid rgba(255, 255, 255, 0.28); color: #fff;
+  background: linear-gradient(var(--face-top), var(--face)); box-shadow: 0 5px 0 var(--lip);
+  animation: path-bounce 0.24s cubic-bezier(0.34, 1.56, 0.64, 1) var(--beat-stats, 0ms) both; }
+.path-tile:nth-child(2) { animation-delay: calc(var(--beat-stats, 0ms) + 50ms); }
+.path-tile:nth-child(3) { animation-delay: calc(var(--beat-stats, 0ms) + 100ms); }
+button.path-tile { cursor: pointer; transition: transform 0.08s, box-shadow 0.08s; }
+button.path-tile:active { transform: translateY(4px); box-shadow: 0 1px 0 var(--lip); }
+button.path-tile:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+.path-tile-k { display: inline-flex; align-items: center; gap: 4px; font-size: 0.64rem; font-weight: 900;
+  letter-spacing: 0.04em; text-transform: uppercase; opacity: 0.88; }
+.path-tile-i { display: inline-grid; place-items: center; width: 13px; height: 13px; border-radius: 999px;
+  border: 1.5px solid currentColor; font-size: 0.56rem; line-height: 1; text-transform: none; }
+.path-tile-v { max-width: 100%; font-weight: 900; line-height: 1.1;
+  text-shadow: 0 2px 0 rgba(40, 20, 110, 0.55); }
+.path-tile-d { font-size: 0.7rem; font-weight: 900; color: var(--gold); }
+.path-info { margin: 0; font-size: 0.84rem; font-weight: 700; opacity: 0.85; }
+.path-coach { margin: 2px 0 6px; padding: 9px 14px; border-radius: 16px; font-size: 0.96rem; font-weight: 800; line-height: 1.25;
+  background: rgba(var(--p-keeper), 0.1); border: 3px solid rgba(var(--p-keeper), 0.55);
+  animation: path-bounce 0.2s cubic-bezier(0.34, 1.56, 0.64, 1) var(--beat-coach, 0ms) both; }
+.path-report .btn { border-radius: 16px; font-weight: 900; box-shadow: 0 5px 0 rgba(var(--p-keeper), 0.45); margin-bottom: 3px;
+  transition: transform 0.08s, box-shadow 0.08s; }
+.path-report .btn.primary { background: linear-gradient(var(--face-top), var(--face)); color: #fff; box-shadow: 0 5px 0 var(--lip);
+  border: 2px solid rgba(255, 255, 255, 0.28); text-transform: uppercase; letter-spacing: 0.03em; }
+.path-report .btn:active { transform: translateY(4px); box-shadow: 0 1px 0 var(--lip); }
+.rv-route { stroke-dasharray: 1; stroke-width: 3.5; animation: rv-draw 0.5s ease-in-out both; }
+@keyframes rv-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+.path-report .rv-dot { animation-name: rv-bounce; animation-timing-function: cubic-bezier(0.34, 1.56, 0.64, 1); animation-duration: 0.26s; }
+@keyframes rv-bounce { from { opacity: 0; transform: scale(0.2); } to { opacity: 1; transform: scale(1); } }
+.rv-halo { stroke-width: 4; filter: drop-shadow(0 0 6px rgba(255,211,92,0.85)); transform-box: fill-box; transform-origin: center;
+  animation: path-bounce 0.24s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+.rv-word { animation: path-in 0.2s ease-out both; }
+@keyframes path-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes path-bounce { from { opacity: 0; transform: scale(0.7); } to { opacity: 1; transform: scale(1); } }
+/* Reduce Motion, or a tap: the finished composition, at once. */
+.path-report.still .path-wick, .path-report.still .path-tile, .path-report.still .path-coach,
+.path-report.still .rv-route, .path-report.still .rv-halo, .path-report.still .rv-word,
+.path-report.still .rv-dot { animation: none; }
+@media (prefers-reduced-motion: reduce) {
+  .path-wick, .path-tile, .path-coach, .rv-route, .rv-halo, .rv-word, .path-report .rv-dot { animation: none; }
+  button.path-tile:active, .path-report .btn:active { transform: none; }
+}
+
+/* The race's two route comparison. */
+.cmp { display: grid; gap: 9px; padding: 13px; border-radius: 16px; background: rgba(var(--p-keeper), 0.1);
+  border: 3px solid rgba(var(--p-keeper), 0.55); box-shadow: 0 4px 0 rgba(var(--p-keeper), 0.4); margin-bottom: 4px; }
+.cmp-title { font-size: 0.72rem; font-weight: 900; letter-spacing: 0.08em; opacity: 0.75; text-align: center; }
+.cmp-row { display: grid; grid-template-columns: minmax(0, 1fr) auto 58px; gap: 8px; align-items: center; }
+.cmp-name { font-size: 0.82rem; font-weight: 900; overflow-wrap: anywhere; }
+.cmp-count { display: block; font-size: 0.7rem; font-weight: 700; opacity: 0.75; }
+.cmp-eff { text-align: center; font-size: 1.05rem; font-weight: 900; line-height: 1.1; }
+.cmp-eff small { display: block; font-size: 0.56rem; font-weight: 800; opacity: 0.75; overflow-wrap: anywhere; }
+.cmp-line { margin: 0; text-align: center; font-size: 0.92rem; font-weight: 900; }
+.cmp .trail-dot { width: 12px; height: 12px; }
+.trail-dot.jump { box-shadow: 0 0 0 3px #edb02e; }

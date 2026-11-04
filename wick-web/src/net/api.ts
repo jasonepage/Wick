@@ -15,6 +15,9 @@ export interface WarmthResult {
   score: number;
   /** Contexto rank (1 = the answer, 2 = closest word), when the server provides it. */
   rank: number | null;
+  /** 3.9: how alike this guess is to each word sent as `near`, same order.
+   *  Missing when the server has no embeddings. */
+  near?: (number | null)[];
 }
 
 export async function fetchWarmth(
@@ -23,18 +26,22 @@ export async function fetchWarmth(
   guess: string,
   /** The round's play language; the server ranks against that language's list. */
   lang: string = "en",
+  /** 3.9: the player's own last guesses, newest first, for the strategic signal. */
+  near: readonly string[] = [],
 ): Promise<WarmthResult | "not_a_word" | null> {
   try {
     const res = await fetch(`${httpBase}/warmth`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ secret, guess, lang }),
+      body: JSON.stringify(near.length > 0 ? { secret, guess, lang, near } : { secret, guess, lang }),
     });
     if (!res.ok) return null;
-    const json = (await res.json()) as { score?: unknown; rank?: unknown; notAWord?: unknown };
+    const json = (await res.json()) as { score?: unknown; rank?: unknown; notAWord?: unknown; near?: unknown };
     if (json.notAWord === true) return "not_a_word";
     if (typeof json.score !== "number") return null;
-    return { score: json.score, rank: typeof json.rank === "number" ? json.rank : null };
+    const out: WarmthResult = { score: json.score, rank: typeof json.rank === "number" ? json.rank : null };
+    if (Array.isArray(json.near)) out.near = json.near.map((x) => (typeof x === "number" ? x : null));
+    return out;
   } catch {
     return null;
   }
@@ -50,13 +57,19 @@ export interface RevealPointDTO {
   y: number;
 }
 
+export interface RevealResult {
+  points: RevealPointDTO[];
+  /** 3.9: pairwise similarity between the guesses, or null when unavailable. */
+  similarity: (number | null)[][] | null;
+}
+
 /** Server-computed semantic-map layout for a finished round. Sends the player's own
  *  guesses (word + 0..100 score); the server embeds them and returns positions.
  *  Returns null on failure (the caller hides the map). */
 export async function fetchReveal(
   httpBase: string,
   guesses: { word: string; score: number }[],
-): Promise<RevealPointDTO[] | null> {
+): Promise<RevealResult | null> {
   try {
     const res = await fetch(`${httpBase}/reveal`, {
       method: "POST",
@@ -64,8 +77,12 @@ export async function fetchReveal(
       body: JSON.stringify({ guesses }),
     });
     if (!res.ok) return null;
-    const json = (await res.json()) as { points?: unknown };
-    return Array.isArray(json.points) ? (json.points as RevealPointDTO[]) : null;
+    const json = (await res.json()) as { points?: unknown; similarity?: unknown };
+    if (!Array.isArray(json.points)) return null;
+    return {
+      points: json.points as RevealPointDTO[],
+      similarity: Array.isArray(json.similarity) ? (json.similarity as (number | null)[][]) : null,
+    };
   } catch {
     return null;
   }

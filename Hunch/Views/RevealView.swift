@@ -7,6 +7,12 @@
 //  (distance from center = the warmth the player saw), with similar guesses
 //  clustering by angle. The hunt animates inward in guess order.
 //
+//  3.9: this is "Your Path", a 15 second debrief. The map stays the hero. The
+//  route now runs through every guess in the order it was made, the best jump
+//  gets a gold halo, and three stats and one coach line follow. The numbers come
+//  from RouteAnalysis.swift. The sequence takes about 1.2 seconds, a tap skips
+//  it, and Reduce Motion or VoiceOver shows the finished report at once.
+//
 //  Geometry + determinism live in RevealMap.swift (pure, unit-tested). This file is
 //  purely presentation: it draws the RevealPoints RevealMap produces, using the same
 //  hot/cold palette + bands as the board (HunchTheme). Reduce-Motion aware.
@@ -27,11 +33,30 @@ struct RevealView: View {
     let loc: Loc
     /// Optional: number of guesses to solve, for the header ("You found X in N").
     var solvedInGuesses: Int? = nil
+    /// 3.9: the round's stats and coach line. nil shows the map alone.
+    var report: RouteAnalysis.Report? = nil
+    /// 3.9: the category chip's label, only when the word has a reliable one.
+    var category: String? = nil
+    /// 3.9: hands the Path Card to the share sheet.
+    var onShare: (() -> Void)? = nil
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityVoiceOverEnabled) private var voiceOver
+    @Environment(\.dismiss) private var dismiss
     @State private var appeared = false
     /// Drives the slow halo behind the word.
     @State private var pulse = false
+    /// How far the reveal sequence has got: 1 Wick, 2 word, 3 route, 4 halo,
+    /// 5 stats, 6 coach.
+    @State private var beat = 0
+    @State private var sequence: Task<Void, Never>? = nil
+    @State private var showEfficiencyInfo = false
+
+    private static let lastBeat = 6
+    /// Nothing moves: Reduce Motion, and VoiceOver, which must not reach for
+    /// tiles that have not faded in yet.
+    private var still: Bool { reduceMotion || voiceOver }
+    private var solved: Bool { solvedInGuesses != nil }
 
     /// Concentric band rings, outer radius as a fraction of the plot radius. These
     /// fractions MUST match RevealMap.radius(forScore:) breakpoints so the rings line
@@ -50,13 +75,185 @@ struct RevealView: View {
     ]
 
     var body: some View {
-        VStack(spacing: HunchTheme.Spacing.l) {
-            if let n = solvedInGuesses {
-                Text(loc.revealFound(word, n))
-                    .font(HunchTheme.Fonts.cardTitle)
+        ScrollView {
+            VStack(spacing: HunchTheme.Spacing.m) {
+                header
+                map
+                if let report {
+                    stats(report)
+                        .padding(.bottom, 5)
+                        .scaleEffect(beat >= 5 || still ? 1 : 0.8)
+                        .opacity(beat >= 5 ? 1 : 0)
+                    if let key = report.coachKey {
+                        Text(loc.key(key))
+                            .font(PathStyle.font(15))
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 9)
+                            .background(PathStyle.face.opacity(0.10),
+                                        in: RoundedRectangle(cornerRadius: PathStyle.radius, style: .continuous))
+                            .overlay(RoundedRectangle(cornerRadius: PathStyle.radius, style: .continuous)
+                                .strokeBorder(PathStyle.face.opacity(0.55), lineWidth: 3))
+                            .scaleEffect(beat >= Self.lastBeat || still ? 1 : 0.8)
+                            .opacity(beat >= Self.lastBeat ? 1 : 0)
+                    }
+                }
+                actions
+                Text(loc.revealCaption)
+                    .font(HunchTheme.Fonts.caption)
+                    .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
             }
+            .padding(HunchTheme.Spacing.l)
+            .contentShape(Rectangle())
+            // A tap anywhere skips to the finished report.
+            .onTapGesture { if beat < Self.lastBeat { finish() } }
+        }
+        .onAppear {
+            play()
+            if !still {
+                withAnimation(.easeInOut(duration: 1.6).repeatForever(autoreverses: true)) { pulse = true }
+            }
+        }
+        .onDisappear { sequence?.cancel() }
+        .sheet(isPresented: $showEfficiencyInfo) { efficiencyInfo }
+    }
 
+    // MARK: - Report
+
+    /// Result first: `Solved in 8`, with the green Wick and, now that the word
+    /// is on screen, its broad category.
+    private var header: some View {
+        VStack(spacing: HunchTheme.Spacing.xs) {
+            KeeperStill(face: solved ? .sly : .calm,
+                        color: solved ? KeeperRGB.body(for: .celebrating) : KeeperRGB.body(for: .defeated),
+                        sparks: false, size: 42)
+                .scaleEffect(beat >= 1 || still ? 1 : 0.7)
+                .opacity(beat >= 1 ? 1 : 0)
+                .accessibilityHidden(true)
+            Text((solvedInGuesses.map { loc.pathSolvedIn($0) } ?? loc.key("pathUnsolved")).uppercased())
+                .font(PathStyle.font(29))
+                .foregroundStyle(solved ? HunchTheme.Palette.solved : PathStyle.face)
+                .shadow(color: (solved ? HunchTheme.Palette.solved : PathStyle.lip).opacity(0.35), radius: 0, x: 0, y: 3)
+                .multilineTextAlignment(.center)
+                .minimumScaleFactor(0.7)
+            if let category {
+                Text(category)
+                    .font(PathStyle.font(11))
+                    .tracking(0.8)
+                    .foregroundStyle(Color(red: 0.23, green: 0.16, blue: 0))
+                    .padding(.horizontal, 12).padding(.vertical, 4)
+                    .background(PathStyle.goldLip, in: RoundedRectangle(cornerRadius: 10, style: .continuous).offset(y: 3))
+                    .background(PathStyle.gold, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .rotationEffect(.degrees(-2))
+                    .opacity(beat >= 2 ? 1 : 0)
+            }
+        }
+    }
+
+    private func stats(_ r: RouteAnalysis.Report) -> some View {
+        let none = loc.key("pathStatNone")
+        return HStack(alignment: .top, spacing: HunchTheme.Spacing.s) {
+            Button {
+                showEfficiencyInfo = true
+            } label: {
+                PathStatTile(title: loc.key("pathStatEfficiency"),
+                             value: r.efficiency.map { "\($0)" } ?? none,
+                             hasInfo: true)
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint(loc.key("pathEfficiencyInfoBtn"))
+            PathStatTile(title: loc.key("pathStatBestJump"),
+                         value: r.firstTry ? loc.key("pathFirstTry") : (r.bestJump?.word ?? none),
+                         detail: r.firstTry ? nil : r.bestJump.map { loc.pathJumpGain($0.gain) })
+            // Without similarity it is unknown, not zero, so the tile stays off.
+            if let directions = r.exploration {
+                PathStatTile(title: loc.key("pathStatExploration"), value: loc.pathDirections(directions))
+            }
+        }
+    }
+
+    private var actions: some View {
+        VStack(spacing: HunchTheme.Spacing.s) {
+            if let onShare, !points.isEmpty {
+                Button {
+                    Feedback.play(.selection)
+                    onShare()
+                } label: {
+                    Label(loc.key("pathShare").uppercased(), systemImage: "square.and.arrow.up")
+                }
+                .buttonStyle(RaisedButtonStyle())
+            }
+            HStack(spacing: HunchTheme.Spacing.s) {
+                Button {
+                    play()
+                } label: {
+                    Label(loc.revealReplay, systemImage: "arrow.counterclockwise")
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                }
+                .buttonStyle(RaisedButtonStyle(face: PathStyle.face.opacity(0.14), lip: PathStyle.lip.opacity(0.35), ink: PathStyle.face))
+                .disabled(still)
+                .opacity(still ? 0.5 : 1)
+                Button {
+                    dismiss()
+                } label: {
+                    Text(loc.liveDone)
+                }
+                .buttonStyle(RaisedButtonStyle(face: PathStyle.face.opacity(0.14), lip: PathStyle.lip.opacity(0.35), ink: PathStyle.face))
+            }
+            .padding(.top, 4)
+            .padding(.bottom, 5)
+        }
+    }
+
+    private var efficiencyInfo: some View {
+        VStack(spacing: HunchTheme.Spacing.s) {
+            Text(loc.key("pathStatEfficiency")).font(.headline)
+            Text(loc.key("pathEfficiencyInfo"))
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+        }
+        .padding(HunchTheme.Spacing.xl)
+        .presentationDetents([.height(170)])
+    }
+
+    /// Run the reveal from the top. With nothing to animate, go straight to
+    /// the finished composition.
+    private func play() {
+        sequence?.cancel()
+        guard !still else {
+            beat = Self.lastBeat
+            appeared = true
+            return
+        }
+        beat = 0
+        appeared = false
+        let b = RouteAnalysis.pathSequence(reduceMotion: false)
+        let steps: [(beat: Int, at: Int)] = [(1, b.wick), (2, b.word), (3, b.route), (4, b.halo), (5, b.stats), (6, b.coach)]
+        sequence = Task { @MainActor in
+            var now = 0
+            for step in steps {
+                try? await Task.sleep(for: .milliseconds(max(0, step.at - now)))
+                if Task.isCancelled { return }
+                now = step.at
+                withAnimation(.spring(response: 0.26, dampingFraction: 0.55)) { beat = step.beat }
+                if step.beat == 3 { appeared = true }
+            }
+        }
+    }
+
+    /// Skip whatever is left of the reveal.
+    private func finish() {
+        sequence?.cancel()
+        withAnimation(.easeOut(duration: 0.12)) { beat = Self.lastBeat }
+        appeared = true
+    }
+
+    // MARK: - Map
+
+    private var map: some View {
             GeometryReader { geo in
                 let side = min(geo.size.width, geo.size.height)
                 let center = CGPoint(x: geo.size.width / 2, y: geo.size.height / 2)
@@ -68,35 +265,12 @@ struct RevealView: View {
                     dots(center: center, plotR: plotR)
                     labels(center: center, plotR: plotR, size: geo.size)
                     centerWord(center: center)
+                    halo(center: center, plotR: plotR)
                 }
             }
             .aspectRatio(1, contentMode: .fit)
             .accessibilityElement(children: .contain)
             .accessibilityLabel(loc.revealMapA11y + " " + loc.revealCaption)
-
-            Button {
-                replay()
-            } label: {
-                Label(loc.revealReplay, systemImage: "arrow.counterclockwise")
-                    .font(HunchTheme.Fonts.label)
-            }
-            .buttonStyle(.bordered)
-            .disabled(reduceMotion)
-
-            Text(loc.revealCaption)
-                .font(HunchTheme.Fonts.caption)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-        }
-        .padding(HunchTheme.Spacing.l)
-        .onAppear {
-            if reduceMotion {
-                appeared = true
-            } else {
-                DispatchQueue.main.async { appeared = true }
-                withAnimation(.easeInOut(duration: 1.6).repeatForever(autoreverses: true)) { pulse = true }
-            }
-        }
     }
 
     // MARK: - Layers
@@ -133,25 +307,35 @@ struct RevealView: View {
     /// Lower left, in screen terms (y grows downward).
     private static let ringLabelAngle: CGFloat = .pi * 0.72
 
-    /// The guesses that were the closest yet when they were made, in order: the
-    /// actual route the player took in toward the word.
-    private var trailPoints: [RevealPoint] {
+    /// Every guess in the order it was made: the route the player really took.
+    private var routePoints: [RevealPoint] {
+        points.sorted(by: { $0.index < $1.index }).filter { $0.score < 100 }
+    }
+
+    /// The guesses that were the closest yet when they were made. They get the
+    /// large dots.
+    private var closestYet: Set<Int> {
         var best = -1.0
-        var out: [RevealPoint] = []
-        for p in points.sorted(by: { $0.index < $1.index }) where p.score < 100 {
-            if p.score > best { out.append(p); best = p.score }
+        var out = Set<Int>()
+        for p in routePoints where p.score > best {
+            out.insert(p.index)
+            best = p.score
         }
         return out
     }
 
-    private var trailIndices: Set<Int> { Set(trailPoints.map(\.index)) }
+    /// When a dot pops in, so the dots follow the route line.
+    private func dotDelay(_ index: Int) -> Double {
+        let b = RouteAnalysis.pathSequence(reduceMotion: still)
+        return Double(b.routeMs) / 1000 * Double(index) / Double(max(1, points.count))
+    }
 
-    /// One glowing, smoothed trail through every new "closest yet" guess, ending
-    /// at the word when it was solved. Colored cold to hot along the way.
+    /// One glowing, smoothed trail through every guess, first to last, ending at
+    /// the word when it was solved. Colored cold to hot along the way.
     private func trail(center: CGPoint, plotR: CGFloat, size: CGSize) -> some View {
-        var pts = trailPoints.map { screen($0, center, plotR) }
+        var pts = routePoints.map { screen($0, center, plotR) }
         if solvedInGuesses != nil { pts.append(center) }
-        let colors = trailPoints.map { HunchTheme.color(for: $0.score) }
+        let colors = routePoints.map { HunchTheme.color(for: $0.score) }
             + (solvedInGuesses != nil ? [HunchTheme.Palette.solved] : [])
         let start = pts.first ?? center
         let end = pts.last ?? center
@@ -161,7 +345,8 @@ struct RevealView: View {
             endPoint: UnitPoint(x: end.x / max(1, size.width), y: end.y / max(1, size.height)))
         let shape = SmoothPath(points: pts)
         let progress: CGFloat = appeared ? 1 : 0
-        let animation: Animation? = reduceMotion ? nil : .easeInOut(duration: max(0.6, Double(pts.count) * 0.22))
+        let routeMs = RouteAnalysis.pathSequence(reduceMotion: still).routeMs
+        let animation: Animation? = still ? nil : .easeInOut(duration: Double(routeMs) / 1000)
         return ZStack {
             // Soft glow under the line.
             shape.trim(from: 0, to: progress)
@@ -176,7 +361,7 @@ struct RevealView: View {
     }
 
     private func dots(center: CGPoint, plotR: CGFloat) -> some View {
-        let onTrail = trailIndices
+        let onTrail = closestYet
         return ZStack {
             ForEach(points, id: \.index) { pt in
                 if pt.score < 100 { // the solved word is drawn at the center, not as a dot
@@ -192,12 +377,29 @@ struct RevealView: View {
                         .position(pos)
                         .scaleEffect(appeared ? 1 : 0.1)
                         .opacity(appeared ? 1 : 0)
-                        .animation(reduceMotion ? nil : .spring(response: 0.5, dampingFraction: 0.72).delay(Double(pt.index) * 0.05), value: appeared)
+                        .animation(still ? nil : .spring(response: 0.4, dampingFraction: 0.72).delay(dotDelay(pt.index)), value: appeared)
                         .accessibilityLabel(loc.revealGuessA11y(pt.index + 1,
                                                                 pt.word,
                                                                 loc.heat(HunchTheme.label(for: pt.score))))
                 }
             }
+        }
+    }
+
+    /// The gold halo on the round's pivotal move. A jump that landed on the
+    /// word itself rings the word at the center.
+    @ViewBuilder
+    private func halo(center: CGPoint, plotR: CGFloat) -> some View {
+        if let jump = report?.bestJump, let p = points.first(where: { $0.index == jump.index }) {
+            let onWord = p.score >= 100
+            RoundedRectangle(cornerRadius: onWord ? 26 : 14, style: .continuous)
+                .stroke(HunchTheme.Palette.coin, lineWidth: 3.5)
+                .frame(width: onWord ? wordWidth + 34 : 28, height: onWord ? 52 : 28)
+                .shadow(color: HunchTheme.Palette.coin.opacity(0.6), radius: 6)
+                .position(onWord ? center : screen(p, center, plotR))
+                .opacity(beat >= 4 ? 1 : 0)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
         }
     }
 
@@ -219,7 +421,7 @@ struct RevealView: View {
                     .fixedSize()
                     .position(item.at)
                     .opacity(appeared ? 1 : 0)
-                    .animation(reduceMotion ? nil : .easeOut(duration: 0.3).delay(Double(item.point.index) * 0.05 + 0.2), value: appeared)
+                    .animation(still ? nil : .easeOut(duration: 0.3).delay(dotDelay(item.point.index) + 0.2), value: appeared)
                     .accessibilityHidden(true)
             }
         }
@@ -280,6 +482,7 @@ struct RevealView: View {
             .shadow(color: tint.opacity(0.6), radius: 8)
         }
         .position(center)
+        .opacity(beat >= 2 ? 1 : 0)
         .accessibilityHidden(true)
     }
 
@@ -292,11 +495,6 @@ struct RevealView: View {
     /// so it lands at the TOP — exactly what we want.
     private func screen(_ p: RevealPoint, _ center: CGPoint, _ plotR: CGFloat) -> CGPoint {
         CGPoint(x: center.x + CGFloat(p.x) * plotR, y: center.y + CGFloat(p.y) * plotR)
-    }
-
-    private func replay() {
-        appeared = false
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { appeared = true }
     }
 }
 

@@ -176,7 +176,10 @@ struct GameView: View {
                 RevealView(word: game.target,
                            points: game.revealPoints,
                            loc: game.loc,
-                           solvedInGuesses: game.solved ? game.guessCount : nil)
+                           solvedInGuesses: game.solved ? game.guessCount : nil,
+                           report: game.routeReport,
+                           category: game.pathCategory,
+                           onShare: { ShareSheet.present(game.pathShareItems()) })
             }
             .confirmationDialog(game.loc.giveUpTitle, isPresented: $showGiveUpConfirm, titleVisibility: .visible) {
                 Button(game.loc.giveUp, role: .destructive) { game.giveUp() }
@@ -458,6 +461,10 @@ struct GameView: View {
 
                 if let t = game.trajectory {
                     trajectoryPill(t)
+                }
+                if let signal = game.signal(for: g) {
+                    GuessSignalLine(signal: signal, loc: game.loc)
+                        .id(g.id)
                 }
                 if let line = wickLine {
                     KeeperSpeech(text: line)
@@ -939,10 +946,7 @@ struct GameView: View {
                 if canMap {
                     shareTile(game.loc.shareTileMap, systemImage: "scope",
                               tint: HunchTheme.Palette.hot) {
-                        guard let image = game.shareImage() else { return }
-                        Events.track(.shareMap, n: game.mode == .daily ? game.puzzleNumber : nil)
-                        Events.track(.shareCard, n: game.mode == .daily ? game.puzzleNumber : nil, g: 1)
-                        ShareSheet.present([image])
+                        ShareSheet.present(game.pathShareItems())
                     }
                 }
                 if game.canShareReplay {
@@ -1134,6 +1138,9 @@ struct GameView: View {
             if t.isFirst { parts.append(game.loc.firstGuess) }
             else if t.isNewBest { parts.append(game.loc.warmest) }
             else { parts.append(game.loc.colder) }
+        }
+        if let last = game.lastSubmitted, let signal = game.signal(for: last) {
+            parts.append(game.loc.key(signal.key))
         }
         if let line = wickLine { parts.append(line) }
         return parts.joined(separator: ". ")

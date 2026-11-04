@@ -15,6 +15,12 @@
 //  each one, oldest first. There is no field for a word, on purpose. If
 //  something seems to need one, it wants RevealView, not this.
 //
+//  3.9 PATH CARD
+//  -------------
+//  With `path` set this is the Path Card: "SOLVED IN 8" across the top, an
+//  unlabeled route that rises and falls with the real warmth, then Efficiency
+//  and the best jump's size. Those are numbers too, so the rule still holds.
+//
 //  SIZE
 //  ----
 //  360 by 360 points at scale 3 = 1080 by 1080, square, so it survives Messages,
@@ -62,6 +68,8 @@ struct RevealShareCard: View {
     let solved: Bool
     let heat: [Double]       // every scored guess, oldest first, 0...100 (100 = the word)
     let loc: Loc
+    /// 3.9: makes this the Path Card. Numbers only.
+    var path: RouteAnalysis.PathFacts? = nil
 
     static let size = CGSize(width: 360, height: 360)
 
@@ -95,7 +103,11 @@ struct RevealShareCard: View {
                     .tracking(1.6)
                     .foregroundStyle(Self.brandInk)
                 Group {
-                    if solved {
+                    if let path {
+                        Text(path.solved ? loc.pathCardSolved(path.guesses) : loc.key("pathCardUnsolved"))
+                            .font(.system(size: 32, weight: .black, design: .rounded))
+                            .shadow(color: Self.titleEdge(path.solved), radius: 0, x: 0, y: 3)
+                    } else if solved {
                         Text("\(guesses) \(loc.cardGuesses)")
                             .font(.system(size: 32, weight: .black, design: .rounded))
                     } else {
@@ -109,23 +121,41 @@ struct RevealShareCard: View {
                 .padding(.top, 8)
                 Spacer()
             }
-            .frame(width: textW, alignment: .leading)
+            // The Path Card's headline runs the full width, above Wick.
+            .frame(width: path == nil ? textW : S - m * 2, alignment: .leading)
             .padding(.leading, m)
             .padding(.top, m)
 
-            trail(width: textW)
-                .position(x: m + textW / 2, y: S * 0.56)
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text(loc.cardTease)
-                    .font(.system(size: 11.5, weight: .bold, design: .rounded))
-                    .foregroundStyle(Self.softInk)
+            if let path {
+                routeLine(width: textW - 24, height: 78)
+                    .position(x: m + 6 + (textW - 24) / 2, y: 148)
+                VStack(alignment: .leading, spacing: 9) {
+                    if let e = path.efficiency { pathStat(loc.key("pathCardEfficiency"), "\(e)") }
+                    if let j = path.bestJump { pathStat(loc.key("pathCardJump"), "+\(j)\u{00B0}") }
+                }
+                .frame(width: textW, alignment: .leading)
+                .padding(.leading, m)
+                .padding(.top, 208)
                 Text("guesswick.com")
                     .font(.system(size: 10.5, weight: .heavy, design: .rounded))
                     .foregroundStyle(Self.brandInk)
+                    .padding(.leading, m)
+                    .padding(.top, S - m - 14)
+            } else {
+                trail(width: textW)
+                    .position(x: m + textW / 2, y: S * 0.56)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(loc.cardTease)
+                        .font(.system(size: 11.5, weight: .bold, design: .rounded))
+                        .foregroundStyle(Self.softInk)
+                    Text("guesswick.com")
+                        .font(.system(size: 10.5, weight: .heavy, design: .rounded))
+                        .foregroundStyle(Self.brandInk)
+                }
+                .padding(.leading, m)
+                .padding(.top, S - m - 34)
             }
-            .padding(.leading, m)
-            .padding(.top, S - m - 34)
 
             // Wick, head only, green when solved and grey when not.
             KeeperStill(face: solved ? .sly : .calm,
@@ -136,6 +166,65 @@ struct RevealShareCard: View {
         }
         .frame(width: S, height: S)
         .clipped()
+    }
+
+    private static func titleEdge(_ solved: Bool) -> Color {
+        solved ? Color(red: 0.17, green: 0.42, blue: 0.15) : Color(red: 0.24, green: 0.14, blue: 0.57)
+    }
+
+    /// A raised plate: a bright face on a darker lip.
+    private func pathStat(_ label: String, _ value: String) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(label)
+                .font(.system(size: 8, weight: .black, design: .rounded))
+                .tracking(0.7)
+                .foregroundStyle(Color.white.opacity(0.9))
+            Text(value)
+                .font(.system(size: 21, weight: .black, design: .rounded))
+                .foregroundStyle(Color.white)
+        }
+        .padding(.horizontal, 10)
+        .frame(width: 118, height: 43, alignment: .leading)
+        .background(PathStyle.face, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous)
+            .strokeBorder(Color.white.opacity(0.28), lineWidth: 1.2))
+        .background(RoundedRectangle(cornerRadius: 10, style: .continuous)
+            .fill(PathStyle.lip)
+            .offset(y: 3))
+    }
+
+    /// The Path Card's route: the same picked nodes as the heat trail, but each
+    /// sits at its warmth, so the line shows the climb and every drop. No labels.
+    private func routeLine(width: CGFloat, height: CGFloat) -> some View {
+        let ns = nodes
+        let pts: [CGPoint] = ns.enumerated().map { i, nd in
+            let x = ns.count > 1 ? width * CGFloat(i) / CGFloat(ns.count - 1) : width / 2
+            return CGPoint(x: x, y: height - height * CGFloat(min(100, max(0, nd.score))) / 100)
+        }
+        return ZStack(alignment: .topLeading) {
+            Path { p in
+                guard let first = pts.first else { return }
+                p.move(to: first)
+                for pt in pts.dropFirst() { p.addLine(to: pt) }
+            }
+            .stroke(Color.white.opacity(0.5), style: StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
+            ForEach(Array(ns.enumerated()), id: \.offset) { i, nd in
+                ZStack {
+                    if nd.ring {
+                        Circle()
+                            .stroke(HunchTheme.color(for: nd.score), lineWidth: 1.2)
+                            .frame(width: (nd.radius + 5) * 1.2, height: (nd.radius + 5) * 1.2)
+                            .opacity(0.8)
+                    }
+                    Circle()
+                        .fill(HunchTheme.color(for: nd.score))
+                        .overlay(Circle().stroke(Color(red: 0.071, green: 0.047, blue: 0.133), lineWidth: 1.8))
+                        .frame(width: nd.radius * 1.5, height: nd.radius * 1.5)
+                }
+                .position(pts[i])
+            }
+        }
+        .frame(width: width, height: height, alignment: .topLeading)
     }
 
     /// The heat trail: nodes across the text column, joined by a faint line.
@@ -221,5 +310,11 @@ struct KeeperStill: View {
 #Preview {
     RevealShareCard(brand: "WICK DAILY #248", guesses: 7, solved: true,
                     heat: [3, 5, 9, 12, 20, 25, 33, 40, 48, 55, 61, 70, 100], loc: Loc(lang: .english))
+}
+
+#Preview("Path Card") {
+    RevealShareCard(brand: "WICK DAILY #248", guesses: 8, solved: true,
+                    heat: [12, 8, 30, 22, 45, 18, 60, 100], loc: Loc(lang: .english),
+                    path: RouteAnalysis.PathFacts(guesses: 8, solved: true, efficiency: 53, bestJump: 42))
 }
 #endif

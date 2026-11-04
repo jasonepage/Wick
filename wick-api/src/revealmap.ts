@@ -175,6 +175,20 @@ function core(words: string[], scores: number[], dist: number[][]): RevealPoint[
   return out;
 }
 
+/** Pairwise similarity between the guesses (3.9), for the Path Report's
+ *  Exploration stat. `rescale` maps a raw cosine onto the clients' 0..1 scale.
+ *  A word with no vector gives null pairs; no vectors at all gives null. */
+export function similarityMatrix(
+  vectors: (number[] | null)[],
+  rescale: (cos: number) => number,
+): (number | null)[][] | null {
+  if (!vectors.some((v) => v)) return null;
+  return vectors.map((a, i) => vectors.map((b, j) => {
+    if (!a || !b) return null;
+    return i === j ? 1 : rescale(cosine(a, b));
+  }));
+}
+
 /** Build the layout from per-guess vectors. A null vector (unknown word) is treated
  *  as maximally far from every other guess. */
 export function layout(words: string[], scores: number[], vectors: (number[] | null)[]): RevealPoint[] {

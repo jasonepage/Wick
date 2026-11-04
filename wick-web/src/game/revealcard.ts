@@ -25,6 +25,7 @@
 import { t } from "../i18n.ts";
 import type { RevealPointDTO } from "../net/api.ts";
 import { PALETTE, wickStillMarkup } from "./wickface.ts";
+import type { PathBeats, PathFacts } from "./route.ts";
 
 const FONT = "ui-rounded, -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif";
 
@@ -32,6 +33,8 @@ export const CARD_W = 540;
 export const CARD_H = 640;
 /** 3.8: the postable card is square. */
 export const CARD_SIZE = 600;
+/** 3.9: the best jump's gold. Mirrors HunchTheme.Palette.coin. */
+const GOLD = "#EDB02E";
 
 function esc(s: string): string {
   return s.replace(/[&<>"]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[ch] ?? ch));
@@ -68,11 +71,15 @@ interface MapOpts {
   /** Label every band, or only the outer/middle/inner three. Six centred labels
    *  stack into what reads as a vertical list once the map is card-sized. */
   sparseLabels?: boolean;
+  /** 3.9 Path Report: a solid route that draws itself in guess order, dots
+   *  timed along it, and a gold halo on the pivotal guess (an index into
+   *  `points`). Screen only: a card has no stylesheet to run this. */
+  route?: { pivot: number | null; beats: PathBeats };
 }
 
 /** The map itself as inner markup, so callers can wrap it however they like. */
 function mapMarkup(points: RevealPointDTO[], o: MapOpts): string {
-  const { cx, cy, r, spoiler = false, animate = false, ringOpacity = 0.18, sparseLabels = false } = o;
+  const { cx, cy, r, spoiler = false, animate = false, ringOpacity = 0.18, sparseLabels = false, route } = o;
   const sx = (p: RevealPointDTO) => (cx + p.x * r).toFixed(1);
   const sy = (p: RevealPointDTO) => (cy + p.y * r).toFixed(1);
 
@@ -90,9 +97,10 @@ function mapMarkup(points: RevealPointDTO[], o: MapOpts): string {
   const dotPts = points.filter((p) => p.score < 100);
 
   const pathD = points.map((p, i) => (i ? "L" : "M") + sx(p) + " " + sy(p)).join(" ");
-  const path = points.length > 1
-    ? `<path d="${pathD}" fill="none" stroke="rgba(255,255,255,0.22)" stroke-width="2" stroke-linecap="round" stroke-dasharray="4 5"/>`
-    : "";
+  const path = points.length <= 1 ? ""
+    : route
+      ? `<path class="rv-route" pathLength="1" d="${pathD}" fill="none" stroke="currentColor" stroke-opacity="0.55" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="animation-delay:${route.beats.route}ms;animation-duration:${route.beats.routeMs}ms"/>`
+      : `<path d="${pathD}" fill="none" stroke="rgba(255,255,255,0.22)" stroke-width="2" stroke-linecap="round" stroke-dasharray="4 5"/>`;
 
   // Only the six hottest guesses are ever labelled, and never in spoiler mode.
   const labelled = spoiler
@@ -101,10 +109,15 @@ function mapMarkup(points: RevealPointDTO[], o: MapOpts): string {
 
   const dots = dotPts.map((p, i) => {
     const c = revealBandColor(p.score);
+    const delay = route
+      ? ((route.beats.route + (route.beats.routeMs * i) / dotPts.length) / 1000).toFixed(2)
+      : (i * 0.05).toFixed(2);
+    const cls = animate ? ` class="rv-dot" style="animation-delay:${delay}s"` : "";
+    // On the Path Report a word arrives with its dot, not ahead of the route.
+    const labelCls = route ? cls : "";
     const label = labelled.has(p.word)
-      ? `<text x="${sx(p)}" y="${(cy + p.y * r - 11).toFixed(1)}" text-anchor="middle" fill="${c}" font-size="10" font-weight="700" paint-order="stroke" stroke="rgba(8,10,15,.85)" stroke-width="3" stroke-linejoin="round">${esc(p.word)}</text>`
+      ? `<text${labelCls} x="${sx(p)}" y="${(cy + p.y * r - 11).toFixed(1)}" text-anchor="middle" fill="${c}" font-size="10" font-weight="700" paint-order="stroke" stroke="rgba(8,10,15,.85)" stroke-width="3" stroke-linejoin="round">${esc(p.word)}</text>`
       : "";
-    const cls = animate ? ` class="rv-dot" style="animation-delay:${(i * 0.05).toFixed(2)}s"` : "";
     return `<circle${cls} cx="${sx(p)}" cy="${sy(p)}" r="7" fill="${c}" stroke="rgba(8,10,15,.85)" stroke-width="2"/>${label}`;
   }).join("");
 
@@ -118,7 +131,14 @@ function mapMarkup(points: RevealPointDTO[], o: MapOpts): string {
     : `<text x="${cx}" y="${cy - 1}" text-anchor="middle" fill="#4D9E47" font-size="15" font-weight="800">${esc((o.word ?? "").toUpperCase())}</text>` +
       `<text x="${cx}" y="${cy + 11}" text-anchor="middle" fill="#9aa4b2" font-size="8" font-weight="700">${esc(t("revealTheWord"))}</text>`;
 
-  return glow + rings + path + dots + centre;
+  // The pivotal move. A jump that landed on the word rings the word itself.
+  const pivot = route && route.pivot !== null ? points[route.pivot] : undefined;
+  const halo = pivot
+    ? `<circle class="rv-halo" cx="${sx(pivot)}" cy="${sy(pivot)}" r="${pivot.score >= 100 ? 30 : 13}" fill="none" stroke="${GOLD}" stroke-width="2.5" style="animation-delay:${route!.beats.halo}ms"/>`
+    : "";
+  const word = route ? `<g class="rv-word" style="animation-delay:${route.beats.word}ms">${centre}</g>` : centre;
+
+  return glow + rings + path + dots + word + halo;
 }
 
 const GLOW_DEF =
@@ -127,10 +147,14 @@ const GLOW_DEF =
   `</radialGradient></defs>`;
 
 /** The map as shown on the Reveal screen: responsive, animated, word revealed. */
-export function revealSVG(points: RevealPointDTO[], word: string): string {
+export function revealSVG(
+  points: RevealPointDTO[],
+  word: string,
+  route?: { pivot: number | null; beats: PathBeats },
+): string {
   return `<svg viewBox="0 0 400 400" width="100%" role="img" aria-label="Semantic map of your guesses">` +
     GLOW_DEF +
-    mapMarkup(points, { cx: 200, cy: 200, r: 170, word, animate: true }) +
+    mapMarkup(points, { cx: 200, cy: 200, r: 170, word, animate: true, ...(route ? { route } : {}) }) +
     `</svg>`;
 }
 
@@ -147,6 +171,10 @@ export interface CardMeta {
   heat: number[];
   /** Bare host, e.g. "guesswick.com". */
   host: string;
+  /** 3.9: makes this the Path Card. Numbers only, so no word can reach it. */
+  path?: PathFacts;
+  /** The card as one line, for screen readers. Spoiler free (pathCardLine). */
+  alt?: string;
 }
 
 /** One node of the heat trail: color, size and a ring that mark the band, so
@@ -168,6 +196,21 @@ export function heatTrail(heat: number[]): TrailNode[] {
     const band = score >= 100 ? 6 : score >= 60 ? 5 : score >= 45 ? 4 : score >= 30 ? 3 : score >= 18 ? 2 : score >= 8 ? 1 : 0;
     return { score, color: revealBandColor(score), r: 5 + band * 1.3, ring: score >= 100 };
   });
+}
+
+/** The Path Card's route: the same picked nodes as the heat trail, but each
+ *  sits at its warmth, so the line shows the climb and every drop. No labels. */
+function routeLine(nodes: TrailNode[], x: number, y: number, w: number, h: number): string {
+  const px = (i: number) => (nodes.length > 1 ? x + (i * w) / (nodes.length - 1) : x + w / 2);
+  const py = (score: number) => y + h - (Math.min(100, Math.max(0, score)) / 100) * h;
+  const line = nodes.length > 1
+    ? `<polyline points="${nodes.map((nd, i) => `${px(i).toFixed(1)},${py(nd.score).toFixed(1)}`).join(" ")}" fill="none" stroke="rgba(255,255,255,0.5)" stroke-width="5" stroke-linejoin="round" stroke-linecap="round"/>`
+    : "";
+  return line + nodes.map((nd, i) => {
+    const cx = px(i).toFixed(1), cy = py(nd.score).toFixed(1);
+    const ring = nd.ring ? `<circle cx="${cx}" cy="${cy}" r="${(nd.r + 5).toFixed(1)}" fill="none" stroke="${nd.color}" stroke-width="2" opacity="0.8"/>` : "";
+    return `<circle cx="${cx}" cy="${cy}" r="${(nd.r * 1.25).toFixed(1)}" fill="${nd.color}" stroke="#120c22" stroke-width="3"/>${ring}`;
+  }).join("");
 }
 
 /**
@@ -196,7 +239,32 @@ export function shareCardSVG(m: CardMeta): string {
     ? `<line x1="${left + 8}" y1="${trailY}" x2="${(left + 8 + (nodes.length - 1) * gapX).toFixed(1)}" y2="${trailY}" stroke="rgba(255,255,255,0.14)" stroke-width="2"/>`
     : "";
   const result = m.solved ? `${m.guesses} ${esc(t("cardGuesses", m.guesses))}` : esc(t("revealShareUnsolved")).toUpperCase();
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${S}" height="${S}" viewBox="0 0 ${S} ${S}" font-family="${FONT}">
+  const p = m.path;
+  // 3.9 Path Card: same frame as the 3.8 card. The headline runs the full width
+  // above Wick, the route rises through the left column, and the two stats sit
+  // under it. The word is not on it, and neither is any guess.
+  const title = p ? (p.solved ? t("pathCardSolved", p.guesses) : t("pathCardUnsolved")) : "";
+  const titleSize = Math.min(56, Math.floor((S - margin * 2) / (Math.max(1, title.length) * 0.66)));
+  // A raised plate: a bright face on a darker lip.
+  const pathStat = (label: string, value: string, y: number) =>
+    `<rect x="${left}" y="${y - 16}" width="196" height="72" rx="16" fill="#4c2bb0"/>` +
+    `<rect x="${left}" y="${y - 21}" width="196" height="72" rx="16" fill="#7d55f2" stroke="rgba(255,255,255,0.28)" stroke-width="2"/>` +
+    `<text x="${left + 16}" y="${y - 1}" fill="#efe9ff" font-size="13" font-weight="900" letter-spacing="1.2">${esc(label)}</text>` +
+    `<text x="${left + 16}" y="${y + 37}" fill="#ffffff" font-size="34" font-weight="900">${esc(value)}</text>`;
+  const titleEdge = p?.solved ? "#2c6b27" : "#3d2392";
+  const copy = p
+    ? `<text x="${left}" y="${margin + 90}" fill="${titleEdge}" stroke="${titleEdge}" stroke-width="11" stroke-linejoin="round" font-size="${titleSize}" font-weight="900" letter-spacing="-1" aria-hidden="true">${esc(title)}</text>
+  <text x="${left}" y="${margin + 86}" fill="#ffffff" stroke="${titleEdge}" stroke-width="11" stroke-linejoin="round" paint-order="stroke" font-size="${titleSize}" font-weight="900" letter-spacing="-1">${esc(title)}</text>
+  ${routeLine(nodes, left + 10, 182, textW - 40, 130)}
+  ${p.efficiency !== null ? pathStat(t("pathCardEfficiency"), String(p.efficiency), 366) : ""}
+  ${p.bestJump !== null ? pathStat(t("pathCardJump"), `+${p.bestJump}\u00B0`, p.efficiency !== null ? 452 : 366) : ""}
+  <text x="${left}" y="${S - margin}" fill="#b9a8ff" font-size="17" font-weight="800">${esc(m.host)}</text>`
+    : `<text x="${left}" y="${margin + 86}" fill="#fff6ea" font-size="${m.solved ? 56 : 40}" font-weight="900" letter-spacing="-1">${result}</text>
+  ${trailLine}${trail}
+  <text x="${left}" y="${S - margin - 30}" fill="#d9d0f0" font-size="19" font-weight="700">${esc(t("cardTease"))}</text>
+  <text x="${left}" y="${S - margin}" fill="#b9a8ff" font-size="17" font-weight="800">${esc(m.host)}</text>`;
+  const a11y = m.alt ? ` role="img" aria-label="${esc(m.alt)}"` : "";
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${S}" height="${S}" viewBox="0 0 ${S} ${S}" font-family="${FONT}"${a11y}>
   <defs>
     <radialGradient id="card-bg" cx="72%" cy="42%" r="70%"><stop offset="0%" stop-color="#2a1d4e"/><stop offset="100%" stop-color="#120c22"/></radialGradient>
     <radialGradient id="card-glow"><stop offset="0%" stop-color="rgba(77,158,71,0.45)"/><stop offset="100%" stop-color="rgba(77,158,71,0)"/></radialGradient>
@@ -204,10 +272,7 @@ export function shareCardSVG(m: CardMeta): string {
   <rect width="${S}" height="${S}" fill="url(#card-bg)"/>
   <circle cx="${wickX + wickSize / 2}" cy="${wickY + wickSize * 0.55}" r="${wickSize * 0.7}" fill="${m.solved ? "url(#card-glow)" : "none"}"/>
   <text x="${left}" y="${margin + 18}" fill="#b9a8ff" font-size="17" font-weight="800" letter-spacing="2.5">${esc(m.brand)}</text>
-  <text x="${left}" y="${margin + 86}" fill="#fff6ea" font-size="${m.solved ? 56 : 40}" font-weight="900" letter-spacing="-1">${result}</text>
-  ${trailLine}${trail}
-  <text x="${left}" y="${S - margin - 30}" fill="#d9d0f0" font-size="19" font-weight="700">${esc(t("cardTease"))}</text>
-  <text x="${left}" y="${S - margin}" fill="#b9a8ff" font-size="17" font-weight="800">${esc(m.host)}</text>
+  ${copy}
   <svg x="${wickX}" y="${wickY}" width="${wickSize}" height="${wickSize * 128 / 120}" viewBox="0 0 120 128" overflow="visible">${wickStillMarkup(wickFace, wickColor, m.solved ? "card-s" : "card-u", { sparks: m.solved })}</svg>
 </svg>`;
 }
@@ -237,6 +302,12 @@ export async function svgToPng(svg: string, w: number, h: number, scale = 2): Pr
   return new Promise<Blob | null>((resolve) => canvas.toBlob((b) => resolve(b), "image/png"));
 }
 
+/** The card as a PNG file, or null if the browser could not draw it. */
+export async function cardPng(meta: CardMeta): Promise<File | null> {
+  const png = await svgToPng(shareCardSVG(meta), CARD_SIZE, CARD_SIZE, 2);
+  return png ? new File([png], `wick-${meta.puzzleNumber}.png`, { type: "image/png" }) : null;
+}
+
 export type ShareOutcome = "shared" | "downloaded" | "cancelled" | "failed";
 
 /**
@@ -248,10 +319,9 @@ export async function shareRevealCard(
   meta: CardMeta,
   text: string,
 ): Promise<ShareOutcome> {
-  const png = await svgToPng(shareCardSVG(meta), CARD_SIZE, CARD_SIZE, 2);
-  if (!png) return "failed";
+  const file = await cardPng(meta);
+  if (!file) return "failed";
 
-  const file = new File([png], `wick-${meta.puzzleNumber}.png`, { type: "image/png" });
   const nav = navigator as Navigator & { canShare?: (d?: ShareData) => boolean };
   if (typeof nav.share === "function" && nav.canShare?.({ files: [file] })) {
     try {
@@ -264,7 +334,7 @@ export async function shareRevealCard(
   }
 
   try {
-    const url = URL.createObjectURL(png);
+    const url = URL.createObjectURL(file);
     const a = document.createElement("a");
     a.href = url;
     a.download = file.name;

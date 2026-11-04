@@ -128,6 +128,30 @@ export function scoreFromCosine(cos: number, lo: number = LO, hi: number = HI): 
   return Math.min(99, Math.max(0, Math.round(t * 100)));
 }
 
+/** How alike two of a player's own guesses are, 0..1 (3.9).
+ *
+ *  Gemini cosine runs hot, so the raw number means nothing to the clients'
+ *  thresholds. This puts it through the same window as warmth: unrelated words
+ *  land near 0 and close words high, the shape Apple's cosine has on iOS. */
+export function pairSimilarity(cos: number, lo: number = LO, hi: number = HI): number {
+  return Math.round(clamp01((cos - lo) / (hi - lo || 1)) * 1000) / 1000;
+}
+
+/** How alike a guess is to the player's own earlier guesses, same order as
+ *  `near`. null for a word with no vector. Never touches the secret. */
+export async function nearSimilarities(
+  guess: string,
+  near: readonly (string | null)[],
+  embedder: (t: string) => Promise<number[] | null> = embed,
+): Promise<(number | null)[]> {
+  const g = await embedder(normalizeWord(guess));
+  return Promise.all(near.map(async (w) => {
+    if (!g || w === null) return null;
+    const v = await embedder(normalizeWord(w));
+    return v ? pairSimilarity(cosine(g, v)) : null;
+  }));
+}
+
 /** Rough lexical closeness (0..45), used only when embeddings are unavailable.
  *  Capped low so a fallback guess never masquerades as "hot". */
 export function lexicalFallback(a: string, b: string): number {

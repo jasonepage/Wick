@@ -19,14 +19,14 @@ import { renderPreviewHtml, renderInviteHtml } from "./preview.js";
 import { MatchHub, type Client } from "./hub.js";
 import { parseClientFrame, type ServerFrame } from "./protocol.js";
 import { makeWordProvider } from "./words.js";
-import { warmthScore, validateSecret } from "./warmthservice.js";
+import { warmthScore, validateSecret, pairSimilarity, nearSimilarities } from "./warmthservice.js";
 import { isRealWord, dictionarySize } from "./dictionary.js";
 import { keeperAnswer, KEEPER_PROMPT_VERSION } from "./keeper.js";
 import { AnswerCache } from "./answercache.js";
 import { DailyWarmer } from "./keeperwarm.js";
 import { hasEmbeddings, lastEmbedError, activeEmbedModel, activeEmbedMode, selfCheck, rankVocabExpected, rankVocabProgress, rankVocabStatus, prewarm, cacheStats, warmRankVocab, ensureRankVocab, rankVocabVectors, batchEmbed } from "./embeddings.js";
 import { langOf, isLang, rankVocabFor, type Lang } from "./lang.js";
-import { layout as revealLayout } from "./revealmap.js";
+import { layout as revealLayout, similarityMatrix } from "./revealmap.js";
 import { COMMON_WORDS } from "./commonwords.js";
 import { RANK_VOCAB } from "./rankvocab.js";
 import { RateLimiter } from "./ratelimit.js";
@@ -381,6 +381,15 @@ app.post("/warmth", async (c) => {
   if (isColdEnough(result) && guess.trim().toLowerCase() !== secret.trim().toLowerCase()) {
     tally.add("guess", guess, lang, { source: ip });
   }
+  // 3.9: how alike this guess is to the player's own last three, for the
+  // strategic signal. Optional, and older clients do not send it. Real words
+  // only, so it cannot be used to embed arbitrary text.
+  const nearRaw = (body as { near?: unknown }).near;
+  if (Array.isArray(nearRaw) && hasEmbeddings()) {
+    const near = nearRaw.slice(0, 3).map((w) =>
+      typeof w === "string" && w.length <= 64 && isRealWord(w, lang) ? w : null);
+    return c.json({ ...result, lang, near: await nearSimilarities(guess, near) });
+  }
   return c.json({ ...result, lang }); // { score, source, rank?, lang }
 });
 
@@ -566,7 +575,9 @@ app.post("/reveal", async (c) => {
   // a Gemini key, vectors are all null → the layout falls back to even spacing.
   const vectors = hasEmbeddings() ? await batchEmbed(words) : words.map(() => null);
   const points = revealLayout(words, items.map((x) => x.score), vectors);
-  return c.json({ points });
+  // 3.9: the guesses' pairwise similarity, for the Path Report. Still only
+  // about words the caller sent.
+  return c.json({ points, similarity: similarityMatrix(vectors, pairSimilarity) });
 });
 
 // Serve the built web client (wick-web) from ./public. Specific API routes above
