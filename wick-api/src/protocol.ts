@@ -67,6 +67,12 @@ export interface DareFrame {
   word?: string;
 }
 
+/** 3.9: give up the live race. The other player wins and both see the word.
+ *  Refused with error "too_early" in the first 30 seconds. */
+export interface GiveUpFrame {
+  t: "giveUp";
+}
+
 export interface HeartbeatFrame {
   t: "heartbeat";
 }
@@ -77,6 +83,7 @@ export type ClientFrame =
   | QuestionFrame
   | AskFrame
   | DareFrame
+  | GiveUpFrame
   | HeartbeatFrame;
 
 // ── server → client ───────────────────────────────────────────────────────────
@@ -258,6 +265,8 @@ export function parseClientFrame(raw: string): ClientFrame | null {
       if (typeof word === "string") frame.word = word;
       return frame;
     }
+    case "giveUp":
+      return { t: "giveUp" };
     case "heartbeat":
       return { t: "heartbeat" };
     default:

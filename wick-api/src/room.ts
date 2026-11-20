@@ -63,6 +63,10 @@ export type RoomStatus = "active" | "ended";
  */
 export type EndReason = "solved" | "timeout" | "forfeit" | "void";
 
+/** 3.9: a player may give up a live race only after this much of it has gone,
+ *  so nobody quits by accident in the first moments. */
+export const GIVE_UP_AFTER_MS = 30_000;
+
 export interface PlayerSeed {
   id: PlayerId;
   /** "human" for a live person; "bot"/"ghost" for a disclosed fill-in (FR-13, C9). */
@@ -104,6 +108,10 @@ export interface MatchResult {
   players: [PlayerResult, PlayerResult];
   /** ms since t0 at which the room resolved. */
   endedAtMs: number;
+  /** 3.9: set when the race ended because this player pressed Give up. The
+   *  reason stays "forfeit" (the other player wins), so older clients that
+   *  only know the four reasons still read it. */
+  gaveUp?: PlayerId;
 }
 
 /** What a single player is allowed to see about themselves. */
@@ -325,6 +333,25 @@ export class Room {
     return [...events, { type: "opponentLeft", playerId: p.id }, ...post];
   }
 
+  /**
+   * 3.9: a player pressed Give up. The other player wins (reason "forfeit",
+   * `gaveUp` names who quit) and both end screens show the word. Ignored in
+   * the first GIVE_UP_AFTER_MS of the race.
+   */
+  applyGiveUp(args: { playerId: PlayerId; now: number }): RoomEvent[] {
+    const events = this.resolveDue(args.now);
+    if (this.status === "ended") return events;
+    const p = this.playerById(args.playerId);
+    if (!p) return events;
+    if (!this.canGiveUp(args.now)) return events;
+    return [...events, ...this.end("forfeit", args.now, this.opponentOf(p.id).id, p.id)];
+  }
+
+  /** True once the race has gone long enough for Give up (3.9). */
+  canGiveUp(now: number): boolean {
+    return now - this.t0Wall >= GIVE_UP_AFTER_MS;
+  }
+
   /** A dropped player returned within grace (FR-17): resume the match. */
   applyReconnect(args: { playerId: PlayerId; now: number }): RoomEvent[] {
     const events = this.resolveDue(args.now);
@@ -414,7 +441,7 @@ export class Room {
 
   /** Finalize the match. `forcedWinner` is used by forfeit; otherwise the winner
    *  is derived from state per the end reason (FR-31). */
-  private end(reason: EndReason, now: number, forcedWinner?: PlayerId): RoomEvent[] {
+  private end(reason: EndReason, now: number, forcedWinner?: PlayerId, gaveUp?: PlayerId): RoomEvent[] {
     const [a, b] = this.players;
     let winner: PlayerId | null;
 
@@ -449,6 +476,7 @@ export class Room {
       draw: winner === null,
       players: [toResult(a), toResult(b)],
       endedAtMs: Math.max(0, now - this.t0Wall),
+      ...(gaveUp ? { gaveUp } : {}),
     };
     return [{ type: "ended", result: this.result }];
   }

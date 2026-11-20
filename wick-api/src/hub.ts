@@ -267,6 +267,9 @@ export class MatchHub {
         if (this.playerDare.has(client.id)) this.onDareAsk(client, frame.question);
         else this.onAsk(client, frame.question);
         return;
+      case "giveUp":
+        this.onGiveUp(client);
+        return;
       case "heartbeat":
         return; // liveness only
     }
@@ -491,6 +494,21 @@ export class MatchHub {
         this.clients.get(playerId)?.send({ t: "scored", guess, score, rank });
       });
     }
+  }
+
+  /** 3.9: Give up. The other player wins and both end screens show the word. */
+  private onGiveUp(client: Client): void {
+    const ar = this.roomOf(client.id);
+    if (!ar || !ar.room.isActive()) {
+      client.send({ t: "error", code: "no_match", message: "Not in a match." });
+      return;
+    }
+    const now = this.now();
+    if (!ar.room.canGiveUp(now)) {
+      client.send({ t: "error", code: "too_early", message: "You can give up after 30 seconds." });
+      return;
+    }
+    this.dispatch(ar.room.roomId, ar.room.applyGiveUp({ playerId: client.id, now }));
   }
 
   private onProgress(client: Client, warmth: number): void {

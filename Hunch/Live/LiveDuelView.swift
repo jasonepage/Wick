@@ -36,6 +36,8 @@ struct LiveDuelView: View {
     @AppStorage("hunch.music") private var musicOn = true
     /// 3.8: the recap's Wicks act out the result once it is on screen.
     @State private var recapShown = false
+    /// 3.9 Give up: the first tap arms it, a second tap within 3 seconds sends it.
+    @State private var giveUpArmed = false
 
     /// Localized UI strings for the player's chosen language (3.1).
     private var loc: Loc { Loc(lang: .storedUI) }
@@ -427,6 +429,38 @@ struct LiveDuelView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.leading, HunchTheme.Spacing.xs)
             }
+            if model.canGiveUp { giveUpButton }
+        }
+    }
+
+    /// 3.9: Give up, shown after the first 30 seconds. One tap arms it ("Tap
+    /// again to give up"); a second tap within 3 seconds ends the race, the
+    /// other player wins, and both end screens show the word.
+    private var giveUpButton: some View {
+        Button {
+            if giveUpArmed {
+                giveUpArmed = false
+                Haptics.soft()
+                model.giveUp()
+            } else {
+                giveUpArmed = true
+                Haptics.selection()
+            }
+        } label: {
+            Label(giveUpArmed ? loc.liveGiveUpConfirm : loc.liveGiveUp,
+                  systemImage: giveUpArmed ? "exclamationmark.circle.fill" : "flag")
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(giveUpArmed ? Color.red : Color.secondary)
+                .padding(.horizontal, 12).padding(.vertical, 6)
+                .background(Capsule().fill(giveUpArmed ? Color.red.opacity(0.12) : Color.clear))
+        }
+        .buttonStyle(.plain)
+        .frame(maxWidth: .infinity, alignment: .trailing)
+        .animation(reduceMotion ? nil : .snappy, value: giveUpArmed)
+        .task(id: giveUpArmed) {
+            guard giveUpArmed else { return }
+            try? await Task.sleep(for: .seconds(3))
+            if !Task.isCancelled { giveUpArmed = false }
         }
     }
 
@@ -481,6 +515,40 @@ struct LiveDuelView: View {
         .transition(reduceMotion ? .opacity : .move(edge: .top).combined(with: .opacity))
         .animation(reduceMotion ? nil : .snappy, value: clue.n)
         .accessibilityElement(children: .combine)
+    }
+
+    /// 3.9: the clues Wick gave this race, under the answer, so a learner sees
+    /// how each one pointed at the word.
+    private var cluesRecap: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Label(loc.liveCluesYouGot, systemImage: "lightbulb.fill")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(HunchTheme.Palette.keeper)
+                .textCase(.uppercase)
+            ForEach(model.clues, id: \.n) { clue in
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(clueLine(clue))
+                        .font(.subheadline)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if let help = clue.help, !help.isEmpty {
+                        Text(help).font(.footnote).foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            }
+        }
+        .padding(HunchTheme.Spacing.m)
+        .frame(maxWidth: 420, alignment: .leading)
+        .background(
+            HunchTheme.Palette.keeper.opacity(0.08),
+            in: RoundedRectangle(cornerRadius: HunchTheme.Radius.field, style: .continuous)
+        )
+    }
+
+    private func clueLine(_ clue: RaceClue) -> String {
+        guard clue.isWord else { return clue.text }
+        let rank = clue.rank.map { " #\($0)" } ?? ""
+        return "\(loc.liveClueTry): \(clue.text)\(rank)"
     }
 
     // MARK: Feed (questions + guesses, newest first)
@@ -669,6 +737,7 @@ struct LiveDuelView: View {
                     }
                 }
             }
+            if !model.clues.isEmpty { cluesRecap }
             // Finish time when someone solved; a timeout already says so above.
             Text((r.finishMs.map { "\(loc.raceRecapFinish) \(RaceShowdown.fmtElapsed($0)) · " } ?? "")
                  + "\(loc.raceRecapLeadChanges) \(info.leadChanges)")
@@ -847,7 +916,11 @@ struct LiveDuelView: View {
         switch r.reason {
         case .solved:  return model.didIWin ? loc.liveFirstToWord : loc.liveOppFirst
         case .timeout: return loc.liveTimeUpWarmest
-        case .forfeit: return model.didIWin ? loc.liveOppLeft : loc.liveYouLeft
+        case .forfeit:
+            if let quitter = r.gaveUp {
+                return quitter == model.myId ? loc.liveYouGaveUp : loc.liveOppGaveUp
+            }
+            return model.didIWin ? loc.liveOppLeft : loc.liveYouLeft
         case .void:    return loc.liveBothDropped
         }
     }

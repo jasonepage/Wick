@@ -86,6 +86,8 @@ struct MatchResult: Codable, Equatable {
     var draw: Bool
     var players: [PlayerResult]   // exactly two
     var endedAtMs: Int
+    /// 3.9: who pressed Give up, when that ended the race (reason is forfeit).
+    var gaveUp: String? = nil
 }
 
 // MARK: - Server → client frames (protocol.ts)
@@ -188,6 +190,8 @@ enum ClientFrame {
     case guess(_ word: String, warmth: Double?)
     case question(warmth: Double)
     case ask(_ question: String)
+    /// 3.9: give up the race (the server refuses it in the first 30 seconds).
+    case giveUp
     case heartbeat
 
     func encoded() -> String? {
@@ -206,6 +210,8 @@ enum ClientFrame {
             obj = ["t": "question", "warmth": warmth]
         case let .ask(question):
             obj = ["t": "ask", "question": question]
+        case .giveUp:
+            obj = ["t": "giveUp"]
         case .heartbeat:
             obj = ["t": "heartbeat"]
         }

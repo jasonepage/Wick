@@ -22,6 +22,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   Clues are leak-checked like the Keeper and saved per word and language, so
   Gemini writes them once. If Gemini is down, races keep the warmer word.
   Diagnostic: `/debug/clues?secret=pelican&help=zh`.
+- **Give up in live races.** After the first 30 seconds a quiet Give up
+  button shows under the guess box (web and iOS). The first tap turns it into
+  "Tap again to give up"; a second tap within 3 seconds ends the race, the
+  other player wins, and both end screens show the word with "You gave up" or
+  "Your opponent gave up". The server refuses it before 30 seconds. The result
+  keeps the reason "forfeit" and adds `gaveUp`, so older apps still read it.
+- **Clues on the race end screen.** Under the answer, the clues Wick gave
+  that race, so a learner sees how each one pointed at the word.
 - **Semantic Arena.** The hidden strategy of a round is now visible, on web
   and iOS. All of it is worked out by pure, deterministic code with shared test
   cases (route.ts, RouteAnalysis.swift, HunchTests/RouteFixtures.json). No

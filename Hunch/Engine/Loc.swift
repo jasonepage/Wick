@@ -146,6 +146,13 @@ struct Loc {
     var liveClueTitle: String { s("liveClueTitle") }
     var liveClueTry: String { s("liveClueTry") }
     var liveClueGuess: String { s("liveClueGuess") }
+    var liveCluesYouGot: String { s("liveCluesYouGot") }
+    /// 3.9 Give up in live races.
+    var liveGiveUp: String { s("liveGiveUp") }
+    var liveGiveUpConfirm: String { s("liveGiveUpConfirm") }
+    var liveGiveUpTooEarly: String { s("liveGiveUpTooEarly") }
+    var liveYouGaveUp: String { s("liveYouGaveUp") }
+    var liveOppGaveUp: String { s("liveOppGaveUp") }
     var liveInviteExpired: String { s("liveInviteExpired") }
     var liveShareMsgRace: String { s("liveShareMsgRace") }
     var liveScanCaption: String { s("liveScanCaption") }
@@ -757,6 +764,8 @@ struct Loc {
         "liveOppLeftHangTight": "Your opponent left. Hang tight.",
         "liveNotAWord": "That's not a word I know. Try another.",
         "liveClueTitle": "Wick's clue", "liveClueTry": "Try this word", "liveClueGuess": "Guess it",
+        "liveCluesYouGot": "Wick's clues", "liveGiveUp": "Give up", "liveGiveUpConfirm": "Tap again to give up",
+        "liveGiveUpTooEarly": "You can give up after 30 seconds.", "liveYouGaveUp": "You gave up.", "liveOppGaveUp": "Your opponent gave up.",
         "liveInviteExpired": "That invite's expired. Ask your friend for a new link.",
         "liveShareMsgRace": "Race me in Wick!",
         // Header
@@ -1253,6 +1262,8 @@ struct Loc {
         "liveOppLeftHangTight": "Tu rival se fue: espera un momento.",
         "liveNotAWord": "Esa no es una palabra que conozca: prueba otra.",
         "liveClueTitle": "Pista de Wick", "liveClueTry": "Prueba esta palabra", "liveClueGuess": "Adivínala",
+        "liveCluesYouGot": "Pistas de Wick", "liveGiveUp": "Rendirse", "liveGiveUpConfirm": "Toca otra vez para rendirte",
+        "liveGiveUpTooEarly": "Puedes rendirte después de 30 segundos.", "liveYouGaveUp": "Te rendiste.", "liveOppGaveUp": "Tu rival se rindió.",
         "liveInviteExpired": "Esa invitación caducó: pídele a tu amigo un nuevo enlace.",
         "liveShareMsgRace": "¡Compite conmigo en Wick!",
         // Header
@@ -1746,6 +1757,8 @@ struct Loc {
         "liveOppLeftHangTight": "Ton adversaire est parti. Patiente.",
         "liveNotAWord": "Ce n'est pas un mot que je connais. Essaie-en un autre.",
         "liveClueTitle": "Indice de Wick", "liveClueTry": "Essaie ce mot", "liveClueGuess": "Le deviner",
+        "liveCluesYouGot": "Indices de Wick", "liveGiveUp": "Abandonner", "liveGiveUpConfirm": "Touche encore pour abandonner",
+        "liveGiveUpTooEarly": "Tu peux abandonner après 30 secondes.", "liveYouGaveUp": "Tu as abandonné.", "liveOppGaveUp": "Ton adversaire a abandonné.",
         "liveInviteExpired": "Cette invitation a expiré. Demande un nouveau lien à ton ami.",
         "liveShareMsgRace": "Fais la course avec moi sur Wick !",
         // Header
@@ -2239,6 +2252,8 @@ struct Loc {
         "liveOppLeftHangTight": "Il tuo avversario se n'è andato: aspetta.",
         "liveNotAWord": "Non è una parola che conosco: provane un'altra.",
         "liveClueTitle": "Indizio di Wick", "liveClueTry": "Prova questa parola", "liveClueGuess": "Indovinala",
+        "liveCluesYouGot": "Indizi di Wick", "liveGiveUp": "Arrenditi", "liveGiveUpConfirm": "Tocca di nuovo per arrenderti",
+        "liveGiveUpTooEarly": "Puoi arrenderti dopo 30 secondi.", "liveYouGaveUp": "Ti sei arreso.", "liveOppGaveUp": "Il tuo avversario si è arreso.",
         "liveInviteExpired": "Quell'invito è scaduto: chiedi al tuo amico un nuovo link.",
         "liveShareMsgRace": "Sfidami in una gara su Wick!",
         // Header
@@ -2731,6 +2746,8 @@ struct Loc {
         "liveOppLeftHangTight": "Dein Gegner ist weg. Einen Moment.",
         "liveNotAWord": "Das ist kein Wort, das ich kenne. Versuch ein anderes.",
         "liveClueTitle": "Wicks Tipp", "liveClueTry": "Probier dieses Wort", "liveClueGuess": "Raten",
+        "liveCluesYouGot": "Wicks Tipps", "liveGiveUp": "Aufgeben", "liveGiveUpConfirm": "Nochmal tippen zum Aufgeben",
+        "liveGiveUpTooEarly": "Du kannst nach 30 Sekunden aufgeben.", "liveYouGaveUp": "Du hast aufgegeben.", "liveOppGaveUp": "Dein Gegner hat aufgegeben.",
         "liveInviteExpired": "Diese Einladung ist abgelaufen. Bitte deinen Freund um einen neuen Link.",
         "liveShareMsgRace": "Mach ein Rennen mit mir bei Wick!",
         // Header

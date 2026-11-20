@@ -177,6 +177,11 @@ export class WickMatchClient {
     this.send({ t: "ask", question });
   }
 
+  /** 3.9: give up the live race (refused with "too_early" in the first 30 s). */
+  giveUp(): void {
+    this.send({ t: "giveUp" });
+  }
+
   close(): void {
     this.closedByUs = true; // an intentional close must NOT trigger auto-reconnect
     if (this.reconnectTimer !== null) {

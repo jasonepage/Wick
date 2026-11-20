@@ -270,6 +270,21 @@ final class LiveDuelViewModel: ObservableObject, MatchClientDelegate {
         client?.guess(word)
     }
 
+    /// 3.9: Give up only shows after this much of the race.
+    static let giveUpAfterMs = 30_000
+
+    /// True once the race has gone long enough for Give up.
+    var canGiveUp: Bool {
+        phase == .playing && racePhase != .expired && !isSolvedByMe
+            && (snapshot?.clock.elapsedMs ?? 0) >= Self.giveUpAfterMs
+    }
+
+    /// 3.9: give up the race. The other player wins and both see the word.
+    func giveUp() {
+        guard canGiveUp else { return }
+        client?.giveUp()
+    }
+
     /// Ask Wick a yes/no question. The reply lands via an `answer` frame.
     func askWick(_ raw: String) {
         let question = raw.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -450,6 +465,10 @@ final class LiveDuelViewModel: ObservableObject, MatchClientDelegate {
             if code == "no_such_invite" {
                 banner = Loc(lang: .storedUI).liveInviteExpired
                 phase = .disconnected
+                return
+            }
+            if code == "too_early" {
+                banner = Loc(lang: .storedUI).liveGiveUpTooEarly
                 return
             }
             banner = message

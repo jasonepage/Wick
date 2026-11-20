@@ -90,6 +90,11 @@ final class MatchClient: NSObject {
         send(.ask(question))
     }
 
+    /// 3.9: give up the live race.
+    func giveUp() {
+        send(.giveUp)
+    }
+
     // MARK: Internals
 
     private func send(_ frame: ClientFrame) {

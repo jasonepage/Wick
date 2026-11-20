@@ -2781,6 +2781,12 @@ function handleLiveError(e: { code: string; message: string }, create?: boolean)
     startLive("casual", genCode(), true);
     return;
   }
+  if (e.code === "too_early") {
+    toast(t("liveGiveUpTooEarly"));
+    const b = app.querySelector<HTMLButtonElement>("#give-up");
+    if (b) b.disabled = false;
+    return;
+  }
   if (e.code === "no_such_invite") {
     toast(t("inviteExpired"));
     leaveLive();
@@ -3070,6 +3076,7 @@ function screenMatch(): void {
         input,
         el("button", { class: "send", onclick: submit, title: t("guessOrAskPlaceholder"), "aria-label": t("guessOrAskPlaceholder") } as Partial<HTMLButtonElement>, ["↑"]),
       ]),
+      giveUpButton(),
       el("div", { id: "keeper", class: "keeper" }),
       el("div", { id: "live-log-head", class: "log-head" }),
       el("ul", { id: "my-guesses", class: "guesses" }),
@@ -3080,6 +3087,34 @@ function screenMatch(): void {
   renderMatch();
   if (race.raf !== null) cancelAnimationFrame(race.raf);
   race.raf = requestAnimationFrame(raceLoop);
+}
+
+/** 3.9: Give up, shown after the first 30 seconds (raceLoop reveals it). The
+ *  first click arms it ("Tap again to give up"); a second click within 3
+ *  seconds ends the race, the other player wins, and both see the word. */
+const GIVE_UP_AFTER_MS = 30_000;
+function giveUpButton(): HTMLButtonElement {
+  const btn = el("button", { id: "give-up", class: "give-up", hidden: true }, [t("liveGiveUp")]) as HTMLButtonElement;
+  let armTimer: number | null = null;
+  const disarm = () => {
+    if (armTimer !== null) { window.clearTimeout(armTimer); armTimer = null; }
+    btn.classList.remove("armed");
+    btn.textContent = t("liveGiveUp");
+  };
+  btn.onclick = () => {
+    if (race.ended) return;
+    if (btn.classList.contains("armed")) {
+      disarm();
+      btn.disabled = true;
+      live.client?.giveUp();
+      return;
+    }
+    btn.classList.add("armed");
+    btn.textContent = t("liveGiveUpConfirm");
+    void playSound("tap");
+    armTimer = window.setTimeout(disarm, 3000);
+  };
+  return btn;
 }
 
 /** Send a race guess. Warmth is scored by the server (authoritative); the row
@@ -3146,6 +3181,12 @@ function raceLoop(): void {
       const frozen = phase === "expired";
       app.querySelectorAll<HTMLInputElement | HTMLButtonElement>(".race-card .guess-row input, .race-card .guess-row button")
         .forEach((n) => { n.disabled = frozen; });
+    }
+    // 3.9: Give up appears after 30 seconds, and goes once the clock runs out.
+    const giveUp = app.querySelector<HTMLButtonElement>("#give-up");
+    if (giveUp) {
+      const show = c.elapsedMs >= GIVE_UP_AFTER_MS && phase !== "expired" && !raceYouSolved();
+      if (giveUp.hidden === show) giveUp.hidden = !show;
     }
     // Face-off: 3, 2, 1, GUESS over the first seconds of the real clock.
     const step = race.faceOff ? faceOffStep(c.elapsedMs) : null;
@@ -3311,6 +3352,17 @@ function screenResult(result: MatchResult, word?: string, words?: Record<string,
     // A cross-language race: show what the other player was hunting.
     const theirs = words ? Object.entries(words).find(([, v]) => v !== word) : undefined;
     if (theirs) reveal.append(el("p", { class: "center muted reveal-label" }, [t("raceTheirWord", theirs[1], LANG_LABEL[theirs[0] as Lang] ?? theirs[0])]));
+    // 3.9: the clues Wick gave, under the answer, so a learner sees how each
+    // one pointed at the word.
+    if (live.clues.length > 0) {
+      reveal.append(el("div", { class: "clue-recap" }, [
+        el("div", { class: "clue-title" }, [`💡 ${t("liveCluesYouGot").toLocaleUpperCase()}`]),
+        ...live.clues.map((c) => el("div", { class: "clue-recap-row" }, [
+          el("div", {}, [c.kind === "word" ? `${t("liveClueTry")} ${c.text}${c.rank ? ` #${c.rank}` : ""}` : c.text]),
+          ...(c.help ? [el("div", { class: "clue-help" }, [c.help])] : []),
+        ])),
+      ]));
+    }
   }
 
   const stat = (label: string, you: Node | string, them: Node | string) =>
@@ -3366,7 +3418,9 @@ function screenResult(result: MatchResult, word?: string, words?: Record<string,
     el("main", { class: "card race-card" }, [
       arena,
       el("h2", { class: `recap-title outcome-${recap.outcome}` }, [headline[recap.headline]]),
-      el("p", { class: "center muted" }, [reason[result.reason]]),
+      el("p", { class: "center muted" }, [
+        result.gaveUp ? t(result.gaveUp === live.kid ? "liveYouGaveUp" : "liveOppGaveUp") : reason[result.reason],
+      ]),
       ...(word ? [reveal] : []),
       summary,
       stats,
