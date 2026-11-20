@@ -13,7 +13,7 @@
 //
 
 import { WickMatchClient } from "./net/client.ts";
-import type { MatchMode, OpponentKind, StateSnapshot, MatchResult } from "./net/protocol.ts";
+import type { MatchMode, OpponentKind, StateSnapshot, MatchResult, ClueFrame } from "./net/protocol.ts";
 import { ringSVG, scoreLabel, scoreColor, scoreColorA } from "./game/wickface.ts";
 import { ensureWick, type Wick, type WickOptions } from "./game/wick.ts";
 import { newWickPersonalityState, reactionForGuess, reactionForQuestion, solvedLine, type WickReaction } from "./game/wickpersonality.ts";
@@ -299,6 +299,8 @@ const live = {
   snapshot: null as StateSnapshot | null,
   guesses: [] as Guess[],
   replies: [] as { question: string; verdict: string; reply: string; pending: boolean }[],
+  /** 3.9: Wick's timed clues this race, oldest first (the newest is shown). */
+  clues: [] as ClueFrame[],
   opponentLeft: false,
   mode: "casual" as MatchMode,
   friendCode: undefined as string | undefined,
@@ -2689,6 +2691,7 @@ function startLive(mode: MatchMode, friendCode?: string, create?: boolean, opts?
   live.snapshot = null;
   live.guesses = [];
   live.replies = [];
+  live.clues = [];
   live.opponentLeft = false;
   live.mode = mode;
   live.friendCode = friendCode;
@@ -2708,7 +2711,8 @@ function startLive(mode: MatchMode, friendCode?: string, create?: boolean, opts?
     // bot-fills it instead of waiting for the shared start.
     query: opts?.fillNow ? { fill: "now" } : undefined,
     handlers: {
-      onOpen: () => live.client?.queue(mode, friendCode, create, playLang()),
+      // The menu language rides along so race clues can carry a help line in it.
+      onOpen: () => live.client?.queue(mode, friendCode, create, playLang(), getLang()),
       onPaired: (f) => {
         live.opponentKind = f.opponentKind;
         screenMatch();
@@ -2748,6 +2752,13 @@ function startLive(mode: MatchMode, friendCode?: string, create?: boolean, opts?
       onAnswer: (f) => {
         const r = live.replies.find((x) => x.question === f.question && x.pending);
         if (r) { r.verdict = f.verdict; r.reply = f.reply; r.pending = false; renderMatch(); }
+      },
+      onClue: (f) => {
+        // A reconnect re-sends the race's clues; keep each one once.
+        if (race.ended || live.clues.some((c) => c.n === f.n)) return;
+        live.clues.push(f);
+        void playSound("sparkle", 0.6);
+        renderMatch();
       },
       onResult: (f) => { stopRaceMusic(); screenResult(f.result, f.word, f.words); },
       onOpponentLeft: () => { live.opponentLeft = true; renderMatch(); },
@@ -3026,12 +3037,8 @@ function screenMatch(): void {
       renderMatch();
       return;
     }
-    // Warmth is scored by the server (authoritative); show "scoring…" until the
-    // `scored` frame arrives — no misleading placeholder number.
-    live.guesses.unshift({ word: text, warmth: null, correct: false });
-    live.client?.guess(text);
+    liveGuess(text);
     input.value = "";
-    renderMatch();
   };
   input.addEventListener("keydown", (e) => { if (e.key === "Enter") submit(); });
   // The arena: two equal seats, then the lead, the clock and one slot for
@@ -3057,6 +3064,7 @@ function screenMatch(): void {
     el("main", { class: "card race-card" }, [
       arena,
       el("div", { id: "latest", class: "latest" }),
+      el("div", { id: "race-clue", class: "race-clue", "aria-live": "polite" } as Partial<HTMLElement>),
       el("div", { id: "banner", class: "banner" }),
       el("div", { class: "guess-row" }, [
         input,
@@ -3072,6 +3080,51 @@ function screenMatch(): void {
   renderMatch();
   if (race.raf !== null) cancelAnimationFrame(race.raf);
   race.raf = requestAnimationFrame(raceLoop);
+}
+
+/** Send a race guess. Warmth is scored by the server (authoritative); the row
+ *  shows "scoring…" until the `scored` frame arrives, no placeholder number. */
+function liveGuess(word: string): void {
+  live.guesses.unshift({ word, warmth: null, correct: false });
+  live.client?.guess(word);
+  renderMatch();
+}
+
+/** 3.9: the newest of Wick's race clues. Both players get the same kind at
+ *  the same moment: a warmer word to try (one tap guesses it), or a written
+ *  clue, with a line in the menu language when the round is in another one. */
+function renderClue(): void {
+  const box = document.querySelector<HTMLDivElement>("#race-clue");
+  if (!box) return;
+  const clue = live.clues[live.clues.length - 1];
+  if (!clue) { box.classList.remove("show"); box.replaceChildren(); return; }
+  if (box.dataset.n === String(clue.n) && box.dataset.guessed === String(guessedClue(clue))) return;
+  box.dataset.n = String(clue.n);
+  box.dataset.guessed = String(guessedClue(clue));
+  const body: (Node | string)[] = [el("div", { class: "clue-title" }, [t("liveClueTitle", clue.n).toLocaleUpperCase()])];
+  if (clue.kind === "word") {
+    const line = el("div", { class: "clue-word" }, [
+      el("span", { class: "muted" }, [t("liveClueTry")]), " ",
+      el("strong", {}, [clue.text]),
+    ]);
+    if (clue.rank) line.append(" ", el("span", { class: "clue-rank" }, [`#${clue.rank}`]));
+    body.push(line);
+  } else {
+    body.push(el("div", { class: "clue-text" }, [clue.text]));
+    if (clue.help) body.push(el("div", { class: "clue-help" }, [clue.help]));
+  }
+  const kids: (Node | string)[] = [el("span", { class: "clue-icon", "aria-hidden": "true" } as Partial<HTMLElement>, ["💡"]), el("div", { class: "clue-body" }, body)];
+  if (clue.kind === "word" && !guessedClue(clue)) {
+    kids.push(el("button", { class: "btn primary clue-go", onclick: () => { if (!race.ended) liveGuess(clue.text); } }, [t("liveClueGuess")]));
+  }
+  box.replaceChildren(...kids);
+  box.classList.remove("show");
+  void box.offsetWidth; // restart the entrance animation for a new clue
+  box.classList.add("show");
+}
+
+function guessedClue(clue: ClueFrame): boolean {
+  return clue.kind === "word" && live.guesses.some((g) => normalize(g.word) === normalize(clue.text));
 }
 
 /** One arena frame: clock, phase, face-off, lead, momentum. Touches the DOM
@@ -3172,6 +3225,7 @@ function renderMatch(): void {
   // Wick's most recent in-match answer (if any).
   const reply = live.replies[0];
   if (reply) showKeeper(reply.verdict, reply.reply);
+  renderClue();
   renderSortHead("#live-log-head", live.guesses.length > 0, renderMatch);
   renderGuessList("#my-guesses", soloSortHottest ? sortGuessesHottest(live.guesses) : live.guesses);
   const banner = document.querySelector<HTMLDivElement>("#banner");

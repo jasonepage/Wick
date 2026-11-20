@@ -21,6 +21,7 @@ import type {
   ResultFrame,
   ScoredFrame,
   AnswerFrame,
+  ClueFrame,
   ErrorFrame,
 } from "./protocol.ts";
 
@@ -33,6 +34,8 @@ export interface WickClientHandlers {
   onResult?: (frame: ResultFrame) => void;
   onScored?: (frame: ScoredFrame) => void;
   onAnswer?: (frame: AnswerFrame) => void;
+  /** 3.9: one of Wick's timed race clues. */
+  onClue?: (frame: ClueFrame) => void;
   onOpponentLeft?: () => void;
   onError?: (frame: ErrorFrame | { code: string; message: string }) => void;
   onClose?: (info: { clean: boolean }) => void;
@@ -112,6 +115,9 @@ export class WickMatchClient {
         case "answer":
           this.h.onAnswer?.(frame);
           break;
+        case "clue":
+          this.h.onClue?.(frame);
+          break;
         case "opponentLeft":
           this.h.onOpponentLeft?.();
           break;
@@ -145,9 +151,11 @@ export class WickMatchClient {
    *  `true` = host a fresh invite (server rejects a colliding code with `code_taken`);
    *  `false` = join an existing one (server replies `no_such_invite` if it's dead);
    *  omitted = legacy first-hosts/second-joins. */
-  queue(mode: MatchMode, friendCode?: string, create?: boolean, lang?: string): void {
+  queue(mode: MatchMode, friendCode?: string, create?: boolean, lang?: string, help?: string): void {
     const frame: QueueFrame = { t: "queue", mode };
     if (lang && lang !== "en") frame.lang = lang;
+    // 3.9: the menu language, so race clues can carry a help line in it.
+    if (help && help !== (lang || "en")) frame.help = help;
     if (friendCode) frame.friendCode = friendCode;
     if (create !== undefined) frame.create = create;
     this.send(frame);
@@ -218,6 +226,7 @@ function parseServerFrame(raw: string): ServerFrame | null {
     t === "result" ||
     t === "scored" ||
     t === "answer" ||
+    t === "clue" ||
     t === "opponentLeft" ||
     t === "error"
   ) {

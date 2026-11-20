@@ -245,6 +245,38 @@ export async function warmthScore(
 }
 
 
+/** The reference words closest to the secret, closest first, for the race's
+ *  shared warmer-word clues. Index i has rank i + 2 (the answer is rank 1), the
+ *  same numbering warmthScore() gives a guess. The secret and its variants are
+ *  left out, exactly as when ranking. Empty when embeddings or the vocabulary
+ *  are not ready. Cached per secret, like the cosine list. */
+export async function nearestWords(
+  secret: string,
+  lang: Lang = "en",
+  limit = 600,
+  embedder: (t: string) => Promise<number[] | null> = embed,
+): Promise<string[]> {
+  const s = normalizeWord(secret);
+  if (!s || !hasEmbeddings()) return [];
+  const key = `${lang}:${s}:${limit}`;
+  const cached = nearestCache.get(key);
+  if (cached) return cached;
+  const vocab = rankVocabEntries(lang);
+  if (vocab.length === 0) return [];
+  const es = await embedder(s);
+  if (!es) return [];
+  const scored: { word: string; cos: number }[] = [];
+  for (const { word, vec } of vocab) {
+    if (!word || word === s || word.includes(s) || s.includes(word)) continue;
+    scored.push({ word, cos: cosine(es, vec) });
+  }
+  scored.sort((a, b) => b.cos - a.cos);
+  const out = scored.slice(0, limit).map((x) => x.word);
+  nearestCache.set(key, out);
+  return out;
+}
+const nearestCache = new LruCache<string[]>(200);
+
 // ── Is this word playable as a SECRET? ────────────────────────────────────────
 //
 //  A Dare lets one player choose the word their friend will hunt. Until now that

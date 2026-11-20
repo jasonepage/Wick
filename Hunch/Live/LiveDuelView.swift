@@ -256,6 +256,7 @@ struct LiveDuelView: View {
         VStack(spacing: HunchTheme.Spacing.m) {
             arena
             latestRow
+            if let clue = model.clues.last { clueCard(clue) }
             inputArea
             ScrollView {
                 feedSection
@@ -427,6 +428,59 @@ struct LiveDuelView: View {
                     .padding(.leading, HunchTheme.Spacing.xs)
             }
         }
+    }
+
+    // MARK: 3.9 Wick's timed clue
+
+    /// The newest of Wick's race clues. Both players get the same kind at the
+    /// same time: a warmer word they can tap to guess, or a written clue (with
+    /// a line in the menu language when the round is in another one).
+    private func clueCard(_ clue: RaceClue) -> some View {
+        HStack(alignment: .top, spacing: HunchTheme.Spacing.m) {
+            Image(systemName: "lightbulb.fill")
+                .font(.title3)
+                .foregroundStyle(HunchTheme.Palette.keeper)
+            VStack(alignment: .leading, spacing: 4) {
+                Text("\(loc.liveClueTitle) \(clue.n)")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .textCase(.uppercase)
+                if clue.isWord {
+                    HStack(spacing: HunchTheme.Spacing.s) {
+                        Text("\(loc.liveClueTry):").font(.subheadline).foregroundStyle(.secondary)
+                        Text(clue.text).font(.headline)
+                        if let rank = clue.rank {
+                            Text("#\(rank)").font(.subheadline.weight(.bold)).foregroundStyle(.secondary)
+                        }
+                    }
+                } else {
+                    Text(clue.text).font(.body.weight(.semibold))
+                        .fixedSize(horizontal: false, vertical: true)
+                    if let help = clue.help, !help.isEmpty {
+                        Text(help).font(.subheadline).foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            }
+            Spacer(minLength: 0)
+            if clue.isWord, !model.guesses.contains(where: { $0.word.lowercased() == clue.text.lowercased() }) {
+                Button(loc.liveClueGuess) { model.submitGuess(clue.text) }
+                    .font(.subheadline.weight(.semibold))
+                    .buttonStyle(.borderedProminent)
+                    .tint(HunchTheme.Palette.keeper)
+                    .disabled(model.racePhase == .expired)
+            }
+        }
+        .padding(HunchTheme.Spacing.m)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            HunchTheme.Palette.keeper.opacity(0.10),
+            in: RoundedRectangle(cornerRadius: HunchTheme.Radius.field, style: .continuous)
+        )
+        .id(clue.n)
+        .transition(reduceMotion ? .opacity : .move(edge: .top).combined(with: .opacity))
+        .animation(reduceMotion ? nil : .snappy, value: clue.n)
+        .accessibilityElement(children: .combine)
     }
 
     // MARK: Feed (questions + guesses, newest first)

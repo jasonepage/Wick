@@ -142,6 +142,10 @@ struct Loc {
     var liveBothDropped: String { s("liveBothDropped") }
     var liveOppLeftHangTight: String { s("liveOppLeftHangTight") }
     var liveNotAWord: String { s("liveNotAWord") }
+    /// 3.9 timed race clues.
+    var liveClueTitle: String { s("liveClueTitle") }
+    var liveClueTry: String { s("liveClueTry") }
+    var liveClueGuess: String { s("liveClueGuess") }
     var liveInviteExpired: String { s("liveInviteExpired") }
     var liveShareMsgRace: String { s("liveShareMsgRace") }
     var liveScanCaption: String { s("liveScanCaption") }
@@ -752,6 +756,7 @@ struct Loc {
         "liveBothDropped": "No result, both players dropped.",
         "liveOppLeftHangTight": "Your opponent left. Hang tight.",
         "liveNotAWord": "That's not a word I know. Try another.",
+        "liveClueTitle": "Wick's clue", "liveClueTry": "Try this word", "liveClueGuess": "Guess it",
         "liveInviteExpired": "That invite's expired. Ask your friend for a new link.",
         "liveShareMsgRace": "Race me in Wick!",
         // Header
@@ -1247,6 +1252,7 @@ struct Loc {
         "liveBothDropped": "Sin resultado: ambos jugadores se cayeron.",
         "liveOppLeftHangTight": "Tu rival se fue: espera un momento.",
         "liveNotAWord": "Esa no es una palabra que conozca: prueba otra.",
+        "liveClueTitle": "Pista de Wick", "liveClueTry": "Prueba esta palabra", "liveClueGuess": "Adivínala",
         "liveInviteExpired": "Esa invitación caducó: pídele a tu amigo un nuevo enlace.",
         "liveShareMsgRace": "¡Compite conmigo en Wick!",
         // Header
@@ -1739,6 +1745,7 @@ struct Loc {
         "liveBothDropped": "Aucun résultat, les deux joueurs ont abandonné.",
         "liveOppLeftHangTight": "Ton adversaire est parti. Patiente.",
         "liveNotAWord": "Ce n'est pas un mot que je connais. Essaie-en un autre.",
+        "liveClueTitle": "Indice de Wick", "liveClueTry": "Essaie ce mot", "liveClueGuess": "Le deviner",
         "liveInviteExpired": "Cette invitation a expiré. Demande un nouveau lien à ton ami.",
         "liveShareMsgRace": "Fais la course avec moi sur Wick !",
         // Header
@@ -2231,6 +2238,7 @@ struct Loc {
         "liveBothDropped": "Nessun risultato: entrambi i giocatori si sono disconnessi.",
         "liveOppLeftHangTight": "Il tuo avversario se n'è andato: aspetta.",
         "liveNotAWord": "Non è una parola che conosco: provane un'altra.",
+        "liveClueTitle": "Indizio di Wick", "liveClueTry": "Prova questa parola", "liveClueGuess": "Indovinala",
         "liveInviteExpired": "Quell'invito è scaduto: chiedi al tuo amico un nuovo link.",
         "liveShareMsgRace": "Sfidami in una gara su Wick!",
         // Header
@@ -2722,6 +2730,7 @@ struct Loc {
         "liveBothDropped": "Kein Ergebnis, beide Spieler weg.",
         "liveOppLeftHangTight": "Dein Gegner ist weg. Einen Moment.",
         "liveNotAWord": "Das ist kein Wort, das ich kenne. Versuch ein anderes.",
+        "liveClueTitle": "Wicks Tipp", "liveClueTry": "Probier dieses Wort", "liveClueGuess": "Raten",
         "liveInviteExpired": "Diese Einladung ist abgelaufen. Bitte deinen Freund um einen neuen Link.",
         "liveShareMsgRace": "Mach ein Rennen mit mir bei Wick!",
         // Header

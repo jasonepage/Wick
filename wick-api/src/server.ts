@@ -19,7 +19,8 @@ import { renderPreviewHtml, renderInviteHtml } from "./preview.js";
 import { MatchHub, type Client } from "./hub.js";
 import { parseClientFrame, type ServerFrame } from "./protocol.js";
 import { makeWordProvider } from "./words.js";
-import { warmthScore, validateSecret, pairSimilarity, nearSimilarities } from "./warmthservice.js";
+import { warmthScore, validateSecret, pairSimilarity, nearSimilarities, nearestWords } from "./warmthservice.js";
+import { writeClueLadder, pickWarmerWord } from "./clues.js";
 import { isRealWord, dictionarySize } from "./dictionary.js";
 import { keeperAnswer, KEEPER_PROMPT_VERSION } from "./keeper.js";
 import { AnswerCache } from "./answercache.js";
@@ -437,6 +438,24 @@ app.get("/debug/keeper", async (c) => {
   return c.json({ secret, lang, question: q, ...result });
 });
 
+// Race clue diagnostic (3.9): the written clue ladder and the warmer words
+// a race would hand out for a word.
+//   /debug/clues?secret=pelican&token=...
+//   /debug/clues?secret=pelican&help=zh&token=...   with a Chinese help line
+app.get("/debug/clues", async (c) => {
+  if (!DEBUG_TOKEN || c.req.query("token") !== DEBUG_TOKEN) return c.json({ error: "forbidden" }, 403);
+  const secret = c.req.query("secret") ?? "pelican";
+  const lang = langOf(c.req.query("lang"));
+  const help = c.req.query("help");
+  const [ladder, nearest] = await Promise.all([
+    writeClueLadder(secret, lang, c.req.query("secretEn"), help),
+    nearestWords(secret, lang),
+  ]);
+  const ranks = [2000, 600, 200, 60];
+  const words = ranks.map((r) => ({ leaderRank: r, word: pickWarmerWord(nearest, r, new Set(), [secret]) }));
+  return c.json({ secret, lang, help: help ?? null, ladder, words, nearestTop: nearest.slice(0, 20) });
+});
+
 // A word's saved Keeper answers, most asked first. A wrong saved answer is
 // wrong for everyone, so this is also how to fix one:
 //   /debug/keeper-cache?secret=park                     list them
@@ -685,6 +704,10 @@ const hub = new MatchHub({
     const r = await keeperAnswer(secret, question, undefined, lang, secretEn, { history, cache: keeperCache });
     return { verdict: r.verdict, reply: r.reply };
   },
+  // 3.9 timed race clues: warmer words from the reference vocabulary, and
+  // Wick's written clue ladder from Gemini (saved per word and language).
+  nearestWords: (secret, lang) => nearestWords(secret, lang),
+  writeClues: (secret, lang, secretEn, help) => writeClueLadder(secret, lang, secretEn, help),
   // Practice flame: never solves — it warms up and applies light pressure, but
   // the human always wins by solving. (It can still edge a warmth tie-break if
   // NEITHER solves at the cap.) Tunable via env if we want it tougher later.

@@ -205,6 +205,20 @@ a.btn { display: block; box-sizing: border-box; text-align: center; text-decorat
 
 .clock { text-align: center; font-variant-numeric: tabular-nums; font-size: 1rem; opacity: 0.6; }
 
+/* 3.9 Wick's timed race clue */
+.race-clue { display: none; align-items: center; gap: 12px; background: rgba(125,92,235,0.14);
+  border: 1px solid rgba(125,92,235,0.4); border-radius: 16px; padding: 10px 14px; }
+.race-clue.show { display: flex; animation: clue-in 0.35s ease-out both; }
+@keyframes clue-in { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .race-clue.show { animation: none; } }
+.race-clue .clue-icon { flex: 0 0 auto; font-size: 1.3rem; }
+.race-clue .clue-body { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.race-clue .clue-title { font-size: 0.72rem; font-weight: 800; letter-spacing: 0.04em; opacity: 0.7; }
+.race-clue .clue-text { font-weight: 700; }
+.race-clue .clue-help { font-size: 0.9rem; opacity: 0.75; }
+.race-clue .clue-word strong { font-size: 1.1rem; }
+.race-clue .clue-rank { font-weight: 800; opacity: 0.7; }
+.race-clue .clue-go { flex: 0 0 auto; width: auto; padding: 8px 14px; font-size: 0.9rem; }
 .banner { text-align: center; font-size: 0.9rem; color: var(--you); max-height: 0; overflow: hidden; transition: max-height 0.2s ease; }
 .banner.show { max-height: 44px; }
 

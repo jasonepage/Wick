@@ -27,6 +27,7 @@ export type {
   ResultFrame,
   ScoredFrame,
   AnswerFrame,
+  ClueFrame,
   OpponentLeftFrame,
   ErrorFrame,
 } from "@server/protocol";

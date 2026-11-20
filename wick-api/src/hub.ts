@@ -25,7 +25,8 @@ import { DareRoom, type DareRole, type DareEvent } from "./dare.js";
 import { isBlockedSecret, isBlockedGuess } from "./moderation.js";
 import { isRealWord } from "./dictionary.js";
 import { Metrics } from "./metrics.js";
-import type { ClientFrame, ServerFrame } from "./protocol.js";
+import type { ClientFrame, ServerFrame, ClueFrame } from "./protocol.js";
+import { dueSlot, pickKind, pickWarmerWord, UNKNOWN_RANK, type ClueLine } from "./clues.js";
 
 /** How long an unjoined Dare invite stays open before it's swept (3.1) — mirrors
  *  the Matchmaker's friend-room TTL so an abandoned dare code doesn't leak forever. */
@@ -71,6 +72,13 @@ export interface HubDeps {
    *  room word in the seat's language and in English, so the caller can leave
    *  out anything that names the answer. */
   onPlayed?: (p: PlayedInfo) => void;
+  /** 3.9 race clues: the reference words closest to a secret, closest first
+   *  (index i has rank i + 2). Omitted → no warmer-word clues. */
+  nearestWords?: (secret: string, lang: Lang) => Promise<string[]>;
+  /** 3.9 race clues: Wick's written clue ladder for a seat (the secret in
+   *  the seat's language, its English form, the menu language for a help
+   *  line). Omitted → no written clues. */
+  writeClues?: (secret: string, lang: Lang, secretEn: string, help?: string) => Promise<ClueLine[]>;
 }
 
 /** One guess or question from a live race, for the weekly Stats lists. */
@@ -99,6 +107,27 @@ interface ActiveRoom {
   mode: MatchMode;
   /** Each player's questions this match and Wick's verdicts, oldest first. */
   asked?: Map<string, AskedTurn[]>;
+  /** 3.9 timed race clues. */
+  clues?: ClueState;
+}
+
+/** Per-race clue bookkeeping (3.9). Async inputs land in the maps when they
+ *  resolve; a drop only uses what is ready at that moment. */
+interface ClueState {
+  /** Last 0-based clue slot handled (-1 before the first). */
+  lastSlot: number;
+  wordsSent: number;
+  hintsSent: number;
+  /** Each human seat's best server rank so far. */
+  bestRank: Map<string, number>;
+  /** Nearest reference words per seat language. */
+  nearest: Map<Lang, string[]>;
+  /** The written clue ladder per human seat. */
+  ladders: Map<string, ClueLine[]>;
+  /** Warmer words already given, per seat language. */
+  usedWords: Map<Lang, Set<string>>;
+  /** Clues each seat has been sent, re-sent on a reconnect. */
+  sent: Map<string, ClueFrame[]>;
 }
 
 /** One question a player asked Wick and the verdict it got. */
@@ -122,6 +151,10 @@ export class MatchHub {
   ) => Promise<{ verdict: string; reply: string }>;
   /** The language each connected client last queued with. */
   private readonly clientLang = new Map<string, Lang>();
+  /** The menu language each client last queued with (3.9 clue help line). */
+  private readonly clientHelp = new Map<string, string>();
+  private readonly nearestWords?: (secret: string, lang: Lang) => Promise<string[]>;
+  private readonly writeClues?: (secret: string, lang: Lang, secretEn: string, help?: string) => Promise<ClueLine[]>;
   private readonly botConfig?: Partial<BotConfig>;
   private readonly onQueued: (info: { lang: Lang; waiting: number; playerId: string }) => void;
   private readonly onPlayed: (p: PlayedInfo) => void;
@@ -158,6 +191,8 @@ export class MatchHub {
     this.botConfig = deps.botConfig;
     this.onQueued = deps.onQueued ?? (() => {});
     this.onPlayed = deps.onPlayed ?? (() => {});
+    this.nearestWords = deps.nearestWords;
+    this.writeClues = deps.writeClues;
   }
 
   // ── connection lifecycle ────────────────────────────────────────────────────
@@ -180,6 +215,7 @@ export class MatchHub {
   disconnect(client: Client): void {
     this.clients.delete(client.id);
     this.clientLang.delete(client.id);
+    this.clientHelp.delete(client.id);
     // In a live dare? End it (no reconnect grace for dares in v1) and notify.
     const dareId = this.playerDare.get(client.id);
     if (dareId) {
@@ -213,6 +249,8 @@ export class MatchHub {
     switch (frame.t) {
       case "queue":
         this.clientLang.set(client.id, langOf(frame.lang));
+        if (frame.help) this.clientHelp.set(client.id, frame.help);
+        else this.clientHelp.delete(client.id);
         this.onQueue(client, frame.mode, frame.friendCode, frame.create);
         return;
       case "dare":
@@ -442,6 +480,10 @@ export class MatchHub {
         this.onPlayed({ kind: "guess", text: guess, lang, playerId, secrets: [secret, ar.secret], score, rank });
         const cur = this.rooms.get(roomId);
         if (!cur || !cur.room.isActive()) return;
+        if (cur.clues && rank !== undefined && rank > 0) {
+          const best = cur.clues.bestRank.get(playerId) ?? UNKNOWN_RANK;
+          if (rank < best) cur.clues.bestRank.set(playerId, rank);
+        }
         this.dispatch(
           roomId,
           cur.room.applyProgress({ playerId, warmth: score / 100, now: this.now() }),
@@ -513,6 +555,7 @@ export class MatchHub {
       if (ar.room.isActive()) {
         this.dispatch(roomId, ar.room.tick(now));
         if (ar.room.isActive()) this.fanOutState(ar.room);
+        if (ar.room.isActive()) this.driveClues(ar, now);
       }
     }
 
@@ -563,7 +606,9 @@ export class MatchHub {
         this.playerRoom.set(seat.id, pairing.roomId);
       }
     }
-    this.rooms.set(pairing.roomId, { room, bots, secret: pairing.secret, words: pairing.words, langs, mode: pairing.mode });
+    const ar: ActiveRoom = { room, bots, secret: pairing.secret, words: pairing.words, langs, mode: pairing.mode };
+    this.rooms.set(pairing.roomId, ar);
+    this.prepareClues(ar, pairing.players.filter((p) => p.kind === "human").map((p) => p.id));
 
     // Tell each human seat it's paired, then send the opening state.
     for (const seat of pairing.players) {
@@ -644,6 +689,105 @@ export class MatchHub {
       wordId: ar.room.roomId,
     });
     client.send({ t: "state", state: snap });
+    for (const clue of ar.clues?.sent.get(playerId) ?? []) client.send(clue);
+  }
+
+  // ── 3.9 timed race clues ────────────────────────────────────────────────────
+
+  /** Start fetching what the race's clues need (nearest words per language,
+   *  each human seat's written ladder) so it is ready by the first drop. */
+  private prepareClues(ar: ActiveRoom, humans: string[]): void {
+    if (!this.nearestWords && !this.writeClues) return;
+    if (humans.length === 0) return;
+    const st: ClueState = {
+      lastSlot: -1,
+      wordsSent: 0,
+      hintsSent: 0,
+      bestRank: new Map(),
+      nearest: new Map(),
+      ladders: new Map(),
+      usedWords: new Map(),
+      sent: new Map(),
+    };
+    ar.clues = st;
+    const langs = new Set(humans.map((id) => ar.langs.get(id) ?? "en"));
+    for (const lang of langs) {
+      st.usedWords.set(lang, new Set());
+      void this.nearestWords?.(ar.words[lang], lang).then(
+        (list) => { st.nearest.set(lang, list); },
+        () => {},
+      );
+    }
+    for (const id of humans) {
+      const lang = ar.langs.get(id) ?? "en";
+      void this.writeClues?.(ar.words[lang], lang, ar.secret, this.clientHelp.get(id)).then(
+        (lines) => { st.ladders.set(id, lines); },
+        () => {},
+      );
+    }
+  }
+
+  /** Send the clue drop that is due, if any. Both human seats get the same
+   *  kind of clue at the same time; a seat whose input is not ready yet just
+   *  gets nothing this time. */
+  private driveClues(ar: ActiveRoom, now: number): void {
+    const st = ar.clues;
+    if (!st) return;
+    const snap = ar.room.snapshotFor(ar.room.playerIds()[0], now);
+    const slot = dueSlot(snap.clock.elapsedMs, st.lastSlot, snap.clock.capMs);
+    if (slot === null) return;
+    st.lastSlot = slot;
+
+    const humans = ar.room.playerIds().filter((id) => !ar.bots.has(id));
+    let bestRank = UNKNOWN_RANK;
+    for (const id of humans) bestRank = Math.min(bestRank, st.bestRank.get(id) ?? UNKNOWN_RANK);
+    // Every human seat must have a rung left for a written clue to count.
+    let hintsAvailable = Infinity;
+    for (const id of humans) hintsAvailable = Math.min(hintsAvailable, st.ladders.get(id)?.length ?? 0);
+    if (!Number.isFinite(hintsAvailable)) hintsAvailable = 0;
+    // A warmer word only counts as available if every seat's language has a list.
+    const wordsReady = humans.every((id) => (st.nearest.get(ar.langs.get(id) ?? "en")?.length ?? 0) > 0);
+
+    const kind = pickKind({
+      bestRank,
+      wordsSent: wordsReady ? st.wordsSent : Number.MAX_SAFE_INTEGER,
+      hintsSent: st.hintsSent,
+      hintsAvailable,
+    });
+    if (kind === null) return;
+
+    const n = st.wordsSent + st.hintsSent + 1;
+    const frames = new Map<string, ClueFrame>();
+    if (kind === "word") {
+      // One pick per language, so two seats on the same language get the same word.
+      const picks = new Map<Lang, { word: string; rank: number } | null>();
+      for (const id of humans) {
+        const lang = ar.langs.get(id) ?? "en";
+        if (!picks.has(lang)) {
+          const used = st.usedWords.get(lang) ?? new Set<string>();
+          const forms = [ar.words[lang], ar.secret];
+          picks.set(lang, pickWarmerWord(st.nearest.get(lang) ?? [], bestRank, used, forms));
+        }
+        const pick = picks.get(lang);
+        if (pick) frames.set(id, { t: "clue", n, kind: "word", text: pick.word, rank: pick.rank });
+      }
+      if (frames.size === 0) return;
+      for (const [lang, pick] of picks) if (pick) st.usedWords.get(lang)?.add(pick.word);
+      st.wordsSent++;
+    } else {
+      for (const id of humans) {
+        const line = st.ladders.get(id)?.[st.hintsSent];
+        if (line) frames.set(id, { t: "clue", n, kind: "hint", text: line.text, ...(line.help ? { help: line.help } : {}) });
+      }
+      if (frames.size === 0) return;
+      st.hintsSent++;
+    }
+    for (const [id, frame] of frames) {
+      const list = st.sent.get(id) ?? [];
+      list.push(frame);
+      st.sent.set(id, list);
+      this.clients.get(id)?.send(frame);
+    }
   }
 
   private cleanupRoom(roomId: string): void {

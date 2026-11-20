@@ -146,7 +146,7 @@ export function answerText(json: unknown): string {
     .trim();
 }
 
-async function geminiGenerate(system: string, user: string): Promise<GenResult> {
+export async function geminiGenerate(system: string, user: string): Promise<GenResult> {
   const key = process.env.GEMINI_API_KEY ?? "";
   if (!key) return { error: "no GEMINI_API_KEY" };
   let lastErr = "unknown error";

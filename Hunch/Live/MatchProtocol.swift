@@ -111,6 +111,8 @@ enum ServerFrame: Equatable {
     case scored(guess: String, score: Double, rank: Int?, notAWord: Bool)
     /// The Keeper's reply to an in-match `ask` (verdict + short persona line).
     case answer(question: String, verdict: String, reply: String)
+    /// 3.9: one of Wick's timed race clues (a warmer word or a written clue).
+    case clue(RaceClue)
     case opponentLeft
     case error(code: String, message: String)
 
@@ -134,6 +136,8 @@ enum ServerFrame: Equatable {
             return (try? dec.decode(AnswerWrap.self, from: data)).map {
                 .answer(question: $0.question, verdict: $0.verdict, reply: $0.reply)
             }
+        case "clue":
+            return (try? dec.decode(RaceClue.self, from: data)).map(ServerFrame.clue)
         case "opponentLeft":
             return .opponentLeft
         case "error":
@@ -154,6 +158,24 @@ enum ServerFrame: Equatable {
     private struct ErrorWrap: Codable { let code: String; let message: String }
 }
 
+/// 3.9: one of Wick's timed race clues (protocol.ts ClueFrame). After two
+/// minutes, every 30 seconds both players get the same kind of clue at once,
+/// each in the language they hunt in. Never the secret.
+struct RaceClue: Codable, Equatable {
+    /// 1-based count of clue drops this race.
+    let n: Int
+    /// "word" (a warmer word to try) or "hint" (a written clue from Wick).
+    let kind: String
+    /// The warmer word, or the written clue.
+    let text: String
+    /// The written clue in the player's menu language, when that differs.
+    let help: String?
+    /// For a warmer word: its rank (#N).
+    let rank: Int?
+
+    var isWord: Bool { kind == "word" }
+}
+
 // MARK: - Client → server frames (protocol.ts)
 
 /// An outbound frame. Mirrors protocol.ts ClientFrame. Encoded by hand so the
@@ -161,7 +183,8 @@ enum ServerFrame: Equatable {
 enum ClientFrame {
     /// `lang` is the play language the seat hunts the word in; the server races
     /// two seats with different languages for the same concept. Omitted = English.
-    case queue(mode: MatchMode, friendCode: String?, create: Bool?, lang: String? = nil)
+    /// `help` is the menu language, when it differs, for the race clues' help line (3.9).
+    case queue(mode: MatchMode, friendCode: String?, create: Bool?, lang: String? = nil, help: String? = nil)
     case guess(_ word: String, warmth: Double?)
     case question(warmth: Double)
     case ask(_ question: String)
@@ -170,11 +193,12 @@ enum ClientFrame {
     func encoded() -> String? {
         var obj: [String: Any]
         switch self {
-        case let .queue(mode, friendCode, create, lang):
+        case let .queue(mode, friendCode, create, lang, help):
             obj = ["t": "queue", "mode": mode.rawValue]
             if let friendCode { obj["friendCode"] = friendCode }
             if let create { obj["create"] = create }
             if let lang, lang != "en" { obj["lang"] = lang }
+            if let help, help != (lang ?? "en") { obj["help"] = help }
         case let .guess(word, warmth):
             obj = ["t": "guess", "guess": word]
             if let warmth { obj["warmth"] = warmth }

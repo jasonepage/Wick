@@ -18,6 +18,10 @@ export interface QueueFrame {
    *  "it" or "de". Two players with different languages still race the same
    *  concept; each is scored in their own. */
   lang?: string;
+  /** 3.9: the player's menu language (e.g. "zh" for a player who hunts in
+   *  English with Chinese help). Race clues get a second line in it when it
+   *  differs from `lang`. Optional; older clients send none. */
+  help?: string;
   /** Optional private friend code (FR-9). */
   friendCode?: string;
   /** Invite intent for a friend code (3.1 links). `true` = CREATE/host a fresh
@@ -163,6 +167,23 @@ export interface DareEndFrame {
   result: DareResult;
 }
 
+/** 3.9: one of Wick's timed race clues. Both players get the same kind of
+ *  clue at the same moment, each in the language they hunt in. Never the
+ *  secret (clues are leak-checked). */
+export interface ClueFrame {
+  t: "clue";
+  /** 1-based count of clue drops this race. */
+  n: number;
+  /** "word": a warmer word to try. "hint": a written clue from Wick. */
+  kind: "word" | "hint";
+  /** The warmer word, or the written clue. */
+  text: string;
+  /** The written clue in the player's menu language, when that differs. */
+  help?: string;
+  /** For "word": the word's rank (#N), like a scored guess. */
+  rank?: number;
+}
+
 export interface ErrorFrame {
   t: "error";
   code: string;
@@ -180,6 +201,7 @@ export type ServerFrame =
   | DareStartFrame
   | DareStateFrame
   | DareEndFrame
+  | ClueFrame
   | ErrorFrame;
 
 /** Parse an inbound text frame; returns null if it isn't a valid ClientFrame. */
@@ -201,6 +223,12 @@ export function parseClientFrame(raw: string): ClientFrame | null {
       if (typeof fc === "string") frame.friendCode = fc;
       const cr = (obj as { create?: unknown }).create;
       if (typeof cr === "boolean") frame.create = cr;
+      // The hunt language was dropped here before 3.9, so every live race was
+      // scored in English whatever the client asked for.
+      const lang = (obj as { lang?: unknown }).lang;
+      if (typeof lang === "string") frame.lang = lang;
+      const help = (obj as { help?: unknown }).help;
+      if (typeof help === "string") frame.help = help;
       return frame;
     }
     case "guess": {

@@ -10,6 +10,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Wick's race clues.** Live races (Quick Match and friend invites, web and
+  iOS) no longer leave two stuck players staring at the clock. After two
+  minutes, every 30 seconds both players get the same kind of clue at the same
+  moment, each in the language they hunt in. First up to three warmer words,
+  about halfway from the leader's best rank to the answer (never closer than
+  #15), with a one-tap Guess it button. Then, or as soon as anyone reaches the
+  top 30, up to three written clues from Gemini, each clearer than the last,
+  in simple everyday words, with a line in the player's menu language when the
+  round is in another one. Clues are leak-checked like the Keeper and saved per
+  word and language, so Gemini writes them once. If Gemini is down, races keep
+  the warmer words. Diagnostic: `/debug/clues?secret=pelican&help=zh`.
 - **Semantic Arena.** The hidden strategy of a round is now visible, on web
   and iOS. All of it is worked out by pure, deterministic code with shared test
   cases (route.ts, RouteAnalysis.swift, HunchTests/RouteFixtures.json). No
@@ -50,6 +61,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `/warmth` takes an optional `near` list of the player's own last guesses. Both
   rescale Gemini's cosine onto the 0 to 1 scale the clients share. Older
   clients are unaffected.
+
+### Fixed
+
+- **Live races ignored the hunt language.** The server dropped the `lang` field
+  of the queue frame, so every live race was scored in English whatever the
+  web or iOS client asked for. It now keeps it (and the new `help` field).
 
 ## [Unreleased] (3.8)
 

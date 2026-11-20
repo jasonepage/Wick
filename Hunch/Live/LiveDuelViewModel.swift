@@ -67,6 +67,8 @@ final class LiveDuelViewModel: ObservableObject, MatchClientDelegate {
     /// language's name, for the end screen. nil when both played the same language.
     @Published private(set) var opponentWord: (word: String, language: String)?
     @Published private(set) var banner: String?
+    /// 3.9: Wick's timed clues this race, oldest first. The view shows the newest.
+    @Published private(set) var clues: [RaceClue] = []
 
     // MARK: 3.8 Race Showdown state (RaceShowdown.swift does the thinking)
 
@@ -308,7 +310,10 @@ final class LiveDuelViewModel: ObservableObject, MatchClientDelegate {
         // intent if this is a private match).
         // Race in the play language: the server pairs across languages and
         // scores each seat in its own.
-        client?.queue(mode: requestedMode, friendCode: requestedFriendCode, create: requestedCreate, lang: GameLanguage.stored.rawValue)
+        // The menu language goes along so a race clue can carry a help line in it
+        // (an English round played with Spanish menus, say).
+        client?.queue(mode: requestedMode, friendCode: requestedFriendCode, create: requestedCreate,
+                      lang: GameLanguage.stored.rawValue, help: GameLanguage.storedUI.rawValue)
     }
 
     func matchClient(didReceive frame: ServerFrame) {
@@ -422,6 +427,12 @@ final class LiveDuelViewModel: ObservableObject, MatchClientDelegate {
             raceTask?.cancel()
             phase = .finished
 
+        case .clue(let clue):
+            // A reconnect re-sends the race's clues; keep each one once.
+            guard phase == .playing, !clues.contains(where: { $0.n == clue.n }) else { break }
+            clues.append(clue)
+            Haptics.soft()
+
         case .opponentLeft:
             banner = Loc(lang: .storedUI).liveOppLeftHangTight
 
@@ -469,6 +480,7 @@ final class LiveDuelViewModel: ObservableObject, MatchClientDelegate {
     private func resetState(keepRecap: Bool = false) {
         guesses = []
         replies = []
+        clues = []
         snapshot = nil
         opponentKind = nil
         startsAt = nil
