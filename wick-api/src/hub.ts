@@ -128,6 +128,10 @@ interface ClueState {
   usedWords: Map<Lang, Set<string>>;
   /** Clues each seat has been sent, re-sent on a reconnect. */
   sent: Map<string, ClueFrame[]>;
+  /** Ladder requests per seat, so an empty one is asked for again (twice). */
+  ladderTries: Map<string, number>;
+  /** A warmer-word drop is being ranked (async); skip slots until it lands. */
+  busy?: boolean;
 }
 
 /** One question a player asked Wick and the verdict it got. */
@@ -726,6 +730,7 @@ export class MatchHub {
       ladders: new Map(),
       usedWords: new Map(),
       sent: new Map(),
+      ladderTries: new Map(),
     };
     ar.clues = st;
     const langs = new Set(humans.map((id) => ar.langs.get(id) ?? "en"));
@@ -736,13 +741,25 @@ export class MatchHub {
         () => {},
       );
     }
-    for (const id of humans) {
-      const lang = ar.langs.get(id) ?? "en";
-      void this.writeClues?.(ar.words[lang], lang, ar.secret, this.clientHelp.get(id)).then(
-        (lines) => { st.ladders.set(id, lines); },
-        () => {},
-      );
-    }
+    for (const id of humans) this.requestLadder(ar, id);
+  }
+
+  /** Ask for a seat's written clue ladder (again, if the last one came back
+   *  empty). At most three tries per seat per race. */
+  private requestLadder(ar: ActiveRoom, id: string): void {
+    const st = ar.clues;
+    if (!st || !this.writeClues) return;
+    const tries = st.ladderTries.get(id) ?? 0;
+    if (tries >= 3) return;
+    st.ladderTries.set(id, tries + 1);
+    const lang = ar.langs.get(id) ?? "en";
+    void this.writeClues(ar.words[lang], lang, ar.secret, this.clientHelp.get(id)).then(
+      (lines) => {
+        if (lines.length > 0) st.ladders.set(id, lines);
+        else st.ladders.delete(id);
+      },
+      () => {},
+    );
   }
 
   /** Send the clue drop that is due, if any. Both human seats get the same
@@ -750,13 +767,15 @@ export class MatchHub {
    *  gets nothing this time. */
   private driveClues(ar: ActiveRoom, now: number): void {
     const st = ar.clues;
-    if (!st) return;
+    if (!st || st.busy) return;
     const snap = ar.room.snapshotFor(ar.room.playerIds()[0], now);
     const slot = dueSlot(snap.clock.elapsedMs, st.lastSlot, snap.clock.capMs);
     if (slot === null) return;
     st.lastSlot = slot;
 
     const humans = ar.room.playerIds().filter((id) => !ar.bots.has(id));
+    // A seat whose ladder came back empty gets another try, ready for the next drop.
+    for (const id of humans) if (!st.ladders.has(id)) this.requestLadder(ar, id);
     let bestRank = UNKNOWN_RANK;
     for (const id of humans) bestRank = Math.min(bestRank, st.bestRank.get(id) ?? UNKNOWN_RANK);
     // Every human seat must have a rung left for a written clue to count.
@@ -792,6 +811,22 @@ export class MatchHub {
       if (frames.size === 0) return;
       for (const [lang, pick] of picks) if (pick) st.usedWords.get(lang)?.add(pick.word);
       st.wordsSent++;
+      // Show the rank the board will give if they guess it: score each word the
+      // same way a guess is scored (the reference list's own order can be off
+      // by one). Then send to both seats together.
+      st.busy = true;
+      void Promise.all([...frames].map(async ([id, f]) => {
+        const lang = ar.langs.get(id) ?? "en";
+        try {
+          const r = await this.scoreWarmth(ar.room.secretFor(id), f.text, lang);
+          if (r.rank && r.rank > 1) f.rank = r.rank;
+        } catch { /* keep the list rank */ }
+      })).then(() => {
+        st.busy = false;
+        if (this.rooms.get(ar.room.roomId) !== ar || !ar.room.isActive()) return;
+        this.sendClues(st, frames);
+      });
+      return;
     } else {
       for (const id of humans) {
         const line = st.ladders.get(id)?.[st.hintsSent];
@@ -800,6 +835,10 @@ export class MatchHub {
       if (frames.size === 0) return;
       st.hintsSent++;
     }
+    this.sendClues(st, frames);
+  }
+
+  private sendClues(st: ClueState, frames: Map<string, ClueFrame>): void {
     for (const [id, frame] of frames) {
       const list = st.sent.get(id) ?? [];
       list.push(frame);

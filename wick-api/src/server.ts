@@ -20,7 +20,7 @@ import { MatchHub, type Client } from "./hub.js";
 import { parseClientFrame, type ServerFrame } from "./protocol.js";
 import { makeWordProvider } from "./words.js";
 import { warmthScore, validateSecret, pairSimilarity, nearSimilarities, nearestWords } from "./warmthservice.js";
-import { writeClueLadder, pickWarmerWord } from "./clues.js";
+import { writeClueLadder, pickWarmerWord, clueStats } from "./clues.js";
 import { isRealWord, dictionarySize } from "./dictionary.js";
 import { keeperAnswer, KEEPER_PROMPT_VERSION } from "./keeper.js";
 import { AnswerCache } from "./answercache.js";
@@ -158,6 +158,9 @@ app.get("/healthz", (c) => {
     // 3.7 saved Keeper answers: words, answers, and how often a question was
     // answered from them (hits) instead of asking Gemini (misses).
     keeperAnswers: keeperCache.stats(),
+    // 3.9 race clues: written-clue ladders asked for, written, came back
+    // unreadable (empty) or failed, and the last failure's reason (no words).
+    clues: clueStats(),
   }, status);
 });
 
@@ -734,6 +737,9 @@ function randomId(): string {
 
 const server = serve({ fetch: app.fetch, port: PORT }, (info) => {
   console.log(`[wick-api] HTTP+WS listening on :${info.port}`);
+  // 3.9: write one race clue ladder at boot, so /healthz "clues" shows right
+  // away whether clue writing works on this deploy (ok vs empty/failed).
+  setTimeout(() => { void writeClueLadder("pelican", "en"); }, 5_000);
   // Pre-warm common first-guesses so early warmth is instant, then embed the rank
   // vocabulary so warmth becomes Contexto-style (rank, not absolute cosine).
   // Fire-and-forget — never blocks boot; warmth falls back to bands until ready.

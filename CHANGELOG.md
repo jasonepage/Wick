@@ -73,6 +73,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- **Race clues could stop after the warmer word.** If Gemini's clue list came
+  back unreadable, the race had nothing left to give. The server now reads
+  plain lines or a wrapped list too, asks again (up to three times) before the
+  next drop, and reports clue writing on `/healthz` under `clues` (counts and
+  the last failure reason, never a word). A warmer word now shows the same #
+  the board gives when you guess it.
 - **Live races ignored the hunt language.** The server dropped the `lang` field
   of the queue frame, so every live race was scored in English whatever the
   web or iOS client asked for. It now keeps it (and the new `help` field).

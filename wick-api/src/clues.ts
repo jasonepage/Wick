@@ -171,19 +171,23 @@ Reply with only a JSON array and nothing else: ${shape}`;
  *  secret (in any of its forms) or are empty. Tolerates a ```json fence. */
 export function parseLadder(raw: string, forms: readonly string[], wantHelp: boolean): ClueLine[] {
   const body = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "").trim();
-  let arr: unknown;
-  try {
-    arr = JSON.parse(body);
-  } catch {
-    const m = body.match(/\[[\s\S]*\]/);
-    if (!m) return [];
-    try {
-      arr = JSON.parse(m[0]);
-    } catch {
-      return [];
+  let arr = jsonArray(body);
+  // An object wrapping the list ({"clues": [...]}) is fine too.
+  if (!arr) {
+    const obj = jsonValue(body);
+    if (obj && typeof obj === "object" && !Array.isArray(obj)) {
+      arr = Object.values(obj as Record<string, unknown>).find(Array.isArray) as unknown[] | undefined ?? null;
     }
   }
-  if (!Array.isArray(arr)) return [];
+  // Not JSON at all: one clue per line, bullets and numbers stripped. A lone
+  // line, or a lead-in like "Here are the clues:", is not a ladder.
+  if (!arr) {
+    const lines = body
+      .split(/\n+/)
+      .map((l) => l.replace(/^\s*(?:[-*\u2022]|\d+[.):]|clue\s*\d+\s*[:.-])\s*/i, "").trim())
+      .filter((l) => l.length > 0 && !/^[[\]{}]$/.test(l) && !l.endsWith(":"));
+    arr = lines.length >= 2 ? lines : [];
+  }
   const out: ClueLine[] = [];
   for (const item of arr.slice(0, LADDER_SIZE)) {
     let text = "";
@@ -204,6 +208,24 @@ export function parseLadder(raw: string, forms: readonly string[], wantHelp: boo
   return out;
 }
 
+function jsonValue(s: string): unknown {
+  try {
+    return JSON.parse(s);
+  } catch {
+    return undefined;
+  }
+}
+
+/** The first JSON array in `s`, or null. */
+function jsonArray(s: string): unknown[] | null {
+  const whole = jsonValue(s);
+  if (Array.isArray(whole)) return whole;
+  const m = s.match(/\[[\s\S]*\]/);
+  if (!m) return null;
+  const inner = jsonValue(m[0]);
+  return Array.isArray(inner) ? inner : null;
+}
+
 function tidy(s: string): string {
   return noDashes(
     s
@@ -212,6 +234,19 @@ function tidy(s: string): string {
       .replace(/\s+/g, " ")
       .trim(),
   );
+}
+
+/** How clue writing is going, for /healthz. No words, no players: counts and
+ *  the last failure's reason only. */
+const stats = { requested: 0, ok: 0, empty: 0, failed: 0, lastError: "" as string, lastErrorAt: 0 };
+export function clueStats(): typeof stats {
+  return { ...stats };
+}
+function noteFailure(kind: "empty" | "failed", detail: string): void {
+  stats[kind]++;
+  stats.lastError = `${kind}: ${detail}`.slice(0, 240);
+  stats.lastErrorAt = Date.now();
+  console.warn(`[clues] ladder ${kind}: ${detail.slice(0, 240)}`);
 }
 
 /** Ladders already written, keyed by word, language and help language. A
@@ -234,11 +269,24 @@ export function writeClueLadder(
   const hit = ladderCache.get(key);
   if (hit) return hit;
   const forms = [secret, ...(secretEn && secretEn !== secret ? [secretEn] : [])];
+  stats.requested++;
   const p = generate(ladderInstructions(secret, lang, helpLang), "Write the clues.").then((r) => {
-    const lines = "error" in r ? [] : parseLadder(r.text, forms, Boolean(helpLang));
-    if (lines.length === 0) ladderCache.delete(key);
+    if ("error" in r) {
+      noteFailure("failed", r.error);
+      ladderCache.delete(key);
+      return [] as ClueLine[];
+    }
+    const lines = parseLadder(r.text, forms, Boolean(helpLang));
+    if (lines.length === 0) {
+      // Never log the clue text: it may name the word. Its shape is enough.
+      noteFailure("empty", `${lang}, ${r.text.length} chars, starts ${JSON.stringify(r.text.slice(0, 12).replace(/[a-z]/gi, "a"))}`);
+      ladderCache.delete(key);
+    } else {
+      stats.ok++;
+    }
     return lines;
-  }, () => {
+  }, (e: unknown) => {
+    noteFailure("failed", String(e));
     ladderCache.delete(key);
     return [] as ClueLine[];
   });

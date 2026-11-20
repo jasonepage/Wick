@@ -98,6 +98,13 @@ describe("parseLadder", () => {
   it("cleans dashes and curly quotes, and survives junk", () => {
     expect(parseLadder('["I\u2019m big \u2014 and white."]', ["pelican"], false)).toEqual([{ text: "I'm big, and white." }]);
     expect(parseLadder("no json here", ["pelican"], false)).toEqual([]);
+    // Plain lines still work when the model skips the JSON.
+    expect(parseLadder("Here are the clues:\n1. I am a bird.\n2. I eat fish.", ["pelican"], false)).toEqual([
+      { text: "I am a bird." },
+      { text: "I eat fish." },
+    ]);
+    // A wrapping object works too.
+    expect(parseLadder('{"clues": ["I am a bird.", "I eat fish."]}', ["pelican"], false)).toHaveLength(2);
   });
   it("Chinese secrets are caught without word breaks", () => {
     expect(namesSecret("这是一条河流", "河")).toBe(true);
@@ -139,7 +146,9 @@ async function race(opts: { rank?: number; ladder?: boolean } = {}) {
     now: () => t,
     attest: () => true,
     matchmaker: { wordProvider: () => PELICAN },
-    scoreWarmth: async () => ({ score: 50, rank: opts.rank ?? 800 }),
+    // A guess scores rank 800 (or opts.rank); a list word like "en400" scores
+    // its own number, the way the hub re-ranks a warmer word before sending it.
+    scoreWarmth: async (_s, guess) => ({ score: 50, rank: /^[a-z]{2}\d+$/.test(guess) ? Number(guess.slice(2)) : opts.rank ?? 800 }),
     nearestWords: async (_s, lang) => Array.from({ length: 600 }, (_, i) => `${lang}${i + 2}`),
     writeClues: async (_s, lang, _en, help) => {
       helps.push(help);
@@ -151,7 +160,7 @@ async function race(opts: { rank?: number; ladder?: boolean } = {}) {
   hub.receive(a, { t: "queue", mode: "casual", help: "zh" } as ClientFrame);
   hub.receive(b, { t: "queue", mode: "casual", lang: "es" } as ClientFrame);
   await Promise.resolve(); await Promise.resolve();
-  const at = async (ms: number) => { t = 1_000_000 + ms; hub.tick(); await Promise.resolve(); };
+  const at = async (ms: number) => { t = 1_000_000 + ms; hub.tick(); await new Promise((r) => setTimeout(r, 0)); };
   return { hub, a, b, at, helps, guess: async (c: Fake, g: string) => { hub.receive(c, { t: "guess", guess: g }); await new Promise((r) => setTimeout(r, 0)); } };
 }
 
