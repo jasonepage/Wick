@@ -24,7 +24,7 @@ import { parseClientFrame } from "./protocol.js";
 const CAP = 5 * 60_000;
 
 describe("dueSlot", () => {
-  it("nothing before two minutes", () => {
+  it("nothing before a minute and a half", () => {
     expect(dueSlot(0, -1, CAP)).toBeNull();
     expect(dueSlot(CLUE_START_MS - 1, -1, CAP)).toBeNull();
   });
@@ -37,9 +37,9 @@ describe("dueSlot", () => {
     expect(dueSlot(CLUE_START_MS + 3 * CLUE_EVERY_MS + 1, 0, CAP)).toBe(3);
   });
   it("never at or after the cap", () => {
-    // 2:00 + 6 × 0:30 = 5:00, the cap itself.
-    expect(dueSlot(CAP, 4, CAP)).toBeNull();
-    expect(dueSlot(CAP - 1, 4, CAP)).toBe(5);
+    const short = CLUE_START_MS + 3 * CLUE_EVERY_MS; // the 4th drop would land on the cap
+    expect(dueSlot(short, 2, short)).toBeNull();
+    expect(dueSlot(short - 1, 1, short)).toBe(2);
   });
 });
 
@@ -156,7 +156,7 @@ async function race(opts: { rank?: number; ladder?: boolean } = {}) {
 }
 
 describe("race clues in the hub", () => {
-  it("nothing for two minutes, then the same kind of clue to both seats at once", async () => {
+  it("nothing for 1:30, then the same kind of clue to both seats at once", async () => {
     const { a, b, at, guess, helps } = await race();
     expect(helps).toEqual(["zh", undefined]);
     await guess(a, "bird");
@@ -165,13 +165,13 @@ describe("race clues in the hub", () => {
     await at(CLUE_START_MS);
     expect(a.clues()).toEqual([{ t: "clue", n: 1, kind: "word", text: "en400", rank: 400 }]);
     expect(b.clues()).toEqual([{ t: "clue", n: 1, kind: "word", text: "es400", rank: 400 }]);
-    // Three warmer words, then written clues.
+    // One warmer word, then the written clues, in order.
     await at(CLUE_START_MS + CLUE_EVERY_MS);
     await at(CLUE_START_MS + 2 * CLUE_EVERY_MS);
-    await at(CLUE_START_MS + 3 * CLUE_EVERY_MS);
-    expect(a.clues().map((c) => c.kind)).toEqual(["word", "word", "word", "hint"]);
-    expect(a.clues()[3]).toEqual({ t: "clue", n: 4, kind: "hint", text: "en one" });
-    expect(b.clues()[3]!.text).toBe("es one");
+    expect(a.clues().map((c) => c.kind)).toEqual(["word", "hint", "hint"]);
+    expect(a.clues()[1]).toEqual({ t: "clue", n: 2, kind: "hint", text: "en one" });
+    expect(a.clues()[2]!.text).toBe("en two");
+    expect(b.clues()[1]!.text).toBe("es one");
   });
 
   it("goes straight to written clues when someone is close", async () => {
@@ -184,7 +184,7 @@ describe("race clues in the hub", () => {
   it("keeps to warmer words when the model is down", async () => {
     const { a, at } = await race({ ladder: false });
     for (let k = 0; k < 6; k++) await at(CLUE_START_MS + k * CLUE_EVERY_MS);
-    expect(a.clues().map((c) => c.kind)).toEqual(["word", "word", "word"]);
+    expect(a.clues().map((c) => c.kind)).toEqual(["word"]);
   });
 
   it("re-sends the race's clues to a player who reconnects", async () => {

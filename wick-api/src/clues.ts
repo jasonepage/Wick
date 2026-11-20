@@ -2,20 +2,19 @@
 //  clues.ts: Wick's timed clues in live races (3.9).
 //
 //  Two players who both know "it's a bird" but cannot find the English word
-//  used to sit stuck until the clock ran out. Now, once a race has gone two
-//  minutes, Wick drops a clue every 30 seconds, and both players get the same
-//  kind of clue at the same moment, each in the language they hunt in:
+//  used to sit stuck until the clock ran out. Now, once a race has gone a
+//  minute and a half, Wick drops a clue every 20 seconds, and both players get
+//  the same kind of clue at the same moment, each in the language they hunt in:
 //
-//    - a WARMER WORD: a real word about halfway between the leader's best rank
-//      and the answer, so whoever is behind catches up and the leader loses
-//      little. Never closer than rank WORD_FLOOR_RANK, so it never hands over
-//      the answer.
-//    - a GEMINI CLUE: once someone is close (rank CLOSE_RANK or better), or
-//      after three warmer words, Wick reads out a written clue from a short
-//      ladder, each rung clearer than the last ("I live near the ocean and I
-//      eat fish." ... "I scoop fish out of the water with my giant pouch
-//      beak."). Simple everyday words, so a second-language player can follow,
-//      with an optional line in the player's menu language under it.
+//    - first, one WARMER WORD: a real word about halfway between the leader's
+//      best rank and the answer, so whoever is behind catches up and the
+//      leader loses little. Never closer than rank WORD_FLOOR_RANK.
+//    - then GEMINI CLUES (straight away if someone is already at rank
+//      CLOSE_RANK or better): a ladder of four written clues that start with
+//      what kind of thing it is and end almost giving it away ("I'm a big
+//      bird." ... "I'm the fancy bird with the giant shiny tail fan."), without
+//      ever spelling it. Simple everyday words, so a second-language player can
+//      follow, with an optional line in the player's menu language under it.
 //
 //  Everything here is pure except writeClueLadder(), which calls the model
 //  through an injectable `generate`. The hub owns the timing and the sending.
@@ -27,13 +26,13 @@ import { isBlockedGuess } from "./moderation.js";
 import { normalizeWord } from "./room.js";
 
 /** No clues before this much of the race has gone. */
-export const CLUE_START_MS = 120_000;
+export const CLUE_START_MS = 90_000;
 /** One clue drop every this often after the start. */
-export const CLUE_EVERY_MS = 30_000;
+export const CLUE_EVERY_MS = 20_000;
 /** At most this many warmer words in one race. */
-export const MAX_WORD_CLUES = 3;
+export const MAX_WORD_CLUES = 1;
 /** How many written clues Gemini writes per word (the ladder). */
-export const LADDER_SIZE = 3;
+export const LADDER_SIZE = 4;
 /** Someone at this rank or better is close: switch to written clues. */
 export const CLOSE_RANK = 30;
 /** A warmer word is never closer to the answer than this rank. */
@@ -144,7 +143,7 @@ export function isHelpLang(x: unknown): x is string {
 }
 
 /** Bump when the prompt changes so saved ladders made under the old one go. */
-export const CLUE_PROMPT_VERSION = "3.9-1";
+export const CLUE_PROMPT_VERSION = "3.9-2"; // 3.9-2: four big clues, category first
 
 export function ladderInstructions(secret: string, lang: Lang, help?: string): string {
   const name = LANG_NAME[lang] ?? "English";
@@ -152,12 +151,17 @@ export function ladderInstructions(secret: string, lang: Lang, help?: string): s
     ? `\nAlso give each clue in ${LANG_NAME[help]}, for a player whose first language is ${LANG_NAME[help]}. The ${LANG_NAME[help]} line must not name the word either.`
     : "";
   const shape = help
-    ? `[{"clue": "...", "help": "..."}, {"clue": "...", "help": "..."}, {"clue": "...", "help": "..."}]`
-    : `["...", "...", "..."]`;
+    ? `[${Array(LADDER_SIZE).fill(`{"clue": "...", "help": "..."}`).join(", ")}]`
+    : `[${Array(LADDER_SIZE).fill(`"..."`).join(", ")}]`;
   return `You write clues for a word guessing race. The secret word is "${secret}" (${name}).
 Write exactly ${LADDER_SIZE} clues in ${name}, as if the thing itself is talking ("I ...").
-Clue 1 is gentle: one true, everyday fact. Clue 2 is clearer. Clue 3 is very clear, so a player who knows the thing but not the word will get it.
-Use very simple, common words that a beginner learning ${name} would know. One short sentence each, at most 12 words.
+The players have under three minutes and may know the language only a little, so the clues must be BIG, not subtle.
+Clue 1 says plainly what kind of thing it is (an animal, a bird, a fruit, a vegetable, a tool, a place, a feeling, and so on).
+Clue 2 gives its most famous look, feature or use.
+Clue 3 is very clear: what people know it for, where you see it, what it does.
+Clue 4 almost gives it away: describe it so clearly that anyone who knows the thing will name it at once.
+For example, if the word were "peacock": "I'm a big bird." / "My tail feathers have blue and green eye spots." / "I spread my huge tail open like a fan to show off." / "I'm the fancy bird with the giant shiny tail fan."
+Use very simple, common words that a beginner learning ${name} would know. One short sentence each, at most 14 words.
 Never write the secret word, any form of it, a word that contains it, its spelling, its letters, its length, or a rhyme.
 No em dashes, no quotation marks inside the clues, no emoji.${helpLine}
 Reply with only a JSON array and nothing else: ${shape}`;
@@ -223,7 +227,7 @@ export function writeClueLadder(
   lang: Lang,
   secretEn?: string,
   help?: string,
-  generate: GenerateFn = geminiGenerate,
+  generate: GenerateFn = (system, user) => geminiGenerate(system, user, 600),
 ): Promise<ClueLine[]> {
   const helpLang = help && help !== lang && isHelpLang(help) ? help : undefined;
   const key = `${CLUE_PROMPT_VERSION}|${lang}|${helpLang ?? ""}|${normalizeWord(secret)}`;

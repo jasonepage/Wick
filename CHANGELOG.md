@@ -11,16 +11,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Added
 
 - **Wick's race clues.** Live races (Quick Match and friend invites, web and
-  iOS) no longer leave two stuck players staring at the clock. After two
-  minutes, every 30 seconds both players get the same kind of clue at the same
-  moment, each in the language they hunt in. First up to three warmer words,
-  about halfway from the leader's best rank to the answer (never closer than
-  #15), with a one-tap Guess it button. Then, or as soon as anyone reaches the
-  top 30, up to three written clues from Gemini, each clearer than the last,
-  in simple everyday words, with a line in the player's menu language when the
-  round is in another one. Clues are leak-checked like the Keeper and saved per
-  word and language, so Gemini writes them once. If Gemini is down, races keep
-  the warmer words. Diagnostic: `/debug/clues?secret=pelican&help=zh`.
+  iOS) no longer leave two stuck players staring at the clock. From 1:30,
+  every 20 seconds both players get the same kind of clue at the same moment,
+  each in the language they hunt in. First one warmer word, about halfway from
+  the leader's best rank to the answer (never closer than #15), with a one-tap
+  Guess it button. Then, or right away once anyone reaches the top 30, four
+  big written clues from Gemini: the first says what kind of thing it is, the
+  last almost gives it away, and none ever spells it. Simple everyday words,
+  with a line in the player's menu language when the round is in another one.
+  Clues are leak-checked like the Keeper and saved per word and language, so
+  Gemini writes them once. If Gemini is down, races keep the warmer word.
+  Diagnostic: `/debug/clues?secret=pelican&help=zh`.
 - **Semantic Arena.** The hidden strategy of a round is now visible, on web
   and iOS. All of it is worked out by pure, deterministic code with shared test
   cases (route.ts, RouteAnalysis.swift, HunchTests/RouteFixtures.json). No
