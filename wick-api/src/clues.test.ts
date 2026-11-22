@@ -103,6 +103,14 @@ describe("parseLadder", () => {
       { text: "I am a bird." },
       { text: "I eat fish." },
     ]);
+    // A list cut off partway keeps the clues that finished.
+    expect(parseLadder('["I am a big cat.", "My fur has spots.", "I live in jun', ["jaguar"], false)).toEqual([
+      { text: "I am a big cat." },
+      { text: "My fur has spots." },
+    ]);
+    expect(parseLadder('[{"clue": "I am a tool.", "help": "Soy una herramienta."}, {"clue": "I cu', ["axe"], true)).toEqual([
+      { text: "I am a tool.", help: "Soy una herramienta." },
+    ]);
     // A wrapping object works too.
     expect(parseLadder('{"clues": ["I am a bird.", "I eat fish."]}', ["pelican"], false)).toHaveLength(2);
   });

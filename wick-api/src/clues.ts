@@ -143,7 +143,7 @@ export function isHelpLang(x: unknown): x is string {
 }
 
 /** Bump when the prompt changes so saved ladders made under the old one go. */
-export const CLUE_PROMPT_VERSION = "3.9-2"; // 3.9-2: four big clues, category first
+export const CLUE_PROMPT_VERSION = "3.9-3"; // 3.9-3: no thinking, room for the whole list
 
 export function ladderInstructions(secret: string, lang: Lang, help?: string): string {
   const name = LANG_NAME[lang] ?? "English";
@@ -179,6 +179,17 @@ export function parseLadder(raw: string, forms: readonly string[], wantHelp: boo
       arr = Object.values(obj as Record<string, unknown>).find(Array.isArray) as unknown[] | undefined ?? null;
     }
   }
+  // A list cut off partway: keep every clue that finished ("..." pairs, or
+  // the values after "clue": / "help": in the object form).
+  if (!arr && body.trimStart().startsWith("[")) {
+    const objs = [...body.matchAll(/\{\s*"clue"\s*:\s*"((?:[^"\\]|\\.)*)"(?:\s*,\s*"help"\s*:\s*"((?:[^"\\]|\\.)*)")?\s*\}/g)];
+    if (objs.length > 0) {
+      arr = objs.map((m) => ({ clue: unescapeJson(m[1]!), ...(m[2] !== undefined ? { help: unescapeJson(m[2]) } : {}) }));
+    } else {
+      const strs = [...body.matchAll(/"((?:[^"\\]|\\.)*)"/g)].map((m) => unescapeJson(m[1]!));
+      if (strs.length > 0) arr = strs;
+    }
+  }
   // Not JSON at all: one clue per line, bullets and numbers stripped. A lone
   // line, or a lead-in like "Here are the clues:", is not a ladder.
   if (!arr) {
@@ -206,6 +217,11 @@ export function parseLadder(raw: string, forms: readonly string[], wantHelp: boo
     out.push(help ? { text, help } : { text });
   }
   return out;
+}
+
+function unescapeJson(s: string): string {
+  const v = jsonValue(`"${s}"`);
+  return typeof v === "string" ? v : s;
 }
 
 function jsonValue(s: string): unknown {
@@ -262,7 +278,7 @@ export function writeClueLadder(
   lang: Lang,
   secretEn?: string,
   help?: string,
-  generate: GenerateFn = (system, user) => geminiGenerate(system, user, 600),
+  generate: GenerateFn = (system, user) => geminiGenerate(system, user, 1024, 0),
 ): Promise<ClueLine[]> {
   const helpLang = help && help !== lang && isHelpLang(help) ? help : undefined;
   const key = `${CLUE_PROMPT_VERSION}|${lang}|${helpLang ?? ""}|${normalizeWord(secret)}`;

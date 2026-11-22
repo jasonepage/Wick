@@ -147,8 +147,10 @@ export function answerText(json: unknown): string {
 }
 
 /** `maxOut` caps the answer's tokens (thinking is added on top for 2.5 models).
- *  The Keeper's one-line answers need the default; race clue ladders more. */
-export async function geminiGenerate(system: string, user: string, maxOut = 256): Promise<GenResult> {
+ *  The Keeper's one-line answers need the default; race clue ladders more.
+ *  `thinking` overrides the thinking budget (0 turns it off): a 2.5 model can
+ *  think past its budget and eat the answer, which cut race clue lists short. */
+export async function geminiGenerate(system: string, user: string, maxOut = 256, thinking = THINKING_BUDGET): Promise<GenResult> {
   const key = process.env.GEMINI_API_KEY ?? "";
   if (!key) return { error: "no GEMINI_API_KEY" };
   let lastErr = "unknown error";
@@ -164,8 +166,8 @@ export async function geminiGenerate(system: string, user: string, maxOut = 256)
       // requested (includeThoughts stays off) and answerText() drops any that
       // come back anyway. The output cap counts thinking, so it grows to match.
       if (model.includes("2.5")) {
-        generationConfig.thinkingConfig = { thinkingBudget: THINKING_BUDGET, includeThoughts: false };
-        generationConfig.maxOutputTokens = THINKING_BUDGET + maxOut;
+        generationConfig.thinkingConfig = { thinkingBudget: thinking, includeThoughts: false };
+        generationConfig.maxOutputTokens = thinking + maxOut;
       }
       const res = await fetch(`${GEN_ENDPOINT}/${model}:generateContent?key=${key}`, {
         method: "POST",
