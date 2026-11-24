@@ -119,6 +119,42 @@ export function namesSecret(text: string, secret: string): boolean {
   return leaksSecret(text, s);
 }
 
+/** Short words that are allowed even when the secret starts or ends with them
+ *  ("pelican" ends in "can", "carpet" starts with "car" is still a giveaway,
+ *  so only true filler words are here). */
+const FILLER = new Set([
+  "the", "and", "are", "can", "for", "you", "not", "but", "has", "had", "was", "who",
+  "use", "out", "all", "one", "its", "our", "his", "her", "any", "may", "own", "too",
+  "very", "have", "with", "that", "this", "from", "they", "them", "your", "when",
+]);
+
+/** True if `text` uses a piece of the secret: a word the secret starts or
+ *  ends with ("nut" or "hazel" for "hazelnut"), or any 5+ letter word inside
+ *  it. Compound words are easy to give away this way. */
+export function usesWordPart(text: string, secret: string): boolean {
+  const s = normalizeWord(secret);
+  if (s.length < 5 || /[\u3400-\u9fff]/.test(s)) return false;
+  const tokens = text.toLowerCase().split(/[^a-z\u00e0-\u00ff]+/).filter((t) => t.length >= 3);
+  for (const t of tokens) {
+    if (t === s || FILLER.has(t) || t.length > s.length - 2) continue;
+    if (s.startsWith(t) || s.endsWith(t)) return true;
+    if (t.length >= 5 && s.includes(t)) return true;
+  }
+  return false;
+}
+
+/** Text that reads like the prompt or a note about the game, not a clue. */
+export function looksLikeInstructions(text: string): boolean {
+  return /secret|\bword\b|\bclues?\b|never write|any form|json|rhyme|letters?\b|spell/i.test(text);
+}
+
+/** A clue line players may see: no form of the secret, no piece of it, and
+ *  nothing that reads like the instructions. */
+export function clueIsSafe(text: string, forms: readonly string[]): boolean {
+  if (looksLikeInstructions(text)) return false;
+  return !forms.some((f) => namesSecret(text, f) || usesWordPart(text, f));
+}
+
 // ── the written-clue ladder (Gemini) ─────────────────────────────────────────
 
 const LANG_NAME: Record<string, string> = {
@@ -143,7 +179,7 @@ export function isHelpLang(x: unknown): x is string {
 }
 
 /** Bump when the prompt changes so saved ladders made under the old one go. */
-export const CLUE_PROMPT_VERSION = "3.9-3"; // 3.9-3: no thinking, room for the whole list
+export const CLUE_PROMPT_VERSION = "3.9-4"; // 3.9-4: no plain-text fallback, no word pieces
 
 export function ladderInstructions(secret: string, lang: Lang, help?: string): string {
   const name = LANG_NAME[lang] ?? "English";
@@ -163,6 +199,8 @@ Clue 4 almost gives it away: describe it so clearly that anyone who knows the th
 For example, if the word were "peacock": "I'm a big bird." / "My tail feathers have blue and green eye spots." / "I spread my huge tail open like a fan to show off." / "I'm the fancy bird with the giant shiny tail fan."
 Use very simple, common words that a beginner learning ${name} would know. One short sentence each, at most 14 words.
 Never write the secret word, any form of it, a word that contains it, its spelling, its letters, its length, or a rhyme.
+Never use a piece of the word either: for "pancake", never write pan or cake; for "hazelnut", never write hazel or nut.
+Each clue is only the thing talking about itself. Do not talk about the game, the word, the player or these rules.
 No em dashes, no quotation marks inside the clues, no emoji.${helpLine}
 Reply with only a JSON array and nothing else: ${shape}`;
 }
@@ -190,15 +228,9 @@ export function parseLadder(raw: string, forms: readonly string[], wantHelp: boo
       if (strs.length > 0) arr = strs;
     }
   }
-  // Not JSON at all: one clue per line, bullets and numbers stripped. A lone
-  // line, or a lead-in like "Here are the clues:", is not a ladder.
-  if (!arr) {
-    const lines = body
-      .split(/\n+/)
-      .map((l) => l.replace(/^\s*(?:[-*\u2022]|\d+[.):]|clue\s*\d+\s*[:.-])\s*/i, "").trim())
-      .filter((l) => l.length > 0 && !/^[[\]{}]$/.test(l) && !l.endsWith(":"));
-    arr = lines.length >= 2 ? lines : [];
-  }
+  // Not JSON at all: no clues. Reading loose lines once showed players a
+  // line of the prompt itself as a clue, so plain text is never trusted.
+  if (!arr) arr = [];
   const out: ClueLine[] = [];
   for (const item of arr.slice(0, LADDER_SIZE)) {
     let text = "";
@@ -212,8 +244,8 @@ export function parseLadder(raw: string, forms: readonly string[], wantHelp: boo
     text = tidy(text);
     help = help ? tidy(help) : undefined;
     if (!text || text.length > 140) continue;
-    if (forms.some((f) => namesSecret(text, f))) continue;
-    if (help && (help.length > 140 || forms.some((f) => namesSecret(help!, f)))) help = undefined;
+    if (!clueIsSafe(text, forms)) continue;
+    if (help && (help.length > 140 || !clueIsSafe(help, forms))) help = undefined;
     out.push(help ? { text, help } : { text });
   }
   return out;

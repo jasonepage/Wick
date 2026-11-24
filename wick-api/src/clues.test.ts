@@ -10,6 +10,7 @@ import {
   targetRank,
   parseLadder,
   namesSecret,
+  clueIsSafe,
   writeClueLadder,
   _clearLadders,
   CLUE_START_MS,
@@ -98,11 +99,8 @@ describe("parseLadder", () => {
   it("cleans dashes and curly quotes, and survives junk", () => {
     expect(parseLadder('["I\u2019m big \u2014 and white."]', ["pelican"], false)).toEqual([{ text: "I'm big, and white." }]);
     expect(parseLadder("no json here", ["pelican"], false)).toEqual([]);
-    // Plain lines still work when the model skips the JSON.
-    expect(parseLadder("Here are the clues:\n1. I am a bird.\n2. I eat fish.", ["pelican"], false)).toEqual([
-      { text: "I am a bird." },
-      { text: "I eat fish." },
-    ]);
+    // Plain text is never trusted: it once put a line of the prompt on screen.
+    expect(parseLadder("nut? Nutella contains nut!\nNever write the secret word, any form of it", ["hazelnut"], false)).toEqual([]);
     // A list cut off partway keeps the clues that finished.
     expect(parseLadder('["I am a big cat.", "My fur has spots.", "I live in jun', ["jaguar"], false)).toEqual([
       { text: "I am a big cat." },
@@ -116,6 +114,23 @@ describe("parseLadder", () => {
   });
   it("Chinese secrets are caught without word breaks", () => {
     expect(namesSecret("这是一条河流", "河")).toBe(true);
+  });
+});
+
+describe("clueIsSafe", () => {
+  it("drops pieces of a compound word", () => {
+    expect(clueIsSafe("Nutella has me in it.", ["hazelnut"])).toBe(true);
+    expect(clueIsSafe("I am a small nut.", ["hazelnut"])).toBe(false);
+    expect(clueIsSafe("My tree is a hazel.", ["hazelnut"])).toBe(false);
+    expect(clueIsSafe("I am flat and round.", ["pancake"])).toBe(true);
+    expect(clueIsSafe("I am a cake for breakfast.", ["pancake"])).toBe(false);
+  });
+  it("keeps filler words the secret happens to end with", () => {
+    expect(clueIsSafe("I can scoop fish.", ["pelican"])).toBe(true);
+  });
+  it("drops lines that read like the instructions", () => {
+    expect(clueIsSafe("Never write the secret word, any form of it.", ["hazelnut"])).toBe(false);
+    expect(clueIsSafe("This clue is easy.", ["dog"])).toBe(false);
   });
 });
 
