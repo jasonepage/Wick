@@ -89,9 +89,9 @@ extension KeeperMood {
 
 // MARK: - Flame body shape
 
-/// A teardrop / flame silhouette with a softly waving tip.
+/// Wick's full two-lick silhouette, in normalized coordinates.
 struct KeeperFlameShape: Shape {
-    /// 0...1 phase of the flicker animation; the tip leans with it.
+    /// 0...1 phase; the tall lick and shorter lick counter-waver.
     var flicker: Double
 
     var animatableData: Double {
@@ -101,26 +101,17 @@ struct KeeperFlameShape: Shape {
 
     func path(in rect: CGRect) -> Path {
         let w = rect.width, h = rect.height
-        let lean = (flicker - 0.5) * 0.22 * w   // tip sways side to side
+        let lean = (flicker - 0.5) * 0.153 * w
+        let trail = -lean * 0.62
+        let valley = -lean * 0.22
         var p = Path()
-        // Bottom of the rounded body
         p.move(to: CGPoint(x: w * 0.5, y: h))
-        // Left side up
-        p.addCurve(to: CGPoint(x: w * 0.07, y: h * 0.52),
-                   control1: CGPoint(x: w * 0.16, y: h * 0.98),
-                   control2: CGPoint(x: w * 0.07, y: h * 0.78))
-        // Left side toward the tip
-        p.addCurve(to: CGPoint(x: w * 0.5 + lean, y: 0),
-                   control1: CGPoint(x: w * 0.07, y: h * 0.22),
-                   control2: CGPoint(x: w * 0.32 + lean * 0.6, y: h * 0.10))
-        // Right side down from tip
-        p.addCurve(to: CGPoint(x: w * 0.93, y: h * 0.52),
-                   control1: CGPoint(x: w * 0.68 + lean * 0.6, y: h * 0.10),
-                   control2: CGPoint(x: w * 0.93, y: h * 0.22))
-        // Right side to bottom
-        p.addCurve(to: CGPoint(x: w * 0.5, y: h),
-                   control1: CGPoint(x: w * 0.93, y: h * 0.78),
-                   control2: CGPoint(x: w * 0.84, y: h * 0.98))
+        p.addCurve(to: CGPoint(x: w * 0.133, y: h * 0.533), control1: CGPoint(x: w * 0.308, y: h), control2: CGPoint(x: w * 0.133, y: h * 0.875))
+        p.addCurve(to: CGPoint(x: w * 0.4 + lean, y: 0), control1: CGPoint(x: w * 0.133, y: h * 0.325), control2: CGPoint(x: w * 0.258, y: h * 0.175))
+        p.addCurve(to: CGPoint(x: w * 0.525 + valley, y: h * 0.167), control1: CGPoint(x: w * 0.458 + lean * 0.58, y: h * 0.058), control2: CGPoint(x: w * 0.483 + valley, y: h * 0.117))
+        p.addCurve(to: CGPoint(x: w * 0.683 + trail, y: h * 0.083), control1: CGPoint(x: w * 0.567 + trail, y: h * 0.133), control2: CGPoint(x: w * 0.642 + trail, y: h * 0.083))
+        p.addCurve(to: CGPoint(x: w * 0.867, y: h * 0.533), control1: CGPoint(x: w * 0.75 + trail, y: h * 0.175), control2: CGPoint(x: w * 0.867, y: h * 0.317))
+        p.addCurve(to: CGPoint(x: w * 0.5, y: h), control1: CGPoint(x: w * 0.867, y: h * 0.875), control2: CGPoint(x: w * 0.692, y: h))
         p.closeSubpath()
         return p
     }
@@ -313,8 +304,8 @@ struct KeeperView: View {
                 )
 
             // Inner flame: one tone step lighter than the body.
-            KeeperPlateShape()
-                .fill(Color.white.opacity(0.22))
+            KeeperPlateShape(flicker: flicker)
+                .fill(KeeperFaces.plateRGB(face.color).color)
 
             // The face: brows, heavy lids, under-eye bags, eyes, mouth
             KeeperFaceCanvas(face: f, closure: closure, color: face.color)

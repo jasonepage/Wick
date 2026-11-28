@@ -6,7 +6,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { poseAt, boilingShake, pokeEnvelope, flamePath, blinkAmount, SIZE } from "../src/game/wick.ts";
+import { poseAt, boilingShake, pokeEnvelope, flamePath, coreFlamePath, blinkAmount, SIZE } from "../src/game/wick.ts";
 import { FACES, faceFor, faceDrawList, eyeShapes, lerpFace, swapBlink, swapMorph, PALETTE, moodFor } from "../src/game/wickface.ts";
 import { pulseAt } from "../src/game/music.ts";
 
@@ -15,9 +15,9 @@ const still = { pokeAt: null, reduceMotion: false, pulse: null };
 test("the flame has an asymmetric licking crown, a high tip, and an anchored base", () => {
   const d = flamePath(0.5);
   assert.ok(d.startsWith("M60 124") && d.endsWith("60 124 Z"));
-  assert.ok(d.includes(" 60 4 "), "the tip sits at (60, 4)");
-  assert.ok(d.includes("38 25 C35 37 39 45 47 49"), "left crown folds through a shallow flame valley");
-  assert.ok(d.includes(" 88 9 C91 31"), "the crown has a separate high lick");
+  assert.ok(d.includes(" 48 4 "), "the dominant lick leans left");
+  assert.ok(d.includes(" 63 24 C68 20 77 14 82 14"), "the shallow valley rises into a shorter second lick");
+  assert.ok(coreFlamePath(0.5).includes("54 47") && coreFlamePath(0.5).includes("73 53"), "the hot core repeats both licks");
 });
 
 test("the tip leans with the flicker and reacts to the face; the base stays put", () => {
@@ -27,7 +27,7 @@ test("the tip leans with the flicker and reacts to the face; the base stays put"
   for (const d of [left, right, flamePath(0.5, FACES.shocked.tip), flamePath(0.5, FACES.flustered.tip)]) {
     assert.ok(d.startsWith("M60 124") && d.endsWith("60 124 Z"));
   }
-  assert.ok(flamePath(0.5, FACES.shocked.tip).includes(" 59 -2 "), "Shocked spikes the tip up and off-center");
+  assert.ok(flamePath(0.5, FACES.shocked.tip).includes(" 47 -2 "), "Shocked spikes the dominant tip up and off-center");
 });
 
 test("3.8: the idle breathes instead of bobbing: root travel stays under 1.2%", () => {

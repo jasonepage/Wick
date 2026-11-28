@@ -289,8 +289,8 @@ struct KeeperStill: View {
                 .scaleEffect(1.12)
             KeeperChunkyFlameShape(flicker: 0.5, tip: f.tip)
                 .fill(LinearGradient(colors: [body.opacity(0.92), body], startPoint: .top, endPoint: .bottom))
-            KeeperPlateShape()
-                .fill(Color.white.opacity(0.22))
+            KeeperPlateShape(flicker: 0.5)
+                .fill(KeeperFaces.plateRGB(color).color)
             KeeperFaceCanvas(face: f, closure: f.eyes.map { $0.closed }, color: color)
             if sparks {
                 ForEach(0..<3, id: \.self) { i in

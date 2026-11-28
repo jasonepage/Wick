@@ -23,27 +23,23 @@ nonisolated enum KeeperFaceCG {
     /// KeeperChunkyFlameShape (KeeperFace.swift); keep the two in step.
     static func flamePath(flicker: Double, tip: KeeperTip) -> CGPath {
         let lean: Double = (flicker - 0.5) * KeeperFaces.lean
-        let tx: Double = 60 + lean + tip.dx
+        let tx: Double = 48 + lean + tip.dx
         let ty: Double = 4 + tip.dy
-        let leftFlex: Double = lean * 0.22
         let trail: Double = -lean * 0.62
+        let valley: Double = -lean * 0.22
         let tipWing: Double = 6 + 6 * tip.sharp
         let path = CGMutablePath()
         path.move(to: CGPoint(x: 60, y: 124))
         path.addCurve(to: CGPoint(x: 16, y: 68),
                       control1: CGPoint(x: 37, y: 124), control2: CGPoint(x: 16, y: 109))
-        path.addCurve(to: CGPoint(x: 38 + leftFlex, y: 25),
-                      control1: CGPoint(x: 16, y: 51), control2: CGPoint(x: 25 + leftFlex, y: 36))
-        path.addCurve(to: CGPoint(x: 47 + leftFlex, y: 49),
-                      control1: CGPoint(x: 35 + leftFlex, y: 37), control2: CGPoint(x: 39 + leftFlex, y: 45))
         path.addCurve(to: CGPoint(x: tx, y: ty),
-                      control1: CGPoint(x: 45, y: 31), control2: CGPoint(x: tx - tipWing, y: ty + 12))
-        path.addCurve(to: CGPoint(x: 70 + trail, y: 35),
-                      control1: CGPoint(x: tx + tipWing * 0.58, y: ty + 8), control2: CGPoint(x: 72 + trail, y: 23))
-        path.addCurve(to: CGPoint(x: 88 + trail, y: 9),
-                      control1: CGPoint(x: 78 + trail, y: 30), control2: CGPoint(x: 85 + trail, y: 20))
+                      control1: CGPoint(x: 16, y: 43), control2: CGPoint(x: 31, y: 25))
+        path.addCurve(to: CGPoint(x: 63 + valley, y: 24),
+                      control1: CGPoint(x: tx + tipWing * 0.58, y: ty + 7), control2: CGPoint(x: 58 + valley, y: 18))
+        path.addCurve(to: CGPoint(x: 82 + trail, y: 14),
+                      control1: CGPoint(x: 68 + trail, y: 20), control2: CGPoint(x: 77 + trail, y: 14))
         path.addCurve(to: CGPoint(x: 104, y: 68),
-                      control1: CGPoint(x: 91 + trail, y: 31), control2: CGPoint(x: 104, y: 44))
+                      control1: CGPoint(x: 90 + trail, y: 25), control2: CGPoint(x: 104, y: 42))
         path.addCurve(to: CGPoint(x: 60, y: 124),
                       control1: CGPoint(x: 104, y: 109), control2: CGPoint(x: 83, y: 124))
         path.closeSubpath()
@@ -51,22 +47,20 @@ nonisolated enum KeeperFaceCG {
     }
 
     /// The inner flame (lighter core), in viewBox units. Same as KeeperPlateShape.
-    static let platePath: CGPath = {
+    static func platePath(flicker: Double) -> CGPath {
+        let lean = (flicker - 0.5) * KeeperFaces.lean
+        let main = lean * 0.55, trail = -lean * 0.34, valley = -lean * 0.12
         let path = CGMutablePath()
-        path.move(to: CGPoint(x: 64, y: 49))
-        path.addCurve(to: CGPoint(x: 84, y: 86),
-                      control1: CGPoint(x: 67, y: 59), control2: CGPoint(x: 82, y: 67))
-        path.addCurve(to: CGPoint(x: 60, y: 119.2),
-                      control1: CGPoint(x: 87, y: 108), control2: CGPoint(x: 75, y: 119.2))
-        path.addCurve(to: CGPoint(x: 36, y: 89),
-                      control1: CGPoint(x: 44, y: 119.2), control2: CGPoint(x: 35, y: 108))
-        path.addCurve(to: CGPoint(x: 55, y: 56),
-                      control1: CGPoint(x: 37, y: 72), control2: CGPoint(x: 47, y: 62))
-        path.addCurve(to: CGPoint(x: 64, y: 49),
-                      control1: CGPoint(x: 59, y: 53), control2: CGPoint(x: 61, y: 51))
+        path.move(to: CGPoint(x: 60, y: 116))
+        path.addCurve(to: CGPoint(x: 36, y: 86), control1: CGPoint(x: 47, y: 116), control2: CGPoint(x: 36, y: 108))
+        path.addCurve(to: CGPoint(x: 54 + main, y: 47), control1: CGPoint(x: 36, y: 72), control2: CGPoint(x: 44, y: 59))
+        path.addCurve(to: CGPoint(x: 62 + valley, y: 60), control1: CGPoint(x: 58 + main, y: 52), control2: CGPoint(x: 60 + valley, y: 57))
+        path.addCurve(to: CGPoint(x: 73 + trail, y: 53), control1: CGPoint(x: 66 + trail, y: 57), control2: CGPoint(x: 70 + trail, y: 54))
+        path.addCurve(to: CGPoint(x: 84, y: 86), control1: CGPoint(x: 78, y: 62), control2: CGPoint(x: 84, y: 73))
+        path.addCurve(to: CGPoint(x: 60, y: 116), control1: CGPoint(x: 84, y: 108), control2: CGPoint(x: 73, y: 116))
         path.closeSubpath()
         return path
-    }()
+    }
 
     static func cgColor(_ c: KeeperRGB, _ alpha: CGFloat = 1) -> CGColor {
         CGColor(srgbRed: CGFloat(c.r / 255), green: CGFloat(c.g / 255), blue: CGFloat(c.b / 255), alpha: alpha)
@@ -106,8 +100,8 @@ nonisolated enum KeeperFaceCG {
         ctx.restoreGState()
 
         // The inner flame: one tone step lighter (white at 22%).
-        ctx.addPath(platePath)
-        ctx.setFillColor(CGColor(srgbRed: 1, green: 1, blue: 1, alpha: 0.22))
+        ctx.addPath(platePath(flicker: flicker))
+        ctx.setFillColor(cgColor(lighten(color, 0.22)))
         ctx.fillPath()
 
         // The face, in the art's own units (see KeeperFaces.k).

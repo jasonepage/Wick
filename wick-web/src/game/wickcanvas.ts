@@ -9,10 +9,10 @@
 //
 
 import {
-  type Pose, type WickMood, BASE_X, BASE_Y, SPARKLES, SPARKLE_COLOR, flamePath, sparklePhase,
+  type Pose, type WickMood, BASE_X, BASE_Y, SPARKLES, SPARKLE_COLOR, flamePath, coreFlamePath, sparklePhase,
 } from "./wick.ts";
 import {
-  type FaceAccent, type FaceName, type FaceP, type RGB, FACES, FACE_K, FACE_TX, FACE_TY, PLATE_ART, PLATE_PATH,
+  type FaceAccent, type FaceName, type FaceP, type RGB, FACES, FACE_K, FACE_TX, FACE_TY, PLATE_ART,
   accentFace, faceDrawList, faceFor, lighten, rgb,
 } from "./wickface.ts";
 
@@ -82,12 +82,9 @@ export function drawWick(ctx: CanvasRenderingContext2D, a: DrawWickArgs): void {
   ctx.fillStyle = g;
   ctx.fill(flame);
 
-  // The inner flame: one tone step lighter (white at 22%).
-  ctx.save();
-  ctx.globalAlpha *= 0.22;
-  ctx.fillStyle = "#ffffff";
-  ctx.fill(new Path2D(PLATE_PATH));
-  ctx.restore();
+  // A smaller two-lick flame, one tone step hotter than the body.
+  ctx.fillStyle = lighten(cMid, 0.22);
+  ctx.fill(new Path2D(coreFlamePath(pose.flicker)));
 
   // Sparkles (celebrating only).
   if (a.mood === "celebrating" && a.sparks !== false) {

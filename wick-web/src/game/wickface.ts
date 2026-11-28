@@ -307,26 +307,35 @@ export function browKey(c: RGB): RGB {
 }
 
 /** The inner flame (lighter core) in art units, for clipping the face shading. */
-export const PLATE_ART = "M535.9 421.3 C553.9 481.1 643.6 529.0 655.6 642.6 C673.5 774.3 601.8 841.3 512.0 841.3 C416.3 841.3 362.4 774.3 368.4 660.6 C374.4 558.9 434.2 499.0 482.1 463.1 C506.0 445.2 518.0 433.2 535.9 421.3 Z";
+export const PLATE_ART = "M511.5 448.0 C585.0 490.4 655.9 540.0 655.9 657.5 C655.9 776.5 598.8 841.0 511.5 841.0 C425.2 841.0 368.1 776.5 368.1 657.5 C368.1 540.0 439.0 490.4 511.5 448.0 Z";
 
 /** The chunky flame outline in viewBox units, fitted to the icon art. `lean` is
  *  the tip's sideways lean (the flicker), `tip` the face's tip reaction. */
 export function chunkyFlamePath(lean = 0, tip: TipP = { dx: 0, dy: 0, sharp: 1 }): string {
   const f = (v: number): string => (Math.round(v * 10) / 10).toString();
-  const tx = 60 + lean + tip.dx, ty = 4 + tip.dy;
-  const leftFlex = lean * 0.22;
+  const tx = 48 + lean + tip.dx, ty = 4 + tip.dy;
   const trail = -lean * 0.62;
+  const valley = -lean * 0.22;
   const tipWing = 6 + 6 * tip.sharp;
   return `M60 124 C37 124 16 109 16 68 ` +
-    `C16 51 ${f(25 + leftFlex)} 36 ${f(38 + leftFlex)} 25 ` +
-    `C${f(35 + leftFlex)} 37 ${f(39 + leftFlex)} 45 ${f(47 + leftFlex)} 49 ` +
-    `C45 31 ${f(tx - tipWing)} ${f(ty + 12)} ${f(tx)} ${f(ty)} ` +
-    `C${f(tx + tipWing * 0.58)} ${f(ty + 8)} ${f(72 + trail)} 23 ${f(70 + trail)} 35 ` +
-    `C${f(78 + trail)} 30 ${f(85 + trail)} 20 ${f(88 + trail)} 9 ` +
-    `C${f(91 + trail)} 31 104 44 104 68 C104 109 83 124 60 124 Z`;
+    `C16 43 31 25 ${f(tx)} ${f(ty)} ` +
+    `C${f(tx + tipWing * 0.58)} ${f(ty + 7)} ${f(58 + valley)} 18 ${f(63 + valley)} 24 ` +
+    `C${f(68 + trail)} 20 ${f(77 + trail)} 14 ${f(82 + trail)} 14 ` +
+    `C${f(90 + trail)} 25 104 42 104 68 C104 109 83 124 60 124 Z`;
 }
-/** The inner flame (lighter core) in viewBox units. */
-export const PLATE_PATH = "M64 49 C67 59 82 67 84 86 C87 108 75 119.2 60 119.2 C44 119.2 35 108 36 89 C37 72 47 62 55 56 C59 53 61 51 64 49 Z";
+
+/** A real hot core: the same two-lick flame at roughly 55% scale, shifted up. */
+export function innerFlamePath(lean = 0): string {
+  const f = (v: number): string => (Math.round(v * 10) / 10).toString();
+  const main = lean * 0.55, trail = -lean * 0.34, valley = -lean * 0.12;
+  return `M60 116 C47 116 36 108 36 86 C36 72 44 59 ${f(54 + main)} 47 ` +
+    `C${f(58 + main)} 52 ${f(60 + valley)} 57 ${f(62 + valley)} 60 ` +
+    `C${f(66 + trail)} 57 ${f(70 + trail)} 54 ${f(73 + trail)} 53 ` +
+    `C78 62 84 73 84 86 C84 108 73 116 60 116 Z`;
+}
+
+/** The inner flame at rest, used by static share art. */
+export const PLATE_PATH = innerFlamePath();
 
 /** Which face for the game's state. Solved stays Shocked (he keeps blinking). */
 export function faceFor(o: { mood: Mood; race?: boolean; focus?: boolean }): FaceName {
@@ -672,7 +681,7 @@ export function wickStillMarkup(face: FaceName, color: RGB, id: string, opts: { 
     `</defs>` +
     `<path d="${d}" fill="${bot}" opacity="0.30" filter="url(#soft-${id})" transform="translate(60 124) scale(1.12) translate(-60 -124)"/>` +
     `<path d="${d}" fill="url(#body-${id})"/>` +
-    `<path d="${PLATE_PATH}" fill="#ffffff" opacity="0.22"/>` +
+    `<path d="${PLATE_PATH}" fill="${lighten(color, 0.22)}"/>` +
     sparks +
     `<g transform="${FACE_TRANSFORM}">${paths}</g>`;
 }

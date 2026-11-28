@@ -698,19 +698,17 @@ struct KeeperChunkyFlameShape: Shape {
             CGPoint(x: rect.midX + CGFloat(x - 60) * s, y: rect.minY + CGFloat(y - 4) * s)
         }
         let lean: Double = (flicker - 0.5) * KeeperFaces.lean
-        let tx: Double = 60 + lean + tip.dx, ty: Double = 4 + tip.dy
-        let leftFlex: Double = lean * 0.22
+        let tx: Double = 48 + lean + tip.dx, ty: Double = 4 + tip.dy
         let trail: Double = -lean * 0.62
+        let valley: Double = -lean * 0.22
         let tipWing: Double = 6 + 6 * tip.sharp
         var path = Path()
         path.move(to: p(60, 124))
         path.addCurve(to: p(16, 68), control1: p(37, 124), control2: p(16, 109))
-        path.addCurve(to: p(38 + leftFlex, 25), control1: p(16, 51), control2: p(25 + leftFlex, 36))
-        path.addCurve(to: p(47 + leftFlex, 49), control1: p(35 + leftFlex, 37), control2: p(39 + leftFlex, 45))
-        path.addCurve(to: p(tx, ty), control1: p(45, 31), control2: p(tx - tipWing, ty + 12))
-        path.addCurve(to: p(70 + trail, 35), control1: p(tx + tipWing * 0.58, ty + 8), control2: p(72 + trail, 23))
-        path.addCurve(to: p(88 + trail, 9), control1: p(78 + trail, 30), control2: p(85 + trail, 20))
-        path.addCurve(to: p(104, 68), control1: p(91 + trail, 31), control2: p(104, 44))
+        path.addCurve(to: p(tx, ty), control1: p(16, 43), control2: p(31, 25))
+        path.addCurve(to: p(63 + valley, 24), control1: p(tx + tipWing * 0.58, ty + 7), control2: p(58 + valley, 18))
+        path.addCurve(to: p(82 + trail, 14), control1: p(68 + trail, 20), control2: p(77 + trail, 14))
+        path.addCurve(to: p(104, 68), control1: p(90 + trail, 25), control2: p(104, 42))
         path.addCurve(to: p(60, 124), control1: p(104, 109), control2: p(83, 124))
         path.closeSubpath()
         return path
@@ -719,18 +717,28 @@ struct KeeperChunkyFlameShape: Shape {
 
 /// The inner flame (lighter core), in the same viewBox mapping as the flame.
 struct KeeperPlateShape: Shape {
+    var flicker: Double = 0.5
+
+    var animatableData: Double {
+        get { flicker }
+        set { flicker = newValue }
+    }
+
     func path(in rect: CGRect) -> Path {
         let s: CGFloat = rect.width / 120
         func p(_ x: Double, _ y: Double) -> CGPoint {
             CGPoint(x: rect.midX + CGFloat(x - 60) * s, y: rect.minY + CGFloat(y - 4) * s)
         }
+        let lean = (flicker - 0.5) * KeeperFaces.lean
+        let main = lean * 0.55, trail = -lean * 0.34, valley = -lean * 0.12
         var path = Path()
-        path.move(to: p(64, 49))
-        path.addCurve(to: p(84, 86), control1: p(67, 59), control2: p(82, 67))
-        path.addCurve(to: p(60, 119.2), control1: p(87, 108), control2: p(75, 119.2))
-        path.addCurve(to: p(36, 89), control1: p(44, 119.2), control2: p(35, 108))
-        path.addCurve(to: p(55, 56), control1: p(37, 72), control2: p(47, 62))
-        path.addCurve(to: p(64, 49), control1: p(59, 53), control2: p(61, 51))
+        path.move(to: p(60, 116))
+        path.addCurve(to: p(36, 86), control1: p(47, 116), control2: p(36, 108))
+        path.addCurve(to: p(54 + main, 47), control1: p(36, 72), control2: p(44, 59))
+        path.addCurve(to: p(62 + valley, 60), control1: p(58 + main, 52), control2: p(60 + valley, 57))
+        path.addCurve(to: p(73 + trail, 53), control1: p(66 + trail, 57), control2: p(70 + trail, 54))
+        path.addCurve(to: p(84, 86), control1: p(78, 62), control2: p(84, 73))
+        path.addCurve(to: p(60, 116), control1: p(84, 108), control2: p(73, 116))
         path.closeSubpath()
         return path
     }

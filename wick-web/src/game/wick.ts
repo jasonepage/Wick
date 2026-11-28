@@ -39,7 +39,7 @@
 
 import {
   type Mood, type RGB, type FaceName, type FaceP, type TipP, moodFor, moodRGB, lighten, rgb, starPath, PALETTE,
-  FACES, FACE_TRANSFORM, PLATE_ART, PLATE_PATH, chunkyFlamePath, faceDrawList, faceFor, lerpFace, swapBlink, swapMorph,
+  FACES, FACE_TRANSFORM, PLATE_ART, PLATE_PATH, chunkyFlamePath, innerFlamePath, faceDrawList, faceFor, lerpFace, swapBlink, swapMorph,
   solveMorph, accentFace,
   SOLVE_DONE, SOLVE_HIT, SOLVE_RM_DONE, solveFace, solveRing, solveScale, solveSparks,
 } from "./wickface.ts";
@@ -69,7 +69,6 @@ export const BASE_Y = 124;
 /** How far the tip leans across the full flicker, in viewBox units. Gentler than
  *  the old thin flame (0.22 x 102) so the chunky silhouette stays true to the art. */
 const LEAN = 0.09 * 102;
-const WHITE = "#ffffff";
 
 // ── pure math ───────────────────────────────────────────────────────────────
 //
@@ -84,6 +83,11 @@ const WHITE = "#ffffff";
  */
 export function flamePath(flicker: number, tip?: TipP): string {
   return chunkyFlamePath((flicker - 0.5) * LEAN, tip);
+}
+
+/** The smaller hot core follows the same crown flicker as the outer flame. */
+export function coreFlamePath(flicker: number): string {
+  return innerFlamePath((flicker - 0.5) * LEAN);
 }
 
 /** The motion channel `tip` (-1..1) as a flicker (0..1). */
@@ -591,6 +595,7 @@ function frame(i: Inst, t: number, rm: boolean): void {
     i.lastPath = flamePath(pose.flicker, face.tip);
     i.body.setAttribute("d", i.lastPath);
     i.glow.setAttribute("d", i.lastPath);
+    i.plate.setAttribute("d", coreFlamePath(pose.flicker));
   }
 
   // Colour: it travels up the flame, bottom first, behind the closed lids.
@@ -601,6 +606,7 @@ function frame(i: Inst, t: number, rm: boolean): void {
     i.stops[1]?.setAttribute("stop-color", rgb(c));
     i.stops[2]?.setAttribute("stop-color", rgb(wipeColor(i, 2)));
     i.glow.setAttribute("fill", rgb(c));
+    i.plate.setAttribute("fill", lighten(c, 0.22));
     i.colorDone = i.wipe[0] >= 1 && i.wipe[1] >= 1 && i.wipe[2] >= 1;
   }
 
@@ -666,7 +672,7 @@ export function mountWick(host: HTMLElement, opts: WickOptions): Wick {
   });
   const body = svgEl("path", { class: "flame-body", d: d0, fill: `url(#body-${id})` });
   // The inner flame: one tone step lighter than the body (white at 22%).
-  const plate = svgEl("path", { class: "flame-core", d: PLATE_PATH, fill: WHITE, opacity: 0.22 });
+  const plate = svgEl("path", { class: "flame-core", d: PLATE_PATH, fill: lighten(color, 0.22) });
   const sparkG = svgEl("g", { class: "sparkles", fill: SPARKLE_COLOR });
   // 3.8: the one solved ring, drawn behind him and invisible until the solve.
   const ring = svgEl("circle", { class: "solve-ring", cx: BASE_X, cy: 64, r: 0, fill: "none", "stroke-width": 3, opacity: 0 });
