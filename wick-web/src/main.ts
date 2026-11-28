@@ -2799,7 +2799,7 @@ function screenSearching(): void {
   clear("dark");
   const code = live.friendCode;
   const kids: (Node | string)[] = [
-    wickBox("mascot-wrap", { score: null, size: 128, id: "search" }),
+    wickBox("mascot-wrap", { score: null, size: 156, id: "search" }),
     el("h2", {}, [live.hosting ? t("searchWaitingFriend") : code ? t("searchJoining") : t("searchFinding")]),
   ];
   if (code && live.hosting) {

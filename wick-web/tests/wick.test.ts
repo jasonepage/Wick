@@ -12,11 +12,12 @@ import { pulseAt } from "../src/game/music.ts";
 
 const still = { pokeAt: null, reduceMotion: false, pulse: null };
 
-test("the chunky flame is symmetric at rest, tip at the top, feet at the base", () => {
+test("the flame has an asymmetric licking crown, a high tip, and an anchored base", () => {
   const d = flamePath(0.5);
   assert.ok(d.startsWith("M60 124") && d.endsWith("60 124 Z"));
   assert.ok(d.includes(" 60 4 "), "the tip sits at (60, 4)");
-  assert.ok(d.includes("16 67.2") && d.includes("104 67.2"), "widest at 16 and 104");
+  assert.ok(d.includes("38 25 C35 37 39 45 47 49"), "left crown folds through a shallow flame valley");
+  assert.ok(d.includes(" 88 9 C91 31"), "the crown has a separate high lick");
 });
 
 test("the tip leans with the flicker and reacts to the face; the base stays put", () => {

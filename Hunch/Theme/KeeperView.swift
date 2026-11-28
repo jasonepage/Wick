@@ -295,9 +295,9 @@ struct KeeperView: View {
         return ZStack {
             // Soft glow
             KeeperChunkyFlameShape(flicker: flicker, tip: f.tip)
-                .fill(mid.opacity(mood == .defeated ? 0.10 : 0.30))
-                .blur(radius: size * 0.10)
-                .scaleEffect(1.12)
+                .fill(mid.opacity(mood == .defeated ? 0.10 : 0.36))
+                .blur(radius: size * 0.115)
+                .scaleEffect(1.15)
 
             // Body: saturated and emissive, without glossy highlights that read as plastic.
             KeeperChunkyFlameShape(flicker: flicker, tip: f.tip)

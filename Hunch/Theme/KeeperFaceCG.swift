@@ -19,25 +19,33 @@ import SwiftUI
 
 nonisolated enum KeeperFaceCG {
 
-    /// The chunky flame, in viewBox units. The same curve as
+    /// The asymmetric flame, in viewBox units. The same curve as
     /// KeeperChunkyFlameShape (KeeperFace.swift); keep the two in step.
     static func flamePath(flicker: Double, tip: KeeperTip) -> CGPath {
         let lean: Double = (flicker - 0.5) * KeeperFaces.lean
         let tx: Double = 60 + lean + tip.dx
         let ty: Double = 4 + tip.dy
-        let sh: Double = 43.986 * tip.sharp
-        let sy: Double = 20.605 + tip.dy * 0.5
-        let sl: Double = lean * 0.6
+        let leftFlex: Double = lean * 0.22
+        let trail: Double = -lean * 0.62
+        let tipWing: Double = 6 + 6 * tip.sharp
         let path = CGMutablePath()
         path.move(to: CGPoint(x: 60, y: 124))
-        path.addCurve(to: CGPoint(x: 16, y: 67.2),
-                      control1: CGPoint(x: 37.084, y: 124), control2: CGPoint(x: 16, y: 109.2))
+        path.addCurve(to: CGPoint(x: 16, y: 68),
+                      control1: CGPoint(x: 37, y: 124), control2: CGPoint(x: 16, y: 109))
+        path.addCurve(to: CGPoint(x: 38 + leftFlex, y: 25),
+                      control1: CGPoint(x: 16, y: 51), control2: CGPoint(x: 25 + leftFlex, y: 36))
+        path.addCurve(to: CGPoint(x: 47 + leftFlex, y: 49),
+                      control1: CGPoint(x: 35 + leftFlex, y: 37), control2: CGPoint(x: 39 + leftFlex, y: 45))
         path.addCurve(to: CGPoint(x: tx, y: ty),
-                      control1: CGPoint(x: 60 - sh + sl, y: sy), control2: CGPoint(x: tx, y: ty))
-        path.addCurve(to: CGPoint(x: 104, y: 67.2),
-                      control1: CGPoint(x: tx, y: ty), control2: CGPoint(x: 60 + sh + sl, y: sy))
+                      control1: CGPoint(x: 45, y: 31), control2: CGPoint(x: tx - tipWing, y: ty + 12))
+        path.addCurve(to: CGPoint(x: 70 + trail, y: 35),
+                      control1: CGPoint(x: tx + tipWing * 0.58, y: ty + 8), control2: CGPoint(x: 72 + trail, y: 23))
+        path.addCurve(to: CGPoint(x: 88 + trail, y: 9),
+                      control1: CGPoint(x: 78 + trail, y: 30), control2: CGPoint(x: 85 + trail, y: 20))
+        path.addCurve(to: CGPoint(x: 104, y: 68),
+                      control1: CGPoint(x: 91 + trail, y: 31), control2: CGPoint(x: 104, y: 44))
         path.addCurve(to: CGPoint(x: 60, y: 124),
-                      control1: CGPoint(x: 104, y: 109.2), control2: CGPoint(x: 82.916, y: 124))
+                      control1: CGPoint(x: 104, y: 109), control2: CGPoint(x: 83, y: 124))
         path.closeSubpath()
         return path
     }
@@ -45,15 +53,17 @@ nonisolated enum KeeperFaceCG {
     /// The inner flame (lighter core), in viewBox units. Same as KeeperPlateShape.
     static let platePath: CGPath = {
         let path = CGMutablePath()
-        path.move(to: CGPoint(x: 60, y: 53.5))
-        path.addCurve(to: CGPoint(x: 84, y: 88.5),
-                      control1: CGPoint(x: 72.2, y: 60.6), control2: CGPoint(x: 84, y: 68.8))
+        path.move(to: CGPoint(x: 64, y: 49))
+        path.addCurve(to: CGPoint(x: 84, y: 86),
+                      control1: CGPoint(x: 67, y: 59), control2: CGPoint(x: 82, y: 67))
         path.addCurve(to: CGPoint(x: 60, y: 119.2),
-                      control1: CGPoint(x: 84, y: 108.4), control2: CGPoint(x: 74.5, y: 119.2))
-        path.addCurve(to: CGPoint(x: 36, y: 88.5),
-                      control1: CGPoint(x: 45.5, y: 119.2), control2: CGPoint(x: 36, y: 108.4))
-        path.addCurve(to: CGPoint(x: 60, y: 53.5),
-                      control1: CGPoint(x: 36, y: 68.8), control2: CGPoint(x: 47.8, y: 60.6))
+                      control1: CGPoint(x: 87, y: 108), control2: CGPoint(x: 75, y: 119.2))
+        path.addCurve(to: CGPoint(x: 36, y: 89),
+                      control1: CGPoint(x: 44, y: 119.2), control2: CGPoint(x: 35, y: 108))
+        path.addCurve(to: CGPoint(x: 55, y: 56),
+                      control1: CGPoint(x: 37, y: 72), control2: CGPoint(x: 47, y: 62))
+        path.addCurve(to: CGPoint(x: 64, y: 49),
+                      control1: CGPoint(x: 59, y: 53), control2: CGPoint(x: 61, y: 51))
         path.closeSubpath()
         return path
     }()

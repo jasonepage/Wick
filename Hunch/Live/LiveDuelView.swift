@@ -193,7 +193,7 @@ struct LiveDuelView: View {
     private var searchingView: some View {
         VStack(spacing: HunchTheme.Spacing.l) {
             Spacer()
-            KeeperView(mood: .thinking, size: 108)
+            KeeperView(mood: .thinking, size: 132)
             Text(model.isFriendMatch ? loc.liveWaitingForFriend : loc.liveFindingOpponent)
                 .font(.headline)
             if model.isHosting, let code = model.friendCode {

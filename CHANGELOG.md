@@ -66,6 +66,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- **Wick looks like fire, not an egg.** His mascot silhouette now has an
+  asymmetric licking crown, a soft side wisp, a second high tongue and a
+  sharper inner flame, with a wider heat glow. The two crown licks waver in
+  counter-motion while his face and base stay planted. The same curves render
+  in the web game, iOS, share cards and replay videos.
 - **wick-api.** `/reveal` also returns the guesses' pairwise similarity, and
   `/warmth` takes an optional `near` list of the player's own last guesses. Both
   rescale Gemini's cosine onto the 0 to 1 scale the clients share. Older

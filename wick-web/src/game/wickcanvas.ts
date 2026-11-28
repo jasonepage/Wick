@@ -66,10 +66,10 @@ export function drawWick(ctx: CanvasRenderingContext2D, a: DrawWickArgs): void {
   // Glow: the flame again, a little bigger, blurred and faint.
   ctx.save();
   ctx.translate(BASE_X, BASE_Y);
-  ctx.scale(1.12, 1.12);
+  ctx.scale(1.15, 1.15);
   ctx.translate(-BASE_X, -BASE_Y);
-  ctx.filter = `blur(${(6 * a.scale).toFixed(1)}px)`;
-  ctx.globalAlpha *= 0.30;
+  ctx.filter = `blur(${(7 * a.scale).toFixed(1)}px)`;
+  ctx.globalAlpha *= 0.36;
   ctx.fillStyle = body;
   ctx.fill(flame);
   ctx.restore();

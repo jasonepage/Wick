@@ -652,7 +652,7 @@ export function mountWick(host: HTMLElement, opts: WickOptions): Wick {
   ];
   grad.append(...stops);
   const filter = svgEl("filter", { id: `soft-${id}`, x: "-40%", y: "-40%", width: "180%", height: "180%" });
-  filter.append(svgEl("feGaussianBlur", { stdDeviation: 6 }));
+  filter.append(svgEl("feGaussianBlur", { stdDeviation: 7 }));
   defs.append(grad, filter);
 
   const rig = svgEl("g", { class: "wick-rig" });
@@ -661,8 +661,8 @@ export function mountWick(host: HTMLElement, opts: WickOptions): Wick {
   const startFace = faceFor({ mood, race, focus });
   const d0 = flamePath(0.5, FACES[startFace].tip);
   const glow = svgEl("path", {
-    class: "flame-glow", d: d0, fill: rgb(color), opacity: 0.30, filter: `url(#soft-${id})`,
-    transform: `translate(${BASE_X} ${BASE_Y}) scale(1.12) translate(${-BASE_X} ${-BASE_Y})`,
+    class: "flame-glow", d: d0, fill: rgb(color), opacity: 0.36, filter: `url(#soft-${id})`,
+    transform: `translate(${BASE_X} ${BASE_Y}) scale(1.15) translate(${-BASE_X} ${-BASE_Y})`,
   });
   const body = svgEl("path", { class: "flame-body", d: d0, fill: `url(#body-${id})` });
   // The inner flame: one tone step lighter than the body (white at 22%).

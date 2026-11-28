@@ -680,7 +680,7 @@ nonisolated enum KeeperFaces {
 
 // MARK: - Shapes and the face layer
 
-/// The chunky flame from the approved icon art, fitted as curves in viewBox units.
+/// Wick's asymmetric, licking flame silhouette in viewBox units.
 struct KeeperChunkyFlameShape: Shape {
     var flicker: Double
     var tip: KeeperTip
@@ -699,13 +699,19 @@ struct KeeperChunkyFlameShape: Shape {
         }
         let lean: Double = (flicker - 0.5) * KeeperFaces.lean
         let tx: Double = 60 + lean + tip.dx, ty: Double = 4 + tip.dy
-        let sh: Double = 43.986 * tip.sharp, sy: Double = 20.605 + tip.dy * 0.5, sl: Double = lean * 0.6
+        let leftFlex: Double = lean * 0.22
+        let trail: Double = -lean * 0.62
+        let tipWing: Double = 6 + 6 * tip.sharp
         var path = Path()
         path.move(to: p(60, 124))
-        path.addCurve(to: p(16, 67.2), control1: p(37.084, 124), control2: p(16, 109.2))
-        path.addCurve(to: p(tx, ty), control1: p(60 - sh + sl, sy), control2: p(tx, ty))
-        path.addCurve(to: p(104, 67.2), control1: p(tx, ty), control2: p(60 + sh + sl, sy))
-        path.addCurve(to: p(60, 124), control1: p(104, 109.2), control2: p(82.916, 124))
+        path.addCurve(to: p(16, 68), control1: p(37, 124), control2: p(16, 109))
+        path.addCurve(to: p(38 + leftFlex, 25), control1: p(16, 51), control2: p(25 + leftFlex, 36))
+        path.addCurve(to: p(47 + leftFlex, 49), control1: p(35 + leftFlex, 37), control2: p(39 + leftFlex, 45))
+        path.addCurve(to: p(tx, ty), control1: p(45, 31), control2: p(tx - tipWing, ty + 12))
+        path.addCurve(to: p(70 + trail, 35), control1: p(tx + tipWing * 0.58, ty + 8), control2: p(72 + trail, 23))
+        path.addCurve(to: p(88 + trail, 9), control1: p(78 + trail, 30), control2: p(85 + trail, 20))
+        path.addCurve(to: p(104, 68), control1: p(91 + trail, 31), control2: p(104, 44))
+        path.addCurve(to: p(60, 124), control1: p(104, 109), control2: p(83, 124))
         path.closeSubpath()
         return path
     }
@@ -719,11 +725,12 @@ struct KeeperPlateShape: Shape {
             CGPoint(x: rect.midX + CGFloat(x - 60) * s, y: rect.minY + CGFloat(y - 4) * s)
         }
         var path = Path()
-        path.move(to: p(60, 53.5))
-        path.addCurve(to: p(84, 88.5), control1: p(72.2, 60.6), control2: p(84, 68.8))
-        path.addCurve(to: p(60, 119.2), control1: p(84, 108.4), control2: p(74.5, 119.2))
-        path.addCurve(to: p(36, 88.5), control1: p(45.5, 119.2), control2: p(36, 108.4))
-        path.addCurve(to: p(60, 53.5), control1: p(36, 68.8), control2: p(47.8, 60.6))
+        path.move(to: p(64, 49))
+        path.addCurve(to: p(84, 86), control1: p(67, 59), control2: p(82, 67))
+        path.addCurve(to: p(60, 119.2), control1: p(87, 108), control2: p(75, 119.2))
+        path.addCurve(to: p(36, 89), control1: p(44, 119.2), control2: p(35, 108))
+        path.addCurve(to: p(55, 56), control1: p(37, 72), control2: p(47, 62))
+        path.addCurve(to: p(64, 49), control1: p(59, 53), control2: p(61, 51))
         path.closeSubpath()
         return path
     }

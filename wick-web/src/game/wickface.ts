@@ -307,21 +307,26 @@ export function browKey(c: RGB): RGB {
 }
 
 /** The inner flame (lighter core) in art units, for clipping the face shading. */
-export const PLATE_ART = "M511.5 448.0 C585.0 490.4 655.9 540.0 655.9 657.5 C655.9 776.5 598.8 841.0 511.5 841.0 C425.2 841.0 368.1 776.5 368.1 657.5 C368.1 540.0 439.0 490.4 511.5 448.0 Z";
+export const PLATE_ART = "M535.9 421.3 C553.9 481.1 643.6 529.0 655.6 642.6 C673.5 774.3 601.8 841.3 512.0 841.3 C416.3 841.3 362.4 774.3 368.4 660.6 C374.4 558.9 434.2 499.0 482.1 463.1 C506.0 445.2 518.0 433.2 535.9 421.3 Z";
 
 /** The chunky flame outline in viewBox units, fitted to the icon art. `lean` is
  *  the tip's sideways lean (the flicker), `tip` the face's tip reaction. */
 export function chunkyFlamePath(lean = 0, tip: TipP = { dx: 0, dy: 0, sharp: 1 }): string {
   const f = (v: number): string => (Math.round(v * 10) / 10).toString();
   const tx = 60 + lean + tip.dx, ty = 4 + tip.dy;
-  const sh = 43.986 * tip.sharp, sy = 20.605 + tip.dy * 0.5, sl = lean * 0.6;
-  return `M60 124 C${f(37.084)} 124 16 109.2 16 67.2 ` +
-    `C${f(60 - sh + sl)} ${f(sy)} ${f(tx)} ${f(ty)} ${f(tx)} ${f(ty)} ` +
-    `C${f(tx)} ${f(ty)} ${f(60 + sh + sl)} ${f(sy)} 104 67.2 ` +
-    `C104 109.2 ${f(82.916)} 124 60 124 Z`;
+  const leftFlex = lean * 0.22;
+  const trail = -lean * 0.62;
+  const tipWing = 6 + 6 * tip.sharp;
+  return `M60 124 C37 124 16 109 16 68 ` +
+    `C16 51 ${f(25 + leftFlex)} 36 ${f(38 + leftFlex)} 25 ` +
+    `C${f(35 + leftFlex)} 37 ${f(39 + leftFlex)} 45 ${f(47 + leftFlex)} 49 ` +
+    `C45 31 ${f(tx - tipWing)} ${f(ty + 12)} ${f(tx)} ${f(ty)} ` +
+    `C${f(tx + tipWing * 0.58)} ${f(ty + 8)} ${f(72 + trail)} 23 ${f(70 + trail)} 35 ` +
+    `C${f(78 + trail)} 30 ${f(85 + trail)} 20 ${f(88 + trail)} 9 ` +
+    `C${f(91 + trail)} 31 104 44 104 68 C104 109 83 124 60 124 Z`;
 }
 /** The inner flame (lighter core) in viewBox units. */
-export const PLATE_PATH = "M60 53.5 C72.2 60.6 84 68.8 84 88.5 C84 108.4 74.5 119.2 60 119.2 C45.5 119.2 36 108.4 36 88.5 C36 68.8 47.8 60.6 60 53.5 Z";
+export const PLATE_PATH = "M64 49 C67 59 82 67 84 86 C87 108 75 119.2 60 119.2 C44 119.2 35 108 36 89 C37 72 47 62 55 56 C59 53 61 51 64 49 Z";
 
 /** Which face for the game's state. Solved stays Shocked (he keeps blinking). */
 export function faceFor(o: { mood: Mood; race?: boolean; focus?: boolean }): FaceName {
