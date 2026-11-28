@@ -28,6 +28,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   other player wins, and both end screens show the word with "You gave up" or
   "Your opponent gave up". The server refuses it before 30 seconds. The result
   keeps the reason "forfeit" and adds `gaveUp`, so older apps still read it.
+- **Wick's flame moves with the heat.** The two flame tips sway on their own
+  waves, wider and faster as the hunt heats up (calm when cold, wild when
+  boiling), and the hot core trails the outside by a third of a beat. At Hot
+  and above, a third tip now and then splits off the main tip and melts back
+  in, built into the one flame outline (no extra shape on top). Same math on
+  web and iOS. Reduce Motion keeps him calm with no split.
 - **Clues on the race end screen.** Under the answer, the clues Wick gave
   that race, so a learner sees how each one pointed at the word.
 - **Semantic Arena.** The hidden strategy of a round is now visible, on web

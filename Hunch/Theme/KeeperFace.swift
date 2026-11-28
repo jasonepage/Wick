@@ -269,6 +269,7 @@ nonisolated enum KeeperFaces {
     static let k: Double = 120.0 / 718.0
     /// How far the flame tip leans across the full flicker, in viewBox units.
     static let lean: Double = 0.09 * 102.0
+    static let wave: Double = lean * 0.42
 
     static let eyeWhite = KeeperRGB(r: 245, g: 243, b: 254)
     static let pupil = KeeperRGB(r: 31, g: 23, b: 59)
@@ -680,14 +681,146 @@ nonisolated enum KeeperFaces {
 
 // MARK: - Shapes and the face layer
 
+nonisolated struct KeeperFlameBend: Sendable, Equatable {
+    let mainTip: Double
+    let mainMid: Double
+    let secondaryTip: Double
+    let secondaryMid: Double
+    let valley: Double
+    let thirdTip: Double
+    let thirdMid: Double
+    let split: Double
+
+    static let still = KeeperFlameBend(mainTip: 0, mainMid: 0, secondaryTip: 0, secondaryMid: 0, valley: 0,
+                                       thirdTip: 0, thirdMid: 0, split: 0)
+}
+
+nonisolated enum KeeperFlameWave {
+    /// The same pure wave as flameBendAt on the web. `lagCycles` lets the hot
+    /// core follow the outside by one third of a cycle.
+    static func at(time: Double, amplitude: Double, frequency: Double,
+                   splitMax: Double = 0, splitThreshold: Double = 0.18, flicker: Double,
+                   reduceMotion: Bool, lagCycles: Double = 0) -> KeeperFlameBend {
+        let scale = reduceMotion ? 0.22 : amplitude
+        let hz = reduceMotion ? 0.32 : frequency
+        let p = 2 * Double.pi * (time * hz - lagCycles)
+        let secondary = p * 1.11 + 2.05
+        let third = p * 0.83 + 4.1
+        let a = KeeperFaces.wave * scale
+        let bias = (flicker - 0.5) * KeeperFaces.lean
+        let splitWave = sin(2 * Double.pi * (time * 0.24 - lagCycles) + 0.35)
+        let splitRaw = max(0, (splitWave - splitThreshold) / (1 - splitThreshold))
+        let split = reduceMotion ? 0 : splitMax * splitRaw * splitRaw * (3 - 2 * splitRaw)
+        return KeeperFlameBend(
+            mainTip: a * sin(p) + bias,
+            mainMid: a * 0.48 * sin(p - 0.88) + bias * 0.42,
+            secondaryTip: a * 0.68 * sin(secondary) - bias * 0.34,
+            secondaryMid: a * 0.32 * sin(secondary - 0.76) - bias * 0.14,
+            valley: a * 0.18 * sin(p - 0.42),
+            thirdTip: a * 0.72 * sin(third),
+            thirdMid: a * 0.31 * sin(third - 0.81),
+            split: split
+        )
+    }
+}
+
+nonisolated enum KeeperFlameGeometry {
+    struct Point { var x, y: Double }
+    struct Curve { var p0, c1, c2, p3: Point }
+
+    private static func point(_ x: Double, _ y: Double) -> Point { Point(x: x, y: y) }
+    private static func mix(_ a: Point, _ b: Point, _ t: Double) -> Point {
+        point(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t)
+    }
+    private static func offset(_ p: Point, _ x: Double, _ y: Double) -> Point { point(p.x + x, p.y + y) }
+    /// `a`, pushed out smoothly once `b` passes it. Exactly `a` while `b <= a`
+    /// (so the still flame is unchanged), then eases in over `k` units.
+    private static func softMax(_ a: Double, _ b: Double, _ k: Double) -> Double {
+        let x = b - a
+        if x <= 0 { return a }
+        return a + (x < k ? x * x / (2 * k) : x - k / 2)
+    }
+    private static func split(_ c: Curve, _ t: Double) -> (Curve, Curve) {
+        let a = mix(c.p0, c.c1, t), b = mix(c.c1, c.c2, t), d = mix(c.c2, c.p3, t)
+        let e = mix(a, b, t), f = mix(b, d, t), m = mix(e, f, t)
+        return (Curve(p0: c.p0, c1: a, c2: e, p3: m), Curve(p0: m, c1: f, c2: d, p3: c.p3))
+    }
+
+    private static func dominant(_ bend: KeeperFlameBend, _ tip: KeeperTip) -> [Curve] {
+        let target = point(48 + bend.mainTip + tip.dx, 4 + tip.dy)
+        let whole = Curve(p0: point(16, 68), c1: point(16, 43),
+                          c2: point(target.x - 17 + bend.mainMid, target.y + 21), p3: target)
+        var (first, tail) = split(whole, 0.74)
+        var (middle, last) = split(tail, (0.88 - 0.74) / (1 - 0.74))
+        let s = bend.split
+        if s > 0 {
+            let tipDX = s * (-4.5 + bend.thirdTip * 0.25), tipDY = -4.5 * s
+            let valleyDX = s * (-1 + bend.thirdMid * 0.12), valleyDY = 6 * s
+            first.c2 = offset(first.c2, tipDX * 0.45, tipDY * 0.35)
+            first.p3 = offset(first.p3, tipDX, tipDY)
+            middle.p0 = first.p3
+            middle.c1 = offset(middle.c1, tipDX * 0.8, tipDY * 0.75)
+            middle.c2 = offset(middle.c2, valleyDX * 0.7, valleyDY * 0.75)
+            middle.p3 = offset(middle.p3, valleyDX, valleyDY)
+            last.p0 = middle.p3
+            last.c1 = offset(last.c1, valleyDX * 0.8, valleyDY * 0.7)
+        }
+        return [first, middle, last]
+    }
+
+    static func path(bend: KeeperFlameBend, tip: KeeperTip, scale: Double = 1, shiftY: Double = 0) -> CGPath {
+        let tx = 48 + bend.mainTip + tip.dx, ty = 4 + tip.dy
+        let tipWing = 6 + 6 * tip.sharp
+        var curves = [Curve(p0: point(60, 124), c1: point(37, 124), c2: point(16, 109), p3: point(16, 68))]
+        curves += dominant(bend, tip)
+        // The valley between the two licks rides along with the main tip, so a
+        // big boiling swing does not crowd the valley into a small hook.
+        let ride = bend.mainTip * 0.45
+        let valleyX = 63 + bend.valley + ride
+        let wingX = tx + tipWing * 0.58
+        let shoulderX = softMax(58 + bend.mainMid * 0.45 + ride, wingX + 1.5, 2)
+        curves += [
+            Curve(p0: point(tx, ty), c1: point(wingX, ty + 7), c2: point(shoulderX, 18), p3: point(valleyX, 24)),
+            Curve(p0: point(valleyX, 24), c1: point(softMax(68 + bend.secondaryMid + ride, valleyX + 1.5, 2), 20), c2: point(77 + bend.secondaryMid, 14), p3: point(82 + bend.secondaryTip, 14)),
+            Curve(p0: point(82 + bend.secondaryTip, 14), c1: point(90 + bend.secondaryMid, 25), c2: point(104, 42), p3: point(104, 68)),
+            Curve(p0: point(104, 68), c1: point(104, 109), c2: point(83, 124), p3: point(60, 124)),
+        ]
+        func transform(_ p: Point) -> CGPoint {
+            CGPoint(x: 60 + (p.x - 60) * scale, y: 124 + (p.y - 124) * scale + shiftY)
+        }
+        let path = CGMutablePath()
+        path.move(to: transform(curves[0].p0))
+        for c in curves { path.addCurve(to: transform(c.p3), control1: transform(c.c1), control2: transform(c.c2)) }
+        path.closeSubpath()
+        return path
+    }
+}
+
 /// Wick's asymmetric, licking flame silhouette in viewBox units.
 struct KeeperChunkyFlameShape: Shape {
-    var flicker: Double
+    var bend: KeeperFlameBend
     var tip: KeeperTip
 
-    var animatableData: Double {
-        get { flicker }
-        set { flicker = newValue }
+    init(bend: KeeperFlameBend, tip: KeeperTip) {
+        self.bend = bend
+        self.tip = tip
+    }
+
+    init(flicker: Double, tip: KeeperTip) {
+        let bias = (flicker - 0.5) * KeeperFaces.lean
+        self.bend = KeeperFlameBend(mainTip: bias, mainMid: bias * 0.42,
+                                    secondaryTip: -bias * 0.34, secondaryMid: -bias * 0.14,
+                                    valley: 0, thirdTip: 0, thirdMid: 0, split: 0)
+        self.tip = tip
+    }
+
+    var animatableData: AnimatablePair<AnimatablePair<Double, Double>, AnimatablePair<Double, Double>> {
+        get { AnimatablePair(AnimatablePair(bend.mainTip, bend.mainMid), AnimatablePair(bend.secondaryTip, bend.secondaryMid)) }
+        set {
+            bend = KeeperFlameBend(mainTip: newValue.first.first, mainMid: newValue.first.second,
+                                   secondaryTip: newValue.second.first, secondaryMid: newValue.second.second,
+                                   valley: bend.valley, thirdTip: bend.thirdTip, thirdMid: bend.thirdMid, split: bend.split)
+        }
     }
 
     func path(in rect: CGRect) -> Path {
@@ -697,31 +830,31 @@ struct KeeperChunkyFlameShape: Shape {
         func p(_ x: Double, _ y: Double) -> CGPoint {
             CGPoint(x: rect.midX + CGFloat(x - 60) * s, y: rect.minY + CGFloat(y - 4) * s)
         }
-        let lean: Double = (flicker - 0.5) * KeeperFaces.lean
-        let tx: Double = 48 + lean + tip.dx, ty: Double = 4 + tip.dy
-        let trail: Double = -lean * 0.62
-        let valley: Double = -lean * 0.22
-        let tipWing: Double = 6 + 6 * tip.sharp
-        var path = Path()
-        path.move(to: p(60, 124))
-        path.addCurve(to: p(16, 68), control1: p(37, 124), control2: p(16, 109))
-        path.addCurve(to: p(tx, ty), control1: p(16, 43), control2: p(31, 25))
-        path.addCurve(to: p(63 + valley, 24), control1: p(tx + tipWing * 0.58, ty + 7), control2: p(58 + valley, 18))
-        path.addCurve(to: p(82 + trail, 14), control1: p(68 + trail, 20), control2: p(77 + trail, 14))
-        path.addCurve(to: p(104, 68), control1: p(90 + trail, 25), control2: p(104, 42))
-        path.addCurve(to: p(60, 124), control1: p(104, 109), control2: p(83, 124))
-        path.closeSubpath()
-        return path
+        var transform = CGAffineTransform(translationX: rect.midX - 60 * s, y: rect.minY - 4 * s)
+        transform = transform.scaledBy(x: s, y: s)
+        return Path(KeeperFlameGeometry.path(bend: bend, tip: tip).copy(using: &transform)!)
     }
 }
 
 /// The inner flame (lighter core), in the same viewBox mapping as the flame.
 struct KeeperPlateShape: Shape {
-    var flicker: Double = 0.5
+    var bend: KeeperFlameBend = .still
 
-    var animatableData: Double {
-        get { flicker }
-        set { flicker = newValue }
+    init(bend: KeeperFlameBend) { self.bend = bend }
+    init(flicker: Double = 0.5) {
+        let bias = (flicker - 0.5) * KeeperFaces.lean
+        self.bend = KeeperFlameBend(mainTip: bias * 0.55, mainMid: bias * 0.22,
+                                    secondaryTip: -bias * 0.18, secondaryMid: -bias * 0.08,
+                                    valley: 0, thirdTip: 0, thirdMid: 0, split: 0)
+    }
+
+    var animatableData: AnimatablePair<AnimatablePair<Double, Double>, AnimatablePair<Double, Double>> {
+        get { AnimatablePair(AnimatablePair(bend.mainTip, bend.mainMid), AnimatablePair(bend.secondaryTip, bend.secondaryMid)) }
+        set {
+            bend = KeeperFlameBend(mainTip: newValue.first.first, mainMid: newValue.first.second,
+                                   secondaryTip: newValue.second.first, secondaryMid: newValue.second.second,
+                                   valley: bend.valley, thirdTip: bend.thirdTip, thirdMid: bend.thirdMid, split: bend.split)
+        }
     }
 
     func path(in rect: CGRect) -> Path {
@@ -729,18 +862,9 @@ struct KeeperPlateShape: Shape {
         func p(_ x: Double, _ y: Double) -> CGPoint {
             CGPoint(x: rect.midX + CGFloat(x - 60) * s, y: rect.minY + CGFloat(y - 4) * s)
         }
-        let lean = (flicker - 0.5) * KeeperFaces.lean
-        let main = lean * 0.55, trail = -lean * 0.34, valley = -lean * 0.12
-        var path = Path()
-        path.move(to: p(60, 116))
-        path.addCurve(to: p(36, 86), control1: p(47, 116), control2: p(36, 108))
-        path.addCurve(to: p(54 + main, 47), control1: p(36, 72), control2: p(44, 59))
-        path.addCurve(to: p(62 + valley, 60), control1: p(58 + main, 52), control2: p(60 + valley, 57))
-        path.addCurve(to: p(73 + trail, 53), control1: p(66 + trail, 57), control2: p(70 + trail, 54))
-        path.addCurve(to: p(84, 86), control1: p(78, 62), control2: p(84, 73))
-        path.addCurve(to: p(60, 116), control1: p(84, 108), control2: p(73, 116))
-        path.closeSubpath()
-        return path
+        var transform = CGAffineTransform(translationX: rect.midX - 60 * s, y: rect.minY - 4 * s)
+        transform = transform.scaledBy(x: s, y: s)
+        return Path(KeeperFlameGeometry.path(bend: bend, tip: KeeperTip(dx: 0, dy: 0, sharp: 1), scale: 0.55, shiftY: -8).copy(using: &transform)!)
     }
 }
 

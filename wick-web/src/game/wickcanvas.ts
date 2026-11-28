@@ -59,7 +59,7 @@ export function drawWick(ctx: CanvasRenderingContext2D, a: DrawWickArgs): void {
   const faceName = a.face ?? faceFor({ mood: a.mood });
   const face0 = a.faceP ?? FACES[faceName];
   const face = a.accent ? accentFace(face0, a.accent) : face0;
-  const flame = new Path2D(flamePath(pose.flicker, face.tip));
+  const flame = new Path2D(flamePath(a.t, a.mood, pose.flicker, face.tip, false));
   const [cTop, cMid, cBot] = a.colors ?? [a.color, a.color, a.color];
   const body = rgb(cMid);
 
@@ -84,7 +84,7 @@ export function drawWick(ctx: CanvasRenderingContext2D, a: DrawWickArgs): void {
 
   // A smaller two-lick flame, one tone step hotter than the body.
   ctx.fillStyle = lighten(cMid, 0.22);
-  ctx.fill(new Path2D(coreFlamePath(pose.flicker)));
+  ctx.fill(new Path2D(coreFlamePath(a.t, a.mood, pose.flicker, false)));
 
   // Sparkles (celebrating only).
   if (a.mood === "celebrating" && a.sparks !== false) {

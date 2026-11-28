@@ -68,6 +68,21 @@ enum KeeperMood: Equatable {
         case .unamused:                return 2.2
         }
     }
+
+    /// Crown travel and speed. There is no separate `cool` KeeperMood; its
+    /// specified 0.8 step sits between `.cold` and `.warm` if that band returns.
+    /// `splitMax` and `splitThreshold` set the third tip that splits off the
+    /// main tip (flameBendAt on the web): none below hot, small and rare at
+    /// hot, full at boiling and celebrating.
+    var flameWave: (amplitude: Double, frequency: Double, splitMax: Double, splitThreshold: Double) {
+        switch self {
+        case .idle, .thinking, .freezing, .defeated, .unamused: return (0.4, 0.42, 0, 0.18)
+        case .cold:        return (0.6, 0.55, 0, 0.18)
+        case .warm:        return (1.0, 0.75, 0, 0.18)
+        case .hot:         return (1.4, 0.92, 0.42, 0.72)
+        case .boiling, .celebrating: return (2.0, 1.15, 1, 0.18)
+        }
+    }
 }
 
 extension KeeperMood {
@@ -208,7 +223,15 @@ struct KeeperView: View {
         let flick: Double = min(1, max(0, 0.5 + 0.5 * tip))
         _ = reportSolveDone(t: t)
 
-        return keeperBody(flicker: flick, face: face, motion: m)
+        let wave = mood.flameWave
+        let outerBend = KeeperFlameWave.at(time: t, amplitude: wave.amplitude, frequency: wave.frequency,
+                                           splitMax: wave.splitMax, splitThreshold: wave.splitThreshold,
+                                           flicker: flick, reduceMotion: reduceMotion)
+        let coreBend = KeeperFlameWave.at(time: t, amplitude: wave.amplitude, frequency: wave.frequency,
+                                          splitMax: wave.splitMax, splitThreshold: wave.splitThreshold,
+                                          flicker: flick, reduceMotion: reduceMotion, lagCycles: 1.0 / 3.0)
+
+        return keeperBody(outerBend: outerBend, coreBend: coreBend, face: face, motion: m)
             .scaleEffect(x: sx, y: sy, anchor: .bottom)
             .rotationEffect(.degrees(m.rot), anchor: .bottom)
             .offset(x: CGFloat(m.x) * size, y: CGFloat(m.y) * size)
@@ -275,7 +298,8 @@ struct KeeperView: View {
 
     // MARK: Body
 
-    private func keeperBody(flicker: Double, face: KeeperFaceAnimator.Frame, motion m: WickMotion.Motion) -> some View {
+    private func keeperBody(outerBend: KeeperFlameBend, coreBend: KeeperFlameBend,
+                            face: KeeperFaceAnimator.Frame, motion m: WickMotion.Motion) -> some View {
         // 3.8: live accents on the face (pupils, brows, lids, tip) and a
         // colour that travels up the flame, bottom first.
         let f = KeeperFaces.accent(face.face, m)
@@ -285,13 +309,13 @@ struct KeeperView: View {
         let mid = face.color.color
         return ZStack {
             // Soft glow
-            KeeperChunkyFlameShape(flicker: flicker, tip: f.tip)
+            KeeperChunkyFlameShape(bend: outerBend, tip: f.tip)
                 .fill(mid.opacity(mood == .defeated ? 0.10 : 0.36))
                 .blur(radius: size * 0.115)
                 .scaleEffect(1.15)
 
             // Body: saturated and emissive, without glossy highlights that read as plastic.
-            KeeperChunkyFlameShape(flicker: flicker, tip: f.tip)
+            KeeperChunkyFlameShape(bend: outerBend, tip: f.tip)
                 .fill(
                     LinearGradient(
                         stops: [
@@ -304,7 +328,7 @@ struct KeeperView: View {
                 )
 
             // Inner flame: one tone step lighter than the body.
-            KeeperPlateShape(flicker: flicker)
+            KeeperPlateShape(bend: coreBend)
                 .fill(KeeperFaces.plateRGB(face.color).color)
 
             // The face: brows, heavy lids, under-eye bags, eyes, mouth

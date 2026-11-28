@@ -309,29 +309,129 @@ export function browKey(c: RGB): RGB {
 /** The inner flame (lighter core) in art units, for clipping the face shading. */
 export const PLATE_ART = "M511.5 448.0 C585.0 490.4 655.9 540.0 655.9 657.5 C655.9 776.5 598.8 841.0 511.5 841.0 C425.2 841.0 368.1 776.5 368.1 657.5 C368.1 540.0 439.0 490.4 511.5 448.0 Z";
 
-/** The chunky flame outline in viewBox units, fitted to the icon art. `lean` is
- *  the tip's sideways lean (the flicker), `tip` the face's tip reaction. */
-export function chunkyFlamePath(lean = 0, tip: TipP = { dx: 0, dy: 0, sharp: 1 }): string {
-  const f = (v: number): string => (Math.round(v * 10) / 10).toString();
-  const tx = 48 + lean + tip.dx, ty = 4 + tip.dy;
-  const trail = -lean * 0.62;
-  const valley = -lean * 0.22;
-  const tipWing = 6 + 6 * tip.sharp;
-  return `M60 124 C37 124 16 109 16 68 ` +
-    `C16 43 31 25 ${f(tx)} ${f(ty)} ` +
-    `C${f(tx + tipWing * 0.58)} ${f(ty + 7)} ${f(58 + valley)} 18 ${f(63 + valley)} 24 ` +
-    `C${f(68 + trail)} 20 ${f(77 + trail)} 14 ${f(82 + trail)} 14 ` +
-    `C${f(90 + trail)} 25 104 42 104 68 C104 109 83 124 60 124 Z`;
+/** Independent offsets along both licks. Tips travel roughly twice as far as
+ *  their middle controls, creating a travelling S-bend while the base stays put. */
+export interface FlameBend {
+  mainTip: number;
+  mainMid: number;
+  secondaryTip: number;
+  secondaryMid: number;
+  valley: number;
+  thirdTip: number;
+  thirdMid: number;
+  split: number;
 }
 
-/** A real hot core: the same two-lick flame at roughly 55% scale, shifted up. */
-export function innerFlamePath(lean = 0): string {
+export const STILL_FLAME_BEND: FlameBend = {
+  mainTip: 0, mainMid: 0, secondaryTip: 0, secondaryMid: 0, valley: 0,
+  thirdTip: 0, thirdMid: 0, split: 0,
+};
+
+interface FlamePoint { x: number; y: number }
+interface FlameCurve { p0: FlamePoint; c1: FlamePoint; c2: FlamePoint; p3: FlamePoint }
+interface FlameLickParameters {
+  base: FlamePoint;
+  tip: FlamePoint;
+  width: number;
+  curl: number;
+  phase: number;
+}
+
+/** Geometry, not path text: both renderers use these same two authored licks. */
+export const FLAME_LICKS: readonly FlameLickParameters[] = [
+  { base: { x: 16, y: 68 }, tip: { x: 48, y: 4 }, width: 32, curl: -17, phase: 0 },
+  { base: { x: 63, y: 24 }, tip: { x: 82, y: 14 }, width: 19, curl: 8, phase: 2.05 },
+];
+
+const pt = (x: number, y: number): FlamePoint => ({ x, y });
+const mixPoint = (a: FlamePoint, b: FlamePoint, t: number): FlamePoint => pt(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t);
+
+function splitCurve(c: FlameCurve, t: number): [FlameCurve, FlameCurve] {
+  const a = mixPoint(c.p0, c.c1, t), b = mixPoint(c.c1, c.c2, t), d = mixPoint(c.c2, c.p3, t);
+  const e = mixPoint(a, b, t), f = mixPoint(b, d, t), m = mixPoint(e, f, t);
+  return [{ p0: c.p0, c1: a, c2: e, p3: m }, { p0: m, c1: f, c2: d, p3: c.p3 }];
+}
+
+function offset(p: FlamePoint, x: number, y: number): FlamePoint { return pt(p.x + x, p.y + y); }
+
+/** `a`, pushed out smoothly once `b` passes it. Exactly `a` while `b <= a`
+ *  (so the still flame is unchanged), then eases in over `k` units so the
+ *  outline never jumps from frame to frame. */
+function softMax(a: number, b: number, k: number): number {
+  const x = b - a;
+  if (x <= 0) return a;
+  return a + (x < k ? (x * x) / (2 * k) : x - k / 2);
+}
+
+/** Split the dominant lick's outer edge into three permanent cubic segments.
+ * At split=0 de Casteljau subdivision reproduces the old curve exactly. */
+function dominantOuterCurves(bend: FlameBend, tip: TipP): FlameCurve[] {
+  const main = FLAME_LICKS[0]!;
+  const target = pt(main.tip.x + bend.mainTip + tip.dx, main.tip.y + tip.dy);
+  const whole: FlameCurve = {
+    p0: main.base,
+    c1: pt(main.base.x, main.base.y - 25),
+    c2: pt(target.x + main.curl + bend.mainMid, target.y + 21),
+    p3: target,
+  };
+  const [first, tail] = splitCurve(whole, 0.74);
+  const [middle, last] = splitCurve(tail, (0.88 - 0.74) / (1 - 0.74));
+  const s = bend.split;
+  if (s <= 0) return [first, middle, last];
+  const tipDX = s * (-4.5 + bend.thirdTip * 0.25);
+  const tipDY = -4.5 * s;
+  const valleyDX = s * (-1 + bend.thirdMid * 0.12);
+  const valleyDY = 6 * s;
+  first.c2 = offset(first.c2, tipDX * 0.45, tipDY * 0.35);
+  first.p3 = offset(first.p3, tipDX, tipDY);
+  middle.p0 = first.p3;
+  middle.c1 = offset(middle.c1, tipDX * 0.8, tipDY * 0.75);
+  middle.c2 = offset(middle.c2, valleyDX * 0.7, valleyDY * 0.75);
+  middle.p3 = offset(middle.p3, valleyDX, valleyDY);
+  last.p0 = middle.p3;
+  last.c1 = offset(last.c1, valleyDX * 0.8, valleyDY * 0.7);
+  return [first, middle, last];
+}
+
+function flameOutlinePath(bend: FlameBend, tip: TipP, scale = 1, shiftY = 0): string {
+  const main = FLAME_LICKS[0]!, secondary = FLAME_LICKS[1]!;
+  const curves: FlameCurve[] = [
+    { p0: pt(60, 124), c1: pt(37, 124), c2: pt(16, 109), p3: main.base },
+    ...dominantOuterCurves(bend, tip),
+  ];
+  const tx = main.tip.x + bend.mainTip + tip.dx, ty = main.tip.y + tip.dy;
+  const tipWing = 6 + 6 * tip.sharp;
+  // When the tip swings far right (boiling), keep the shoulder's inner control
+  // to the right of the tip's wing, so the edge never folds back into a hook.
+  // The valley between the two licks rides along with the main tip, so a big
+  // boiling swing does not crowd the valley into a small hook beside the tip.
+  const ride = bend.mainTip * 0.45;
+  const valleyX = secondary.base.x + bend.valley + ride;
+  const wingX = tx + tipWing * 0.58;
+  const shoulderX = softMax(58 + bend.mainMid * 0.45 + ride, wingX + 1.5, 2);
+  curves.push(
+    { p0: pt(tx, ty), c1: pt(wingX, ty + 7), c2: pt(shoulderX, 18), p3: pt(valleyX, secondary.base.y) },
+    { p0: pt(valleyX, secondary.base.y), c1: pt(softMax(68 + bend.secondaryMid + ride, valleyX + 1.5, 2), 20), c2: pt(secondary.tip.x - secondary.width * 0.26 + bend.secondaryMid, secondary.tip.y), p3: pt(secondary.tip.x + bend.secondaryTip, secondary.tip.y) },
+    { p0: pt(secondary.tip.x + bend.secondaryTip, secondary.tip.y), c1: pt(secondary.tip.x + secondary.width * 0.42 + bend.secondaryMid, 25), c2: pt(104, 42), p3: pt(104, 68) },
+    { p0: pt(104, 68), c1: pt(104, 109), c2: pt(83, 124), p3: pt(60, 124) },
+  );
+  const tr = (p: FlamePoint): FlamePoint => pt(60 + (p.x - 60) * scale, 124 + (p.y - 124) * scale + shiftY);
   const f = (v: number): string => (Math.round(v * 10) / 10).toString();
-  const main = lean * 0.55, trail = -lean * 0.34, valley = -lean * 0.12;
-  return `M60 116 C47 116 36 108 36 86 C36 72 44 59 ${f(54 + main)} 47 ` +
-    `C${f(58 + main)} 52 ${f(60 + valley)} 57 ${f(62 + valley)} 60 ` +
-    `C${f(66 + trail)} 57 ${f(70 + trail)} 54 ${f(73 + trail)} 53 ` +
-    `C78 62 84 73 84 86 C84 108 73 116 60 116 Z`;
+  const start = tr(curves[0]!.p0);
+  return `M${f(start.x)} ${f(start.y)} ` + curves.map((c) => {
+    const a = tr(c.c1), b = tr(c.c2), d = tr(c.p3);
+    return `C${f(a.x)} ${f(a.y)} ${f(b.x)} ${f(b.y)} ${f(d.x)} ${f(d.y)}`;
+  }).join(" ") + " Z";
+}
+
+/** One connected outline. Its point count is constant at every split value. */
+export function chunkyFlamePath(bend: FlameBend = STILL_FLAME_BEND, tip: TipP = { dx: 0, dy: 0, sharp: 1 }): string {
+  return flameOutlinePath(bend, tip);
+}
+
+/** The same connected outline at 55%, shifted upward to form the hot core. */
+export function innerFlamePath(bend: FlameBend = STILL_FLAME_BEND): string {
+  return flameOutlinePath(bend, { dx: 0, dy: 0, sharp: 1 }, 0.55, -8);
 }
 
 /** The inner flame at rest, used by static share art. */
@@ -658,7 +758,7 @@ function escAttr(v: string): string { return v.replace(/"/g, "&quot;"); }
  */
 export function wickStillMarkup(face: FaceName, color: RGB, id: string, opts: { sparks?: boolean } = {}): string {
   const f = FACES[face];
-  const d = chunkyFlamePath(0, f.tip);
+  const d = chunkyFlamePath(STILL_FLAME_BEND, f.tip);
   const top = lighten(color, 0.12), bot = rgb(color);
   const items = faceDrawList(f, f.eyes.map((e) => e.closed), color);
   const paths = items.map((it) => {

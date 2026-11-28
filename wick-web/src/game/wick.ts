@@ -39,7 +39,7 @@
 
 import {
   type Mood, type RGB, type FaceName, type FaceP, type TipP, moodFor, moodRGB, lighten, rgb, starPath, PALETTE,
-  FACES, FACE_TRANSFORM, PLATE_ART, PLATE_PATH, chunkyFlamePath, innerFlamePath, faceDrawList, faceFor, lerpFace, swapBlink, swapMorph,
+  type FlameBend, FACES, FACE_TRANSFORM, PLATE_ART, PLATE_PATH, chunkyFlamePath, innerFlamePath, faceDrawList, faceFor, lerpFace, swapBlink, swapMorph,
   solveMorph, accentFace,
   SOLVE_DONE, SOLVE_HIT, SOLVE_RM_DONE, solveFace, solveRing, solveScale, solveSparks,
 } from "./wickface.ts";
@@ -66,9 +66,9 @@ export const SIZE = 120;
 /** Where the flame's feet are. Every transform pivots here. */
 export const BASE_X = 60;
 export const BASE_Y = 124;
-/** How far the tip leans across the full flicker, in viewBox units. Gentler than
- *  the old thin flame (0.22 x 102) so the chunky silhouette stays true to the art. */
+/** Authored reaction bias and the base ambient wave, in viewBox units. */
 const LEAN = 0.09 * 102;
+const WAVE = LEAN * 0.42;
 
 // ── pure math ───────────────────────────────────────────────────────────────
 //
@@ -77,17 +77,52 @@ const LEAN = 0.09 * 102;
 //  stateless helpers the canvas, the replay and the Motion Studio use.
 
 /**
- * The flame outline: the chunky flame from the approved icon art (see
- * chunkyFlamePath in wickface.ts). `flicker` is 0..1; the tip leans by
- * (flicker - 0.5) * LEAN. `tip` is the face's tip reaction.
+ * Mood-scaled, time-driven bend. Each lick has its own phase; each middle
+ * control lags its tip so the crown bends instead of tilting as one piece.
  */
-export function flamePath(flicker: number, tip?: TipP): string {
-  return chunkyFlamePath((flicker - 0.5) * LEAN, tip);
+export function flameBendAt(t: number, mood: WickMood | "cool", flicker = 0.5,
+  reduceMotion = false, lagCycles = 0): FlameBend {
+  const amplitudes: Record<WickMood | "cool", number> = {
+    idle: 0.4, freezing: 0.4, cold: 0.6, cool: 0.8, warm: 1, hot: 1.4,
+    boiling: 2, celebrating: 2, unamused: 0.4,
+  };
+  const frequencies: Record<WickMood | "cool", number> = {
+    idle: 0.42, freezing: 0.45, cold: 0.55, cool: 0.65, warm: 0.75, hot: 0.92,
+    boiling: 1.15, celebrating: 1.15, unamused: 0.4,
+  };
+  const rmScale = reduceMotion ? 0.22 : amplitudes[mood];
+  const hz = reduceMotion ? 0.32 : frequencies[mood];
+  const p = 2 * Math.PI * (t * hz - lagCycles);
+  const secondary = p * 1.11 + 2.05;
+  const third = p * 0.83 + 4.1;
+  const a = WAVE * rmScale;
+  const bias = (flicker - 0.5) * LEAN;
+  const splitWave = Math.sin(2 * Math.PI * (t * 0.24 - lagCycles) + 0.35);
+  const splitThreshold = mood === "hot" ? 0.72 : 0.18;
+  const splitMax = mood === "hot" ? 0.42 : mood === "boiling" || mood === "celebrating" ? 1 : 0;
+  const splitRaw = Math.max(0, (splitWave - splitThreshold) / (1 - splitThreshold));
+  const split = reduceMotion ? 0 : splitMax * splitRaw * splitRaw * (3 - 2 * splitRaw);
+  return {
+    mainTip: a * Math.sin(p) + bias,
+    mainMid: a * 0.48 * Math.sin(p - 0.88) + bias * 0.42,
+    secondaryTip: a * 0.68 * Math.sin(secondary) - bias * 0.34,
+    secondaryMid: a * 0.32 * Math.sin(secondary - 0.76) - bias * 0.14,
+    valley: a * 0.18 * Math.sin(p - 0.42),
+    thirdTip: a * 0.72 * Math.sin(third),
+    thirdMid: a * 0.31 * Math.sin(third - 0.81),
+    split,
+  };
 }
 
-/** The smaller hot core follows the same crown flicker as the outer flame. */
-export function coreFlamePath(flicker: number): string {
-  return innerFlamePath((flicker - 0.5) * LEAN);
+export function flamePath(t: number, mood: WickMood | "cool", flicker = 0.5,
+  tip?: TipP, reduceMotion = false): string {
+  return chunkyFlamePath(flameBendAt(t, mood, flicker, reduceMotion), tip);
+}
+
+/** The hot core follows one third of a cycle behind the outer crown. */
+export function coreFlamePath(t: number, mood: WickMood | "cool", flicker = 0.5,
+  reduceMotion = false): string {
+  return innerFlamePath(flameBendAt(t, mood, flicker, reduceMotion, 1 / 3));
 }
 
 /** The motion channel `tip` (-1..1) as a flicker (0..1). */
@@ -587,16 +622,15 @@ function frame(i: Inst, t: number, rm: boolean): void {
   const face = accentFace(face0, mo);
   const closure = face.eyes.map((ey, k) => Math.max(ey.closed, blink, swap, Math.max(0, k === 0 ? mo.ll : mo.lr)));
 
-  // The silhouette: only rewrite the path when the lean or the tip changed.
+  // The crown flows continuously with time. Rebuild it every frame; the broad
+  // body, face and base coordinates remain unchanged.
   const tipKey = `${face.tip.dx.toFixed(2)},${face.tip.dy.toFixed(2)},${face.tip.sharp.toFixed(3)}`;
-  if (Math.abs(pose.flicker - i.lastFlicker) > 0.002 || tipKey !== i.lastTip) {
-    i.lastFlicker = pose.flicker;
-    i.lastTip = tipKey;
-    i.lastPath = flamePath(pose.flicker, face.tip);
-    i.body.setAttribute("d", i.lastPath);
-    i.glow.setAttribute("d", i.lastPath);
-    i.plate.setAttribute("d", coreFlamePath(pose.flicker));
-  }
+  i.lastFlicker = pose.flicker;
+  i.lastTip = tipKey;
+  i.lastPath = flamePath(t, i.mood, pose.flicker, face.tip, rm);
+  i.body.setAttribute("d", i.lastPath);
+  i.glow.setAttribute("d", i.lastPath);
+  i.plate.setAttribute("d", coreFlamePath(t, i.mood, pose.flicker, rm));
 
   // Colour: it travels up the flame, bottom first, behind the closed lids.
   colorWipe(t - i.colorAt, rm, i.wipe);
@@ -665,7 +699,7 @@ export function mountWick(host: HTMLElement, opts: WickOptions): Wick {
   const t0 = now();
   const race = !!opts.race, focus = !!opts.focus;
   const startFace = faceFor({ mood, race, focus });
-  const d0 = flamePath(0.5, FACES[startFace].tip);
+  const d0 = flamePath(t0, mood, 0.5, FACES[startFace].tip, false);
   const glow = svgEl("path", {
     class: "flame-glow", d: d0, fill: rgb(color), opacity: 0.36, filter: `url(#soft-${id})`,
     transform: `translate(${BASE_X} ${BASE_Y}) scale(1.15) translate(${-BASE_X} ${-BASE_Y})`,

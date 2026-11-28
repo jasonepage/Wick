@@ -21,45 +21,13 @@ nonisolated enum KeeperFaceCG {
 
     /// The asymmetric flame, in viewBox units. The same curve as
     /// KeeperChunkyFlameShape (KeeperFace.swift); keep the two in step.
-    static func flamePath(flicker: Double, tip: KeeperTip) -> CGPath {
-        let lean: Double = (flicker - 0.5) * KeeperFaces.lean
-        let tx: Double = 48 + lean + tip.dx
-        let ty: Double = 4 + tip.dy
-        let trail: Double = -lean * 0.62
-        let valley: Double = -lean * 0.22
-        let tipWing: Double = 6 + 6 * tip.sharp
-        let path = CGMutablePath()
-        path.move(to: CGPoint(x: 60, y: 124))
-        path.addCurve(to: CGPoint(x: 16, y: 68),
-                      control1: CGPoint(x: 37, y: 124), control2: CGPoint(x: 16, y: 109))
-        path.addCurve(to: CGPoint(x: tx, y: ty),
-                      control1: CGPoint(x: 16, y: 43), control2: CGPoint(x: 31, y: 25))
-        path.addCurve(to: CGPoint(x: 63 + valley, y: 24),
-                      control1: CGPoint(x: tx + tipWing * 0.58, y: ty + 7), control2: CGPoint(x: 58 + valley, y: 18))
-        path.addCurve(to: CGPoint(x: 82 + trail, y: 14),
-                      control1: CGPoint(x: 68 + trail, y: 20), control2: CGPoint(x: 77 + trail, y: 14))
-        path.addCurve(to: CGPoint(x: 104, y: 68),
-                      control1: CGPoint(x: 90 + trail, y: 25), control2: CGPoint(x: 104, y: 42))
-        path.addCurve(to: CGPoint(x: 60, y: 124),
-                      control1: CGPoint(x: 104, y: 109), control2: CGPoint(x: 83, y: 124))
-        path.closeSubpath()
-        return path
+    static func flamePath(bend: KeeperFlameBend, tip: KeeperTip) -> CGPath {
+        KeeperFlameGeometry.path(bend: bend, tip: tip)
     }
 
     /// The inner flame (lighter core), in viewBox units. Same as KeeperPlateShape.
-    static func platePath(flicker: Double) -> CGPath {
-        let lean = (flicker - 0.5) * KeeperFaces.lean
-        let main = lean * 0.55, trail = -lean * 0.34, valley = -lean * 0.12
-        let path = CGMutablePath()
-        path.move(to: CGPoint(x: 60, y: 116))
-        path.addCurve(to: CGPoint(x: 36, y: 86), control1: CGPoint(x: 47, y: 116), control2: CGPoint(x: 36, y: 108))
-        path.addCurve(to: CGPoint(x: 54 + main, y: 47), control1: CGPoint(x: 36, y: 72), control2: CGPoint(x: 44, y: 59))
-        path.addCurve(to: CGPoint(x: 62 + valley, y: 60), control1: CGPoint(x: 58 + main, y: 52), control2: CGPoint(x: 60 + valley, y: 57))
-        path.addCurve(to: CGPoint(x: 73 + trail, y: 53), control1: CGPoint(x: 66 + trail, y: 57), control2: CGPoint(x: 70 + trail, y: 54))
-        path.addCurve(to: CGPoint(x: 84, y: 86), control1: CGPoint(x: 78, y: 62), control2: CGPoint(x: 84, y: 73))
-        path.addCurve(to: CGPoint(x: 60, y: 116), control1: CGPoint(x: 84, y: 108), control2: CGPoint(x: 73, y: 116))
-        path.closeSubpath()
-        return path
+    static func platePath(bend: KeeperFlameBend) -> CGPath {
+        KeeperFlameGeometry.path(bend: bend, tip: KeeperTip(dx: 0, dy: 0, sharp: 1), scale: 0.55, shiftY: -8)
     }
 
     static func cgColor(_ c: KeeperRGB, _ alpha: CGFloat = 1) -> CGColor {
@@ -75,7 +43,14 @@ nonisolated enum KeeperFaceCG {
     /// current transform.
     static func drawWick(in ctx: CGContext, face: KeeperFace, closure: [Double], color: KeeperRGB,
                          flicker: Double, glowBlur: CGFloat, glowAlpha: CGFloat) {
-        let flame: CGPath = flamePath(flicker: flicker, tip: face.tip)
+        let bias = (flicker - 0.5) * KeeperFaces.lean
+        let outerBend = KeeperFlameBend(mainTip: bias, mainMid: bias * 0.42,
+                                        secondaryTip: -bias * 0.34, secondaryMid: -bias * 0.14,
+                                        valley: 0, thirdTip: 0, thirdMid: 0, split: 0)
+        let coreBend = KeeperFlameBend(mainTip: bias * 0.55, mainMid: bias * 0.22,
+                                       secondaryTip: -bias * 0.18, secondaryMid: -bias * 0.08,
+                                       valley: 0, thirdTip: 0, thirdMid: 0, split: 0)
+        let flame: CGPath = flamePath(bend: outerBend, tip: face.tip)
 
         // Glow: a soft shadow of the flame in its own colour.
         ctx.saveGState()
@@ -100,7 +75,7 @@ nonisolated enum KeeperFaceCG {
         ctx.restoreGState()
 
         // The inner flame: one tone step lighter (white at 22%).
-        ctx.addPath(platePath(flicker: flicker))
+        ctx.addPath(platePath(bend: coreBend))
         ctx.setFillColor(cgColor(lighten(color, 0.22)))
         ctx.fillPath()
 
